@@ -7,7 +7,7 @@ from ibformers.data.tokenize import tokenize
 
 
 # TODO: find out if we can get rid of InstabaseSDK for opening ibdocs
-from ibformers.data.utils import norm_bboxes_for_layoutlm
+from ibformers.data.transform import norm_bboxes_for_layoutlm
 
 
 class InstabaseSDK:

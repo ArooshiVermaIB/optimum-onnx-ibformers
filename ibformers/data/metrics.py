@@ -3,7 +3,6 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 from datasets import load_metric
-import torch
 
 
 def compute_metrics_for_sl(eval_preds, eval_dataset):
@@ -26,6 +25,9 @@ def compute_metrics_for_sl(eval_preds, eval_dataset):
     pred_prob = np.exp(preds) / np.sum(np.exp(preds), axis=-1, keepdims=True)
     pred_conf = np.max(pred_prob, axis=-1)
     pred_class_index = np.argmax(pred_prob, axis=-1)
+
+    # temporary fix for old version of transformers in IB
+    eval_dataset._output_all_columns = True
 
     predictions = {}
 
@@ -59,6 +61,8 @@ def compute_metrics_for_sl(eval_preds, eval_dataset):
                         'avg_confidence': np.mean([w['conf'] for w in words])}
                     for k, words in doc_words_dict.items()}
         predictions[doc['id']] = doc_dict
+
+    eval_dataset._output_all_columns = False
 
     # Remove ignored index (special tokens)
     true_predictions = [

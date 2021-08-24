@@ -12,14 +12,6 @@ class InstabaseSDK:
         self.file_client = file_client
         self.username = username
 
-    # def __dict__(self):
-    #     return {"file_client": str(self.file_client),
-    #             "username": self.username}
-    #
-    # def __getstate__(self):
-    #     return {"file_client": str(self.file_client),
-    #             "username": self.username}
-
     def ibopen(self, path: str, mode: str = 'r', **kwargs) -> IBFileBase:
         result = ibfile.ibopen(path, mode, file_client=self.file_client, username=self.username)
         return result
@@ -69,13 +61,6 @@ class IbLogCallback(TrainerCallback):
             metrics['f1'] = kwargs["metrics"]['eval_f1']
             self.set_status({"evaluation_results": metrics,
                              "progress": state.global_step / state.max_steps})
-
-            # generate predictions & print it to the logger
-            assert 'eval_dataloader' in kwargs, 'Eval dataloder is missing in order to generate predictions'
-
-
-
-
 
 
 @dataclass

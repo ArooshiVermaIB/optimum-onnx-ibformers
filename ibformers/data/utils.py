@@ -1,11 +1,8 @@
-from typing import List, Tuple, TypeVar
-
 import numpy as np
 from fuzzysearch import find_near_matches
-from typing_extensions import TypedDict
 
 
-def iterate_in_batch(fn):
+def feed_single_example(fn):
     def split_batch(batch, **kwargs):
         batch_keys = list(batch.keys())
         len_of_batch = len(batch[batch_keys[0]])
@@ -13,10 +10,22 @@ def iterate_in_batch(fn):
         for i in range(len_of_batch):
             item_dict = {k: v[i] for k, v in batch.items()}
             out = fn(item_dict, **kwargs)
+            if out is None:
+                continue
             outs.append(out)
         out_keys = [] if len(out) == 0 else list(outs[0].keys())
-        return convert_to_dict_of_lists(outs, out_keys)
+        dict_of_lists = convert_to_dict_of_lists(outs, out_keys)
+        batch.update(dict_of_lists)
+        return batch
     return split_batch
+
+
+def feed_batch(fn):
+    def update_batch(batch, **kwargs):
+        out = fn(batch, **kwargs)
+        batch.update(out)
+        return batch
+    return update_batch
 
 
 def convert_to_dict_of_lists(list_of_dicts, keys):
@@ -102,37 +111,3 @@ def recalculate_spans(orig_spans_batch, word_map_batch):
 
     return recalculated_spans_batch
 
-
-class _NormBboxesInput(TypedDict):
-    bboxes: List[List[List[int]]]
-    page_bboxes: List[List[List[int]]]
-
-
-T = TypeVar('T', bound=_NormBboxesInput)
-
-
-def norm_bboxes_for_layoutlm(example_batch: T, **kwargs) -> T:
-    bboxes_batch = []
-    page_bboxes_batch = []
-    for bboxes, page_bboxes, page_spans in zip(example_batch['bboxes'],
-                                               example_batch['page_bboxes'],
-                                               example_batch['page_spans']):
-        norm_bboxes, norm_page_bboxes = _norm_bboxes_for_layoutlm(bboxes, page_bboxes, page_spans)
-        bboxes_batch.append(norm_bboxes)
-        page_bboxes_batch.append(norm_page_bboxes)
-
-    return {'bboxes': bboxes_batch,
-            'page_bboxes': page_bboxes_batch}
-
-
-def _norm_bboxes_for_layoutlm(bboxes: List[List[int]],
-                              page_bboxes: List[List[int]],
-                              page_spans: List[Tuple[int, int]]) -> Tuple[List[List[float]], List[List[float]]]:
-    norm_bboxes = np.array(bboxes)
-    norm_page_bboxes = np.array(page_bboxes)
-    for (_, _, _, page_height), (page_start_i, page_end_i) in zip(page_bboxes, page_spans):
-        norm_bboxes[page_start_i:page_end_i, [1, 3]] = norm_bboxes[page_start_i:page_end_i, [1, 3]] // page_height
-
-    norm_page_bboxes[:, 3] = 1000
-
-    return norm_bboxes, norm_page_bboxes

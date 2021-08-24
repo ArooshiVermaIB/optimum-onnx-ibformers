@@ -1,39 +1,62 @@
+from typing import List, TypeVar, Tuple
+
 import numpy as np
+from typing_extensions import TypedDict
 
-from ibformers.data.utils import convert_to_dict_of_lists, tag_answer_in_doc
+from ibformers.data.utils import convert_to_dict_of_lists, tag_answer_in_doc, feed_single_example
 
 
-def fuzzy_tag_in_document(example_batch):
+@feed_single_example
+def fuzzy_tag_in_document(example, **kwargs):
     # try to find an answer inside the text of the document
     # example will be skipped in case of no spans found
-
-    new_batch = []
-    for example_num in range(len(example_batch['id'])):
-        example = {k: v[example_num] for k, v in example_batch.items()}
-        answers = tag_answer_in_doc(words=example['words'], answer=example['answer'])
-        if len(answers) == 0:
-            continue
-        else:
-            example['detected_answers'] = answers
-            new_batch.append(example)
-
-    new_keys = list(example.keys()) + ['detected_answers']
-    dict_batch = convert_to_dict_of_lists(new_batch, new_keys)
-
-    return dict_batch
+    answers = tag_answer_in_doc(words=example['words'], answer=example['answer'])
+    if len(answers) == 0:
+        return None
+    else:
+        return {'detected_answers': answers}
 
 
-def add_token_labels_qa(example_batch, **kwargs):
-    batch_token_labels = []
+@feed_single_example
+def add_token_labels_qa(example, **kwargs):
+    token_starts = example["token_starts"]
+    answers = example["detected_answers"]
+    token_label_ids = np.zeros((len(token_starts)))
+    for ans in answers:
+        # look for indexes of the tokens which contain start and end of matched text
+        start_idx = np.searchsorted(token_starts, ans["start"] + 1, 'left') - 1
+        end_idx = np.searchsorted(token_starts, ans["end"], 'left')
+        token_label_ids[start_idx:end_idx] = 1
 
-    for token_starts, answers in zip(example_batch["token_starts"], example_batch["detected_answers"]):
-        token_label_ids = np.zeros((len(token_starts)))
-        for ans in answers:
-            # look for indexes of the tokens which contain start and end of matched text
-            start_idx = np.searchsorted(token_starts, ans["start"] + 1, 'left') - 1
-            end_idx = np.searchsorted(token_starts, ans["end"], 'left')
-            token_label_ids[start_idx:end_idx] = 1
+    return {'token_label_ids': token_label_ids}
 
-        batch_token_labels.append(token_label_ids)
 
-    return {'token_label_ids': batch_token_labels}
+class _NormBboxesInput(TypedDict):
+    bboxes: List[List[int]]
+    page_bboxes: List[List[int]]
+
+
+T = TypeVar('T', bound=_NormBboxesInput)
+
+
+@feed_single_example
+def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
+
+    bboxes, page_bboxes, page_spans = example['bboxes'], example['page_bboxes'], example['page_spans']
+    norm_bboxes, norm_page_bboxes = _norm_bboxes_for_layoutlm(bboxes, page_bboxes, page_spans)
+
+    return {'bboxes': norm_bboxes,
+            'page_bboxes': norm_page_bboxes}
+
+
+def _norm_bboxes_for_layoutlm(bboxes: List[List[int]],
+                              page_bboxes: List[List[int]],
+                              page_spans: List[Tuple[int, int]]) -> Tuple[List[List[float]], List[List[float]]]:
+    norm_bboxes = np.array(bboxes)
+    norm_page_bboxes = np.array(page_bboxes)
+    for (_, _, _, page_height), (page_start_i, page_end_i) in zip(page_bboxes, page_spans):
+        norm_bboxes[page_start_i:page_end_i, [1, 3]] = norm_bboxes[page_start_i:page_end_i, [1, 3]] // page_height
+
+    norm_page_bboxes[:, 3] = 1000
+
+    return norm_bboxes, norm_page_bboxes
