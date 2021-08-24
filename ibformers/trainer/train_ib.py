@@ -22,32 +22,33 @@ Fine-tuning the library models for token classification.
 import logging
 import os
 import sys
+import tempfile
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Dict, Any
+from pathlib import Path
 
 import datasets
 import numpy as np
-from datasets import ClassLabel, load_dataset, load_metric
+from datasets import ClassLabel, load_dataset
 
 import transformers
 from transformers import (
     AutoConfig,
     AutoModelForTokenClassification,
     AutoTokenizer,
-    DataCollatorForTokenClassification,
     HfArgumentParser,
     PreTrainedTokenizerFast,
-    Trainer,
     TrainingArguments,
-    set_seed,
-)
+    set_seed, )
 from transformers.trainer_utils import get_last_checkpoint
-from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
-
+from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
+from ibformers.datasets import DATASETS_PATH
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.10.0.dev0")
+# check_min_version("4.10.0.dev0")
+from ibformers.trainer.ib_utils import IbLogCallback, IbArguments, InstabaseSDK
+from ibformers.trainer.trainer_old import IbTrainer
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
 
@@ -110,12 +111,6 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
     )
-    text_column_name: Optional[str] = field(
-        default=None, metadata={"help": "The column name of text to input in the file (a csv or JSON file)."}
-    )
-    label_column_name: Optional[str] = field(
-        default=None, metadata={"help": "The column name of label to input in the file (a csv or JSON file)."}
-    )
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
@@ -172,7 +167,8 @@ class DataTrainingArguments:
     )
 
     def __post_init__(self):
-        if self.dataset_name_or_path is None and self.train_file is None and self.validation_file is None:            raise ValueError("Need either a dataset name or a training/validation file.")
+        if self.dataset_name_or_path is None and self.train_file is None and self.validation_file is None:
+            raise ValueError("Need either a dataset name or a training/validation file.")
         else:
             if self.train_file is not None:
                 extension = self.train_file.split(".")[-1]
@@ -183,18 +179,88 @@ class DataTrainingArguments:
         self.task_name = self.task_name.lower()
 
 
-def main():
+def prepare_ib_params(
+    hyperparams: Dict,
+    dataset_filename: str,
+    save_path: str,
+    file_client: Any,
+    username: str,
+    job_status_client: 'JobStatusClient',
+    mount_details: Optional[Dict] = None,
+    model_name: str = 'CustomModel'
+) -> Dict:
+    out_dict = {}
+    if 'do_train' not in hyperparams:
+        out_dict['do_train'] = True
+    if 'do_eval' not in hyperparams:
+        out_dict['do_eval'] = True
+    out_dict['num_train_epochs'] = hyperparams['epochs']
+    out_dict['per_device_train_batch_size'] = int(hyperparams['batch_size'])
+    out_dict['learning_rate'] = hyperparams['learning_rate']
+    out_dict['max_grad_norm'] = hyperparams['max_grad_norm']
+    out_dict['fp16'] = hyperparams['use_mixed_precision']
+    out_dict['no_cuda'] = not hyperparams['use_gpu']
+    out_dict['warmup_ratio'] = hyperparams['warmup']
+    out_dict['weight_decay'] = hyperparams['weight_decay']
+    out_dict['report_to'] = 'none'
+    out_dict['logging_strategy'] = 'epoch'
+    out_dict['evaluation_strategy'] = 'epoch'
+
+    out_dict['dataset_name_or_path'] = 'ibds'
+    out_dict['model_name_or_path'] = 'microsoft/layoutlm-base-uncased'
+    out_dict['dataset_config_name'] = 'ibds'
+
+    out_dict['train_file'] = dataset_filename
+    temp_dir = tempfile.TemporaryDirectory().name
+    out_dict['output_dir'] = temp_dir
+    out_dict['ib_save_path'] = save_path
+
+    out_dict['overwrite_output_dir'] = False
+    out_dict['return_entity_level_metrics'] = True
+
+    out_dict['username'] = username
+    out_dict['file_client'] = file_client
+    out_dict['job_status_client'] = job_status_client
+    out_dict['mount_details'] = mount_details
+    out_dict['model_name'] = model_name
+
+    return out_dict
+
+
+def run_train(
+    hyperparams: Optional[Dict] = None,
+    dataset_filename: Optional[str] = None,
+    save_path: Optional[str] = None,
+    file_client: Optional[Any] = None,
+    username: Optional[str] = None,
+    job_status_client: Optional['JobStatusClient'] = None,
+    mount_details: Optional[Dict] = None,
+    model_name: Optional[str] = 'CustomModel',
+    **kwargs: Any,
+):
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    # scripts support both running from model-training-tasks and running from shell
+    if hyperparams is not None:
+        assert dataset_filename is not None
+        assert save_path is not None
+        # assert file_client is not None
+        assert username is not None
+        assert job_status_client is not None
+
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, IbArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, ib_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+    elif hyperparams is not None:
+        hparams_dict = prepare_ib_params(hyperparams, dataset_filename, save_path, file_client,
+                                         username, job_status_client, mount_details, model_name)
+        model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, ib_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -203,7 +269,8 @@ def main():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    log_level = training_args.get_process_log_level()
+    # log_level = training_args.get_process_log_level()
+    log_level = logging.INFO
     logger.setLevel(log_level)
     datasets.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.set_verbosity(log_level)
@@ -244,108 +311,48 @@ def main():
     #
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
-    if data_args.dataset_name_or_path is not None:
-        # Downloading and loading a dataset from the hub.
+    data_files = {}
+    if data_args.train_file is not None:
+        data_files["train"] = data_args.train_file
+    if data_args.validation_file is not None:
+        data_files["validation"] = data_args.validation_file
+    if data_args.test_file is not None:
+        data_files["test"] = data_args.test_file
+
+    # Downloading and loading a dataset from the hub or from local datasets
+    ds_path = Path(DATASETS_PATH) / data_args.dataset_name_or_path
+    name_to_use = str(ds_path) if ds_path.is_dir() else data_args.dataset_name_or_path
+
+    if ib_args.file_client is not None:
+        ibsdk = InstabaseSDK(ib_args.file_client, "rafal.powalski")
+        # ibsdk = ib_args.file_client
+
         raw_datasets = load_dataset(
-            path=data_args.dataset_name_or_path,
+            path=name_to_use,
             name=data_args.dataset_config_name,
-            cache_dir=model_args.cache_dir
+            cache_dir=model_args.cache_dir,
+            data_files=data_files,
+            ibsdk=ibsdk,
         )
     else:
-        data_files = {}
-        if data_args.train_file is not None:
-            data_files["train"] = data_args.train_file
-        if data_args.validation_file is not None:
-            data_files["validation"] = data_args.validation_file
-        if data_args.test_file is not None:
-            data_files["test"] = data_args.test_file
-        extension = data_args.train_file.split(".")[-1]
-        raw_datasets = load_dataset(extension,
-                                    data_files=data_files,
-                                    cache_dir=model_args.cache_dir)
-    # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
-    # https://huggingface.co/docs/datasets/loading_datasets.html.
-
-    if training_args.do_train:
-        column_names = raw_datasets["train"].column_names
-        features = raw_datasets["train"].features
-    else:
-        column_names = raw_datasets["validation"].column_names
-        features = raw_datasets["validation"].features
-
-    if data_args.text_column_name is not None:
-        text_column_name = data_args.text_column_name
-    elif "tokens" in column_names:
-        text_column_name = "tokens"
-    else:
-        text_column_name = column_names[0]
-
-    if data_args.label_column_name is not None:
-        label_column_name = data_args.label_column_name
-    elif f"{data_args.task_name}_tags" in column_names:
-        label_column_name = f"{data_args.task_name}_tags"
-    else:
-        label_column_name = column_names[1]
-
-    # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
-    # unique labels.
-    def get_label_list(labels):
-        unique_labels = set()
-        for label in labels:
-            unique_labels = unique_labels | set(label)
-        label_list = list(unique_labels)
-        label_list.sort()
-        return label_list
-
-    if isinstance(features[label_column_name].feature, ClassLabel):
-        label_list = features[label_column_name].feature.names
-        # No need to convert the labels since they are already ints.
-        label_to_id = {i: i for i in range(len(label_list))}
-    else:
-        label_list = get_label_list(raw_datasets["train"][label_column_name])
-        label_to_id = {l: i for i, l in enumerate(label_list)}
-    num_labels = len(label_list)
+        raw_datasets = load_dataset(
+            path=name_to_use,
+            name=data_args.dataset_config_name,
+            cache_dir=model_args.cache_dir,
+            data_files=data_files,
+        )
 
     # Load pretrained model and tokenizer
     #
     # Distributed training:
     # The .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
-    config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        num_labels=num_labels,
-        label2id=label_to_id,
-        id2label={i: l for l, i in label_to_id.items()},
-        finetuning_task=data_args.task_name,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
-
     tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
-    if config.model_type in {"gpt2", "roberta"}:
-        tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_name_or_path,
-            cache_dir=model_args.cache_dir,
-            use_fast=True,
-            revision=model_args.model_revision,
-            use_auth_token=True if model_args.use_auth_token else None,
-            add_prefix_space=True,
-        )
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_name_or_path,
-            cache_dir=model_args.cache_dir,
-            use_fast=True,
-            revision=model_args.model_revision,
-            use_auth_token=True if model_args.use_auth_token else None,
-        )
 
-    model = AutoModelForTokenClassification.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
+    tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer_name_or_path,
         cache_dir=model_args.cache_dir,
+        use_fast=True,
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
@@ -360,40 +367,18 @@ def main():
 
     # Preprocessing the dataset
     # Padding strategy
-    padding = "max_length" if data_args.pad_to_max_length else False
 
-    # Tokenize all texts and align the labels with them.
-    def tokenize_and_align_labels(examples):
-        tokenized_inputs = tokenizer(
-            examples[text_column_name],
-            padding=padding,
-            truncation=True,
-            max_length=data_args.max_seq_length,
-            # We use this argument because the texts in our dataset are lists of words (with a label for each word).
-            is_split_into_words=True,
-        )
-        labels = []
-        for i, label in enumerate(examples[label_column_name]):
-            word_ids = tokenized_inputs.word_ids(batch_index=i)
-            previous_word_idx = None
-            label_ids = []
-            for word_idx in word_ids:
-                # Special tokens have a word id that is None. We set the label to -100 so they are automatically
-                # ignored in the loss function.
-                if word_idx is None:
-                    label_ids.append(-100)
-                # We set the label for the first token of each word.
-                elif word_idx != previous_word_idx:
-                    label_ids.append(label_to_id[label[word_idx]])
-                # For the other tokens in a word, we set the label to either the current label or -100, depending on
-                # the label_all_tokens flag.
-                else:
-                    label_ids.append(label_to_id[label[word_idx]] if data_args.label_all_tokens else -100)
-                previous_word_idx = word_idx
-
-            labels.append(label_ids)
-        tokenized_inputs["labels"] = labels
-        return tokenized_inputs
+    fn_kwargs = {'tokenizer': tokenizer,
+                 'padding': 'max_length' if data_args.pad_to_max_length else False,
+                 'max_length': data_args.max_seq_length
+                 }
+    map_kwargs = {'num_proc': data_args.preprocessing_num_workers,
+                  'load_from_cache_file': not data_args.overwrite_cache,
+                  'fn_kwargs': fn_kwargs
+                  }
+    pipeline = PIPELINES['layoutlm_sl']
+    collate_fn = pipeline["collate"]
+    compute_metrics = pipeline['compute_metrics']
 
     if training_args.do_train:
         if "train" not in raw_datasets:
@@ -401,14 +386,9 @@ def main():
         train_dataset = raw_datasets["train"]
         if data_args.max_train_samples is not None:
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
-        with training_args.main_process_first(desc="train dataset map pre-processing"):
-            train_dataset = train_dataset.map(
-                tokenize_and_align_labels,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on train dataset",
-            )
+        # TODO: uncomment once transformers version will be updated
+        # with training_args.main_process_first(desc="train dataset map pre-processing"):
+        train_dataset = prepare_dataset(train_dataset, pipeline, **map_kwargs)
 
     if training_args.do_eval:
         if "validation" not in raw_datasets:
@@ -416,14 +396,8 @@ def main():
         eval_dataset = raw_datasets["validation"]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
-        with training_args.main_process_first(desc="validation dataset map pre-processing"):
-            eval_dataset = eval_dataset.map(
-                tokenize_and_align_labels,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on validation dataset",
-            )
+        # with training_args.main_process_first(desc="validation dataset map pre-processing"):
+        eval_dataset = prepare_dataset(eval_dataset, pipeline, **map_kwargs)
 
     if training_args.do_predict:
         if "test" not in raw_datasets:
@@ -431,56 +405,64 @@ def main():
         predict_dataset = raw_datasets["test"]
         if data_args.max_predict_samples is not None:
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
-        with training_args.main_process_first(desc="prediction dataset map pre-processing"):
-            predict_dataset = predict_dataset.map(
-                tokenize_and_align_labels,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on prediction dataset",
-            )
+        # with training_args.main_process_first(desc="prediction dataset map pre-processing"):
+        predict_dataset = prepare_dataset(predict_dataset, pipeline, **map_kwargs)
 
     # Data collator
-    data_collator = DataCollatorForTokenClassification(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
+    data_collator = collate_fn(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
 
-    # Metrics
-    metric = load_metric("seqeval")
+    if training_args.do_train:
+        column_names = train_dataset.column_names
+        features = train_dataset.features
+    else:
+        column_names = eval_dataset.column_names
+        features = eval_dataset.features
 
-    def compute_metrics(p):
-        predictions, labels = p
-        predictions = np.argmax(predictions, axis=2)
+    # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
+    # unique labels.
+    def get_label_list(labels):
+        unique_labels = set()
+        for label in labels:
+            unique_labels = unique_labels | set(label)
+        label_list = list(unique_labels)
+        label_list.sort()
+        return label_list
 
-        # Remove ignored index (special tokens)
-        true_predictions = [
-            [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
-        ]
-        true_labels = [
-            [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
-        ]
+    if isinstance(features['labels'].feature, ClassLabel):
+        label_list = features['labels'].feature.names
+        # No need to convert the labels since they are already ints.
+        label_to_id = {i: i for i in range(len(label_list))}
+    else:
+        label_list = get_label_list(train_dataset['labels'])
+        label_to_id = {l: i for i, l in enumerate(label_list)}
+    num_labels = len(label_list)
 
-        results = metric.compute(predictions=true_predictions, references=true_labels)
-        if data_args.return_entity_level_metrics:
-            # Unpack nested dictionaries
-            final_results = {}
-            for key, value in results.items():
-                if isinstance(value, dict):
-                    for n, v in value.items():
-                        final_results[f"{key}_{n}"] = v
-                else:
-                    final_results[key] = value
-            return final_results
-        else:
-            return {
-                "precision": results["overall_precision"],
-                "recall": results["overall_recall"],
-                "f1": results["overall_f1"],
-                "accuracy": results["overall_accuracy"],
-            }
+    config = AutoConfig.from_pretrained(
+        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+        num_labels=num_labels,
+        label2id=label_to_id,
+        id2label={i: l for l, i in label_to_id.items()},
+        finetuning_task=data_args.task_name,
+        cache_dir=model_args.cache_dir,
+        revision=model_args.model_revision,
+        use_auth_token=True if model_args.use_auth_token else None,
+    )
+
+    model = AutoModelForTokenClassification.from_pretrained(
+        model_args.model_name_or_path,
+        from_tf=bool(".ckpt" in model_args.model_name_or_path),
+        config=config,
+        cache_dir=model_args.cache_dir,
+        revision=model_args.model_revision,
+        use_auth_token=True if model_args.use_auth_token else None,
+    )
+
+    callbacks = []
+    if ib_args.job_status_client is not None:
+        callbacks.append(IbLogCallback(ib_args.job_status_client))
 
     # Initialize our Trainer
-    trainer = Trainer(
+    trainer = IbTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
@@ -488,15 +470,17 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
+        callbacks=callbacks,
     )
 
     # Training
     if training_args.do_train:
         checkpoint = None
-        if training_args.resume_from_checkpoint is not None:
-            checkpoint = training_args.resume_from_checkpoint
-        elif last_checkpoint is not None:
-            checkpoint = last_checkpoint
+        # TODO: remove once transforemrs lib is updated
+        # if training_args.resume_from_checkpoint is not None:
+        #     checkpoint = training_args.resume_from_checkpoint
+        # elif last_checkpoint is not None:
+        #     checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
         trainer.save_model()  # Saves the tokenizer too for easy upload
@@ -519,7 +503,7 @@ def main():
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
-        trainer.log_metrics("eval", metrics)
+        # trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
     # Predict
@@ -535,7 +519,7 @@ def main():
             for prediction, label in zip(predictions, labels)
         ]
 
-        trainer.log_metrics("predict", metrics)
+        # trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
 
         # Save predictions
@@ -545,23 +529,58 @@ def main():
                 for prediction in true_predictions:
                     writer.write(" ".join(prediction) + "\n")
 
-    if training_args.push_to_hub:
-        kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "token-classification"}
-        if data_args.dataset_name_or_path is not None:
-            kwargs["dataset_tags"] = data_args.dataset_name_or_path
-            if data_args.dataset_config_name is not None:
-                kwargs["dataset_args"] = data_args.dataset_config_name
-                kwargs["dataset"] = f"{data_args.dataset_name_or_path} {data_args.dataset_config_name}"
-            else:
-                kwargs["dataset"] = data_args.dataset_name_or_path
 
-        trainer.push_to_hub(**kwargs)
+class InstabaseSDKDummy:
+    def __init__(self, file_client: Any, username: str):
+        # these will be ignored
+        self.file_client = file_client
+        self.username = username
+    def ibopen(self, path: str, mode: str = 'r') -> Any:
+        return open(path, mode)
+    def read_file(self, file_path: str) -> str:
+        with open(file_path) as f:
+            return f.read()
+    def write_file(self, file_path: str, content: str):
+        with open(file_path, 'w') as f:
+            f.write(content)
+
+class JobStatus:
+    def __init__ (self):
+        pass
+
+    def update_job_status(self, task_name=None, task_data=None, task_state=None):
+        if task_name:
+            print(task_name)
+        if task_data:
+            print(task_data)
+        if task_state:
+            print(task_state)
 
 
 def _mp_fn(index):
     # For xla_spawn (TPUs)
-    main()
+    run_train()
 
 
 if __name__ == "__main__":
-    main()
+
+    hyperparams = {
+        "adam_epsilon": 1e-8,
+        "batch_size": 2,
+        "chunk_size": 510,
+        "epochs": 10,
+        "learning_rate": 5e-05,
+        "loss_agg_steps": 1,
+        "max_grad_norm": 1.0,
+        "optimizer_type": "AdamW",
+        "scheduler_type": "constant_schedule_with_warmup",
+        "stride": 64,
+        "use_gpu": False,
+        "use_mixed_precision": False,
+        "warmup": 0.0,
+        "weight_decay": 0,
+    }
+    dataset_filename = '/Users/rafalpowalski/python/annotation/uber/UberEats.ibannotator'
+    save_path = '/Users/rafalpowalski/python/testqa/scripts/layout_lm_lib/data/saved_model'
+    sdk = InstabaseSDKDummy(None, "rpowalski")
+    run_train(hyperparams, dataset_filename, save_path, None, 'rpowalski', JobStatus())

@@ -33,10 +33,10 @@ class OcrDoc:
 def norm_bbox(bbox, width):
     # divide only by width to keep information about ratio
     return (
-        bbox[0] / width,
-        bbox[1] / width,
-        bbox[2] / width,
-        bbox[3] / width,
+        (bbox[0] * 1000) / width,
+        (bbox[1] * 1000) / width,
+        (bbox[2] * 1000) / width,
+        (bbox[3] * 1000) / width,
     )
 
 
@@ -124,11 +124,11 @@ class Docvqa(datasets.GeneratorBasedBuilder):
                     "id": datasets.Value("string"),
                     "image_id": datasets.Value("string"),
                     "words": datasets.Sequence(datasets.Value("string")),
-                    "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("float"), length=4)),
-                    "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("float"), length=4)),
-                    "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int64"), length=2)),
+                    "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+                    "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+                    "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
                     "question": datasets.Value("string"),
-                    "anwers": datasets.Value("string"),
+                    "answers": datasets.Value("string"),
                     # These are the features of your dataset like images, labels ...
                 }
             ),

@@ -1,18 +1,19 @@
 import numpy as np
 
-from ibformers.data.utils import spread_with_mapping, recalculate_spans
+from ibformers.data.utils import spread_with_mapping, recalculate_spans, iterate_in_batch
 
 
-def tokenize(example_batch, tokenizer, **kwargs):
+def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
     # Tokenize contexts and questions (as pairs of inputs)
     encodings = tokenizer(example_batch['words'],
                           is_split_into_words=True,
                           return_offsets_mapping=True,
                           add_special_tokens=False,
                           return_token_type_ids=False,
-                          # TODO: remove this once splitter processors are developed
-                          max_length=512,
-                          padding=False,
+                          return_special_tokens_mask=True,
+                          # TODO: remove this once chunk splitter processors will be developed
+                          max_length=max_length,
+                          padding=padding,
                           )
 
     # add token offsets for a document
@@ -36,7 +37,7 @@ def tokenize(example_batch, tokenizer, **kwargs):
     encodings["token_character_starts"] = batch_token_starts
     encodings["word_map"] = batch_word_map
 
-    # bboxes need to be spreaded
+    # bboxes need to be spread
     if 'bboxes' in example_batch:
         encodings['bboxes'] = spread_with_mapping(example_batch['bboxes'], encodings['word_map'])
 
@@ -58,4 +59,32 @@ def tokenize(example_batch, tokenizer, **kwargs):
             new_token_spans = recalculate_spans(tokens_span, word_map)
             entities_batch[i]['token_spans'] = new_token_spans
         encodings['entities'] = entities_batch
+
     return encodings
+
+
+def fill_special_tokens(arr, special_mask, fill_value):
+    new_dims = [len(special_mask)] + list(arr.shape[1:])
+    filled = np.full_like(arr, shape=new_dims, fill_value=fill_value)
+    filled[np.logical_not(special_mask)] = arr
+
+    return filled
+
+
+@iterate_in_batch
+def produce_chunks(example, tokenizer, max_length, chunking_strategy="FIRST_ONLY", **kwargs):
+
+    assert chunking_strategy == "FIRST_ONLY", "Only FIRST_ONLY chunking strategy is supported"
+
+    chunks = tokenizer.prepare_for_model(example["input_ids"], max_length=max_length,
+                                         add_special_tokens=True)
+    special_mask = np.array(tokenizer.get_special_tokens_mask(chunks["input_ids"], already_has_special_tokens=True))
+    chunks['special_tokens_mask'] = special_mask
+
+    if 'bboxes' in example:
+        chunks["bboxes"] = fill_special_tokens(np.array(example["bboxes"]), special_mask, 0)
+
+    if 'token_label_ids' in example:
+        chunks['token_label_ids'] = fill_special_tokens(np.array(example['token_label_ids']), special_mask, -100)
+
+    return chunks

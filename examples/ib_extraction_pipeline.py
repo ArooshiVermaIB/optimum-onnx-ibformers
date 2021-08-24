@@ -36,7 +36,10 @@ dataset = load_dataset(path='/Users/rafalpowalski/python/ibformers/ibformers/dat
 tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
 tokenized_dataset = dataset.map(tokenize, batched=True, batch_size=32, fn_kwargs={"tokenizer": tokenizer})
 
-blah = tokenized_dataset.map(norm_bboxes_for_layoutlm, batched=True, batch_size=32)
+blah = tokenized_dataset.map(norm_bboxes_for_layoutlm, batched=True, batch_size=32, fn_kwargs={"tokenizer": tokenizer})
+
+
+blah2 = blah.rename_column("token_label_ids", "labels")
 
 
 

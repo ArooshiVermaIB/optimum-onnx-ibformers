@@ -5,6 +5,20 @@ from fuzzysearch import find_near_matches
 from typing_extensions import TypedDict
 
 
+def iterate_in_batch(fn):
+    def split_batch(batch, **kwargs):
+        batch_keys = list(batch.keys())
+        len_of_batch = len(batch[batch_keys[0]])
+        outs = []
+        for i in range(len_of_batch):
+            item_dict = {k: v[i] for k, v in batch.items()}
+            out = fn(item_dict, **kwargs)
+            outs.append(out)
+        out_keys = [] if len(out) == 0 else list(outs[0].keys())
+        return convert_to_dict_of_lists(outs, out_keys)
+    return split_batch
+
+
 def convert_to_dict_of_lists(list_of_dicts, keys):
     v = {k: [dic[k] for dic in list_of_dicts] for k in keys}
     return v
@@ -90,14 +104,14 @@ def recalculate_spans(orig_spans_batch, word_map_batch):
 
 
 class _NormBboxesInput(TypedDict):
-    bboxes: List[List[List[float]]]
-    page_bboxes: List[List[List[float]]]
+    bboxes: List[List[List[int]]]
+    page_bboxes: List[List[List[int]]]
 
 
 T = TypeVar('T', bound=_NormBboxesInput)
 
 
-def norm_bboxes_for_layoutlm(example_batch: T) -> T:
+def norm_bboxes_for_layoutlm(example_batch: T, **kwargs) -> T:
     bboxes_batch = []
     page_bboxes_batch = []
     for bboxes, page_bboxes, page_spans in zip(example_batch['bboxes'],
@@ -111,16 +125,14 @@ def norm_bboxes_for_layoutlm(example_batch: T) -> T:
             'page_bboxes': page_bboxes_batch}
 
 
-def _norm_bboxes_for_layoutlm(bboxes: List[List[float]],
-                              page_bboxes: List[List[float]],
+def _norm_bboxes_for_layoutlm(bboxes: List[List[int]],
+                              page_bboxes: List[List[int]],
                               page_spans: List[Tuple[int, int]]) -> Tuple[List[List[float]], List[List[float]]]:
     norm_bboxes = np.array(bboxes)
     norm_page_bboxes = np.array(page_bboxes)
     for (_, _, _, page_height), (page_start_i, page_end_i) in zip(page_bboxes, page_spans):
-        norm_bboxes[page_start_i:page_end_i, [1, 3]] = norm_bboxes[page_start_i:page_end_i, [1, 3]] / page_height
+        norm_bboxes[page_start_i:page_end_i, [1, 3]] = norm_bboxes[page_start_i:page_end_i, [1, 3]] // page_height
 
-    norm_bboxes = (norm_bboxes * 1000).round().astype(np.int)
-    norm_page_bboxes[:, 3] = 1
-    norm_page_bboxes *= 1000
+    norm_page_bboxes[:, 3] = 1000
 
     return norm_bboxes, norm_page_bboxes
