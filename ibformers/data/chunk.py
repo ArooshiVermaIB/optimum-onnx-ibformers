@@ -12,11 +12,17 @@ def produce_chunks(example, tokenizer, max_length, chunking_strategy="FIRST_ONLY
     special_mask = np.array(tokenizer.get_special_tokens_mask(chunks["input_ids"], already_has_special_tokens=True))
     chunks['special_tokens_mask'] = special_mask
 
+    max_len_wo_special = len(special_mask) - special_mask.sum()
+    chunks['offset_mapping'] = example['offset_mapping'][:max_len_wo_special]
+    chunks['word_map'] = example['word_map'][:max_len_wo_special]
+
     if 'bboxes' in example:
-        chunks["bboxes"] = fill_special_tokens(np.array(example["bboxes"]), special_mask, 0)
+        chunks["bboxes"] = np.array(example["bboxes"])[:max_len_wo_special]
+        chunks["bboxes"] = fill_special_tokens(chunks["bboxes"], special_mask, 0)
 
     if 'token_label_ids' in example:
-        chunks['token_label_ids'] = fill_special_tokens(np.array(example['token_label_ids']), special_mask, -100)
+        chunks["token_label_ids"] = np.array(example["token_label_ids"])[:max_len_wo_special]
+        chunks['token_label_ids'] = fill_special_tokens(chunks["token_label_ids"], special_mask, -100)
 
     return chunks
 

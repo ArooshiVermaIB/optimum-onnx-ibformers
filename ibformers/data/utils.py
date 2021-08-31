@@ -3,6 +3,13 @@ from fuzzysearch import find_near_matches
 
 
 def feed_single_example(fn):
+    """
+    Examples processed by map method of hf/datasets are processed in batches.
+    This is a helper function/decorator to use if you want to get single examples instead of
+    whole batch
+    :param fn: function to decorate
+    :return: batch of examples updated with function results
+    """
     def split_batch(batch, **kwargs):
         batch_keys = list(batch.keys())
         len_of_batch = len(batch[batch_keys[0]])
@@ -21,6 +28,12 @@ def feed_single_example(fn):
 
 
 def feed_batch(fn):
+    """
+    Function which is wrapped by this decorator might return only part of keys delivered in the input
+    This function is making sure that we return both modified/added data and unchanged data from the input
+    :param fn: function to decorate
+    :return: batch of examples updated with function results
+    """
     def update_batch(batch, **kwargs):
         out = fn(batch, **kwargs)
         batch.update(out)

@@ -11,9 +11,6 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
                           return_offsets_mapping=True,
                           add_special_tokens=False,
                           return_token_type_ids=False,
-                          return_special_tokens_mask=True,
-                          # TODO: remove this once chunk splitter processors will be developed
-                          max_length=max_length,
                           padding=padding,
                           )
 

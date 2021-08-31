@@ -29,7 +29,7 @@ from pathlib import Path
 
 import datasets
 import numpy as np
-from datasets import ClassLabel, load_dataset
+from datasets import ClassLabel, load_dataset, concatenate_datasets
 
 import transformers
 from transformers import (
@@ -47,7 +47,7 @@ from ibformers.datasets import DATASETS_PATH
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.10.0.dev0")
-from ibformers.trainer.ib_utils import IbLogCallback, IbArguments, InstabaseSDK
+from ibformers.trainer.ib_utils import IbCallback, IbArguments, InstabaseSDK
 from ibformers.trainer.trainer_old import IbTrainer
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
@@ -189,11 +189,23 @@ def prepare_ib_params(
     mount_details: Optional[Dict] = None,
     model_name: str = 'CustomModel'
 ) -> Dict:
+    """
+    Map parameters used by model service to names used in the Trainer
+    :param hyperparams:
+    :param dataset_filename:
+    :param save_path:
+    :param file_client:
+    :param username:
+    :param job_status_client:
+    :param mount_details:
+    :param model_name:
+    :return:
+    """
     out_dict = {}
-    if 'do_train' not in hyperparams:
-        out_dict['do_train'] = True
-    if 'do_eval' not in hyperparams:
-        out_dict['do_eval'] = True
+
+    out_dict['do_train'] = True
+    out_dict['do_eval'] = False
+    out_dict['do_predict'] = True
     out_dict['num_train_epochs'] = hyperparams['epochs']
     out_dict['per_device_train_batch_size'] = int(hyperparams['batch_size'])
     out_dict['learning_rate'] = hyperparams['learning_rate']
@@ -202,9 +214,18 @@ def prepare_ib_params(
     out_dict['no_cuda'] = not hyperparams['use_gpu']
     out_dict['warmup_ratio'] = hyperparams['warmup']
     out_dict['weight_decay'] = hyperparams['weight_decay']
+    out_dict['max_seq_length'] = int(hyperparams['chunk_size'])
     out_dict['report_to'] = 'none'
     out_dict['logging_strategy'] = 'epoch'
     out_dict['evaluation_strategy'] = 'epoch'
+    out_dict['disable_tqdm'] = True
+    out_dict['logging_steps'] = 50
+    if hyperparams['scheduler_type'] == "constant_schedule_with_warmup":
+        out_dict['lr_scheduler_type'] = 'constant_with_warmup'
+    elif hyperparams['scheduler_type'] == 'linear_schedule_with_warmup':
+        out_dict['lr_scheduler_type'] = 'linear'
+    else:
+        out_dict['lr_scheduler_type'] = hyperparams['scheduler_type']
 
     out_dict['dataset_name_or_path'] = 'ibds'
     out_dict['model_name_or_path'] = 'microsoft/layoutlm-base-uncased'
@@ -261,6 +282,9 @@ def run_train(
         model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
     else:
         model_args, data_args, training_args, ib_args = parser.parse_args_into_dataclasses()
+
+    # create variable which idicate whether this is run by IB model service
+    ibtrain = ib_args.file_client is not None
 
     # Setup logging
     logging.basicConfig(
@@ -323,10 +347,12 @@ def run_train(
     ds_path = Path(DATASETS_PATH) / data_args.dataset_name_or_path
     name_to_use = str(ds_path) if ds_path.is_dir() else data_args.dataset_name_or_path
 
-    if ib_args.file_client is not None:
-        ibsdk = InstabaseSDK(ib_args.file_client, "rafal.powalski")
-        # ibsdk = ib_args.file_client
-
+    if ibtrain:
+        # for debugging
+        if isinstance(ib_args.file_client, InstabaseSDKDummy):
+            ibsdk = ib_args.file_client
+        else:
+            ibsdk = InstabaseSDK(ib_args.file_client, ib_args.username)
         raw_datasets = load_dataset(
             path=name_to_use,
             name=data_args.dataset_config_name,
@@ -458,8 +484,17 @@ def run_train(
     )
 
     callbacks = []
-    if ib_args.job_status_client is not None:
-        callbacks.append(IbLogCallback(ib_args.job_status_client))
+    if ibtrain:
+        callbacks.append(IbCallback(job_status_client=ib_args.job_status_client,
+                                    ibsdk=ibsdk,
+                                    username=ib_args.username,
+                                    mount_details=ib_args.mount_details,
+                                    model_name=ib_args.model_name,
+                                    ib_save_path=ib_args.ib_save_path,
+                                    ))
+    #
+    # def __init__(self, job_status_client: 'JobStatusClient', ibsdk: InstabaseSDK,
+    #              username: str, mount_details: Dict, model_name: str, ib_save_path: str):
 
     # Initialize our Trainer
     trainer = IbTrainer(
@@ -471,6 +506,7 @@ def run_train(
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         callbacks=callbacks,
+        post_process_function=None
     )
 
     # Training
@@ -483,7 +519,7 @@ def run_train(
         #     checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
-        trainer.save_model()  # Saves the tokenizer too for easy upload
+        trainer.save_model(os.path.join(training_args.output_dir, 'model'))  # Saves the tokenizer too for easy upload
 
         max_train_samples = (
             data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
@@ -511,50 +547,25 @@ def run_train(
         logger.info("*** Predict ***")
 
         predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict")
-        predictions = np.argmax(predictions, axis=2)
 
-        # Remove ignored index (special tokens)
-        true_predictions = [
-            [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
-        ]
+        # Callback is saving predictions, therefore below code is not needed
 
-        # trainer.log_metrics("predict", metrics)
-        trainer.save_metrics("predict", metrics)
-
-        # Save predictions
-        output_predictions_file = os.path.join(training_args.output_dir, "predictions.txt")
-        if trainer.is_world_process_zero():
-            with open(output_predictions_file, "w") as writer:
-                for prediction in true_predictions:
-                    writer.write(" ".join(prediction) + "\n")
-
-
-class InstabaseSDKDummy:
-    def __init__(self, file_client: Any, username: str):
-        # these will be ignored
-        self.file_client = file_client
-        self.username = username
-    def ibopen(self, path: str, mode: str = 'r') -> Any:
-        return open(path, mode)
-    def read_file(self, file_path: str) -> str:
-        with open(file_path) as f:
-            return f.read()
-    def write_file(self, file_path: str, content: str):
-        with open(file_path, 'w') as f:
-            f.write(content)
-
-class JobStatus:
-    def __init__ (self):
-        pass
-
-    def update_job_status(self, task_name=None, task_data=None, task_state=None):
-        if task_name:
-            print(task_name)
-        if task_data:
-            print(task_data)
-        if task_state:
-            print(task_state)
+        # predictions = np.argmax(predictions, axis=2)
+        # # Remove ignored index (special tokens)
+        # true_predictions = [
+        #     [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
+        #     for prediction, label in zip(predictions, labels)
+        # ]
+        #
+        # # trainer.log_metrics("predict", metrics)
+        # trainer.save_metrics("predict", metrics)
+        #
+        # # Save predictions
+        # output_predictions_file = os.path.join(training_args.output_dir, "predictions.txt")
+        # if trainer.is_world_process_zero():
+        #     with open(output_predictions_file, "w") as writer:
+        #         for prediction in true_predictions:
+        #             writer.write(" ".join(prediction) + "\n")
 
 
 def _mp_fn(index):
@@ -564,11 +575,43 @@ def _mp_fn(index):
 
 if __name__ == "__main__":
 
+    # below is for debugging with running locally
+    # this code is not reached via model service as it is directly calling run_train fn
+    class InstabaseSDKDummy:
+        def __init__(self, file_client: Any, username: str):
+            # these will be ignored
+            self.file_client = file_client
+            self.username = username
+
+        def ibopen(self, path: str, mode: str = 'r') -> Any:
+            return open(path, mode)
+
+        def read_file(self, file_path: str) -> str:
+            with open(file_path) as f:
+                return f.read()
+
+        def write_file(self, file_path: str, content: str):
+            with open(file_path, 'w') as f:
+                f.write(content)
+
+
+    class JobStatus:
+        def __init__(self):
+            pass
+
+        def update_job_status(self, task_name=None, task_data=None, task_state=None):
+            if task_name:
+                print(task_name)
+            if task_data:
+                print(task_data)
+            if task_state:
+                print(task_state)
+
     hyperparams = {
         "adam_epsilon": 1e-8,
         "batch_size": 2,
         "chunk_size": 510,
-        "epochs": 10,
+        "epochs": 1,
         "learning_rate": 5e-05,
         "loss_agg_steps": 1,
         "max_grad_norm": 1.0,
@@ -583,4 +626,4 @@ if __name__ == "__main__":
     dataset_filename = '/Users/rafalpowalski/python/annotation/uber/UberEats.ibannotator'
     save_path = '/Users/rafalpowalski/python/testqa/scripts/layout_lm_lib/data/saved_model'
     sdk = InstabaseSDKDummy(None, "rpowalski")
-    run_train(hyperparams, dataset_filename, save_path, None, 'rpowalski', JobStatus())
+    run_train(hyperparams, dataset_filename, save_path, sdk, 'rpowalski', JobStatus())

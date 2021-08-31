@@ -70,4 +70,8 @@ class DataCollatorWithBBoxesForTokenClassification:
             batch["labels"] = [[self.label_pad_token_id] * (sequence_length - len(label)) + label for label in labels]
 
         batch = {k: torch.tensor(v, dtype=torch.int64) for k, v in batch.items()}
+
+        # for k, v in batch.items():
+        #     print(f'{k}:{v.shape}')
+
         return batch

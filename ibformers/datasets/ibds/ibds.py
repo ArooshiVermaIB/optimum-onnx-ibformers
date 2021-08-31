@@ -141,7 +141,7 @@ class IbDsBuilderConfig(BuilderConfig):
             # stat_fn = self.ibsdk.stat if self.ibsdk is not None else os.path.getmtime
             # stat = str(stat_fn(self.data_files["train"]))
             open_fn = get_open_fn(self.ibsdk)
-            with open_fn(self.data_files["train"], 'r', encoding='utf-8') as annotation_file:
+            with open_fn(self.data_files["train"], 'r') as annotation_file:
                 content = json.load(annotation_file)
                 fingerprint_content = {k: v for k, v in content.items() if k in ('files', 'labels', 'testFiles')}
             m.update(self.data_files["train"])
@@ -318,7 +318,7 @@ class IbDs(datasets.GeneratorBasedBuilder):
         if isinstance(data_files, dict):
             data_files = list(data_files.values())
         open_fn = get_open_fn(self.config.ibsdk)
-        with open_fn(data_files[0], 'r', encoding='utf-8') as annotation_file:
+        with open_fn(data_files[0], 'r') as annotation_file:
             labels = json.load(annotation_file)["labels"]
 
         self.id2label = {lab["id"]: lab["name"] for lab in labels}
@@ -363,20 +363,27 @@ class IbDs(datasets.GeneratorBasedBuilder):
             data_files = list(data_files.values())
 
         open_fn = get_open_fn(self.config.ibsdk)
-        with open_fn(data_files[0], 'r', encoding='utf-8') as annotation_file:
+        with open_fn(data_files[0], 'r') as annotation_file:
             annotations = json.load(annotation_file)
 
         self.id2label = {lab["id"]: lab["name"] for lab in annotations["labels"]}
 
         # create generators for train and test
-        train_files = (file for file in annotations['files'] if file['id'] not in annotations['testFiles'])
-        val_files = (file for file in annotations['files'] if file['id'] in annotations['testFiles'])
+        train_files = (file for file in annotations['files']
+                       if file['id'] not in annotations['testFiles'] and len(file['annotations']) > 0)
+        val_files = (file for file in annotations['files']
+                     if file['id'] in annotations['testFiles'] and len(file['annotations']) > 0)
+        # test set is the sum of unannotated documents and validation set
+        test_files = (file for file in annotations['files']
+                      if len(file['annotations']) == 0 or file['id'] in annotations['testFiles'])
 
         return [
             datasets.SplitGenerator(name=datasets.Split.TRAIN,
                                     gen_kwargs={'files': train_files, 'open_fn': open_fn}),
             datasets.SplitGenerator(name=datasets.Split.VALIDATION,
                                     gen_kwargs={'files': val_files, 'open_fn': open_fn}),
+            datasets.SplitGenerator(name=datasets.Split.TEST,
+                                    gen_kwargs={'files': test_files, 'open_fn': open_fn}),
         ]
 
     def _generate_examples(self, files, open_fn):

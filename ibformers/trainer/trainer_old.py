@@ -1,4 +1,7 @@
 import collections
+
+import numpy as np
+from datasets import Dataset
 from transformers.utils import logging
 from typing import Optional, List, Union
 
@@ -17,6 +20,10 @@ class IbTrainer(Trainer):
     Copied from transformers to include few modifications inside the training loop
     Old trainer will be changed once transformers will be updated on ib
     """
+    def __init__(self, *args, post_process_function=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.post_process_function = post_process_function
+
     def prediction_loop(
         self,
         dataloader: DataLoader,
@@ -132,3 +139,15 @@ class IbTrainer(Trainer):
                 metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
 
         return PredictionOutput(predictions=preds, label_ids=label_ids, metrics=metrics)
+
+    def predict(
+        self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "eval"
+    ) -> PredictionOutput:
+        """
+        run predict method from original trainer but call on_predict callback in the end
+=
+        """
+        output = super().predict(test_dataset, ignore_keys, metric_key_prefix)
+        self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
+
+        return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
