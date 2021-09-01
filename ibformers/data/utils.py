@@ -1,3 +1,5 @@
+from typing import List, Any, Dict, Mapping, Callable
+
 import numpy as np
 from fuzzysearch import find_near_matches
 
@@ -10,7 +12,7 @@ def feed_single_example(fn):
     :param fn: function to decorate
     :return: batch of examples updated with function results
     """
-    def split_batch(batch, **kwargs):
+    def split_batch(batch, **kwargs) -> Dict[str, List[Any]]:
         batch_keys = list(batch.keys())
         len_of_batch = len(batch[batch_keys[0]])
         outs = []

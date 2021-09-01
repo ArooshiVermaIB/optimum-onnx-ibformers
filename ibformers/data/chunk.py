@@ -1,3 +1,5 @@
+from typing import TypeVar, List
+
 import numpy as np
 
 from ibformers.data.utils import feed_single_example, convert_to_dict_of_lists, feed_single_example_and_flatten
@@ -69,6 +71,8 @@ def first_only(example, tokenizer, max_length: int):
         chunks["token_label_ids"] = np.array(example["token_label_ids"])[:max_len_wo_special]
         chunks['token_label_ids'] = fill_special_tokens(chunks["token_label_ids"], special_mask, -100)
 
+    return [chunks]
+
     # return convert_to_dict_of_lists([chunks, chunks], keys=list(chunks.keys()))
 
 
@@ -86,3 +90,43 @@ def fill_special_tokens(arr, special_mask, fill_value):
     filled[np.logical_not(special_mask)] = arr
 
     return filled
+
+
+# Chunk with overlap
+# Chunking without crossing page boundaries
+# -> May lead to shit goin' down with things like relative biases
+
+# [[1,2], [3,4]] -> [1,2,3,4]
+
+
+S = TypeVar('S')
+
+
+def _chunk_with_overlap(input_list: List[S], chunk_size: int, overlap: int) -> List[List[S]]:
+    """
+    Chunk a list, with a fixed amount of overlap (equal to 'stride')
+
+    >>> _chunk_with_overlap(list(range(5)), chunk_size=10, overlap=0)
+    [[0, 1, 2, 3, 4]]
+
+    >>> _chunk_with_overlap(list(range(5)), chunk_size=2, overlap=0)
+    [[0, 1], [2, 3], [4]]
+
+    >>> _chunk_with_overlap(list(range(4)), chunk_size=2, overlap=0)
+    [[0, 1], [2, 3]]
+
+    >>> _chunk_with_overlap(list(range(10)), chunk_size=5, overlap=2)
+    [[0, 1, 2, 3, 4], [3, 4, 5, 6, 7], [6, 7, 8, 9]]
+    """
+    assert chunk_size > 0
+    assert overlap >= 0
+    assert overlap < chunk_size
+    if len(input_list) < chunk_size:
+        return [input_list]
+    l = []
+    i = 0
+    while i + overlap < len(input_list):
+        x = input_list[i: i + chunk_size]
+        l.append(x)
+        i += chunk_size - overlap
+    return l
