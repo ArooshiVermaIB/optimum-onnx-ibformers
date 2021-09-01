@@ -1,4 +1,4 @@
-from typing import TypeVar, List, Sequence, Any
+from typing import TypeVar, List, Sequence, Any, Mapping
 
 import numpy as np
 
@@ -6,7 +6,8 @@ from ibformers.data.utils import feed_single_example, convert_to_dict_of_lists, 
 
 
 @feed_single_example_and_flatten
-def produce_chunks(example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS", chunk_overlap=64, **kwargs):
+def produce_chunks(example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS",
+                   chunk_overlap=64, **kwargs) -> Sequence:
     if chunking_strategy == "FIRST_ONLY":
         return first_only(example, tokenizer, max_length)
     elif chunking_strategy == "ALL_CHUNKS":
@@ -15,7 +16,7 @@ def produce_chunks(example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS
         raise ValueError("Shit went down")
 
 
-def all_chunks(example, tokenizer, max_length: int, overlap: int):
+def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Mapping]:
     """
     Input ID: [1,2,3,4,5,6]
     Chunked: [1,2,3], [4,5,6]
@@ -30,20 +31,24 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int):
                                       chunk_size=max_length - 2,
                                       overlap=overlap) for k in keys_to_chunk if k in example}
 
+    # We want to keep track of how each chunk maps back to the full document, so we can
+    # map back during inference
     chunk_ranges = _chunk_with_overlap(list(range(len(example['input_ids']))),
                                        chunk_size=max_length - 2,
                                        overlap=overlap)
 
     chunked['chunk_ranges'] = [(i[0], i[-1]) for i in chunk_ranges]
 
-    tokenizer.prepare_for_model(example["input_ids"], max_length=max_length,
-                                add_special_tokens=True)
-
+    # This includes things like the document's ID
     other_keys = [i for i in list(example.keys()) if i not in keys_to_chunk]
+
+    # We're transposing now to make it easier to "flatten" the document into essentially independent examples
     transposed = [{k: v[i] for k, v in chunked.items()} for i, _ in enumerate(chunked['input_ids'])]
 
+    # TODO: we might want to chunk also global objects like words, images etc.
+    #  to not duplicate these large objects for each chunk
     transposed_plus_other_keys = [{**i, **{k: example[k] for k in other_keys}} for i in transposed]
-    processed = []
+
     for chunk in transposed_plus_other_keys:
         # For some reason, return_special_tokens_mask=True doesn't work correctly here...
         # doing it in two steps is a workaround
@@ -62,14 +67,7 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int):
         chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], special_mask, 0)
         chunk_processed['token_label_ids'] = fill_special_tokens(chunk["token_label_ids"], special_mask, -100)
 
-        processed.append(chunk_processed)
-
-
-
-    # TODO: we might want to chunk also global objects like words, images etc.
-    #  to not duplicate these large objects for each chunk
-
-    return processed
+        yield chunk_processed
 
 
 def first_only(example, tokenizer, max_length: int):
