@@ -15,8 +15,8 @@ def chain(example_batch, fn_lst, **kwargs):
     return example_batch
 
 
-def pipeline_preprocess(dataset, fn_lst, chain_functions=True,
-                        fn_kwargs={}, batch_size=128, num_proc=4, **map_kwargs):
+def pipeline_preprocess(dataset, fn_lst, chain_functions=False,
+                        fn_kwargs=None, batch_size=128, num_proc=4, **map_kwargs):
     """
     :param dataset: hf/dataset used for preprocessing
     :param fn_lst: list of functions to apply (via map method) to the dataset
@@ -27,6 +27,8 @@ def pipeline_preprocess(dataset, fn_lst, chain_functions=True,
     :param map_kwargs: additional parameters passed to map method
     :return: preprocessed hf/dataset
     """
+    if fn_kwargs is None:
+        fn_kwargs = {}
     ds = dataset
     if chain_functions:
         fn_lst = [partial(chain, fn_lst=fn_lst)]
