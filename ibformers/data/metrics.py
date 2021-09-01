@@ -113,6 +113,7 @@ def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
     final_results['precision']['_Overall'] = results["overall_precision"]
     final_results['recall']['_Overall'] = results["overall_recall"]
     final_results['f1']['_Overall'] = results["overall_f1"]
+    print("EVALUATION RESULTS")
     print(pd.DataFrame(final_results))
 
     # get prediction dict and print mismatches

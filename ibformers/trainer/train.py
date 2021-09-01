@@ -125,6 +125,13 @@ class DataTrainingArguments:
             "than this will be truncated, sequences shorter will be padded."
         },
     )
+    chunk_overlap: int = field(
+        default=None,
+        metadata={
+            "help": "Overlap needed for producing multiple chunks"
+        },
+    )
+
     pad_to_max_length: bool = field(
         default=False,
         metadata={
@@ -215,6 +222,7 @@ def prepare_ib_params(
     out_dict['warmup_ratio'] = hyperparams['warmup']
     out_dict['weight_decay'] = hyperparams['weight_decay']
     out_dict['max_seq_length'] = int(hyperparams['chunk_size'])
+    out_dict['chunk_overlap'] = int(hyperparams['stride'])
     out_dict['report_to'] = 'none'
     out_dict['logging_strategy'] = 'epoch'
     out_dict['evaluation_strategy'] = 'epoch'
@@ -396,7 +404,8 @@ def run_train(
 
     fn_kwargs = {'tokenizer': tokenizer,
                  'padding': 'max_length' if data_args.pad_to_max_length else False,
-                 'max_length': data_args.max_seq_length
+                 'max_length': data_args.max_seq_length,
+                 'chunk_overlap': data_args.chunk_overlap,
                  }
     map_kwargs = {'num_proc': data_args.preprocessing_num_workers,
                   'load_from_cache_file': not data_args.overwrite_cache,
@@ -491,6 +500,7 @@ def run_train(
                                     mount_details=ib_args.mount_details,
                                     model_name=ib_args.model_name,
                                     ib_save_path=ib_args.ib_save_path,
+                                    upload=ib_args.upload,
                                     ))
     #
     # def __init__(self, job_status_client: 'JobStatusClient', ibsdk: InstabaseSDK,
@@ -573,29 +583,29 @@ def _mp_fn(index):
     run_train()
 
 
+# below is for debugging with running locally
+# this code is not reached via model service as it is directly calling run_train fn
+class InstabaseSDKDummy:
+    def __init__(self, file_client: Any, username: str):
+        # these will be ignored
+        self.file_client = file_client
+        self.username = username
+
+    def ibopen(self, path: str, mode: str = 'r') -> Any:
+        return open(path, mode)
+
+    def read_file(self, file_path: str) -> str:
+        with open(file_path) as f:
+            return f.read()
+
+    def write_file(self, file_path: str, content: str):
+        with open(file_path, 'w') as f:
+            f.write(content)
+
+
 if __name__ == "__main__":
 
-    # below is for debugging with running locally
-    # this code is not reached via model service as it is directly calling run_train fn
-    class InstabaseSDKDummy:
-        def __init__(self, file_client: Any, username: str):
-            # these will be ignored
-            self.file_client = file_client
-            self.username = username
-
-        def ibopen(self, path: str, mode: str = 'r') -> Any:
-            return open(path, mode)
-
-        def read_file(self, file_path: str) -> str:
-            with open(file_path) as f:
-                return f.read()
-
-        def write_file(self, file_path: str, content: str):
-            with open(file_path, 'w') as f:
-                f.write(content)
-
-
-    class JobStatus:
+    class DummyJobStatus:
         def __init__(self):
             pass
 
@@ -610,14 +620,14 @@ if __name__ == "__main__":
     hyperparams = {
         "adam_epsilon": 1e-8,
         "batch_size": 2,
-        "chunk_size": 510,
-        "epochs": 1,
+        "chunk_size": 64,
+        "epochs": 5,
         "learning_rate": 5e-05,
         "loss_agg_steps": 1,
         "max_grad_norm": 1.0,
         "optimizer_type": "AdamW",
         "scheduler_type": "constant_schedule_with_warmup",
-        "stride": 64,
+        "stride": 8,
         "use_gpu": False,
         "use_mixed_precision": False,
         "warmup": 0.0,
@@ -626,4 +636,4 @@ if __name__ == "__main__":
     dataset_filename = '/Users/rafalpowalski/python/annotation/uber/UberEats.ibannotator'
     save_path = '/Users/rafalpowalski/python/testqa/scripts/layout_lm_lib/data/saved_model'
     sdk = InstabaseSDKDummy(None, "rpowalski")
-    run_train(hyperparams, dataset_filename, save_path, sdk, 'rpowalski', JobStatus())
+    run_train(hyperparams, dataset_filename, save_path, sdk, 'rpowalski', DummyJobStatus())

@@ -62,6 +62,9 @@ layoutlm_sl = {'preprocess': [tokenize, norm_bboxes_for_layoutlm, produce_chunks
                'model_class': AutoModelForTokenClassification,
                'compute_metrics': compute_metrics_for_sl}
 
+
+
+
 # TODO: add AutoModel type to pipeline dict
 
 PIPELINES = {'layoutlm_sl': layoutlm_sl}

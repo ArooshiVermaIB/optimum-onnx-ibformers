@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from dataclasses import dataclass, field
@@ -55,18 +56,21 @@ class IbCallback(TrainerCallback):
     ibformers_do_not_copy = ['trainer']
 
     def __init__(self, job_status_client: 'JobStatusClient', ibsdk: InstabaseSDK,
-                 username: str, mount_details: Dict, model_name: str, ib_save_path: str):
+                 username: str, mount_details: Dict, model_name: str, ib_save_path: str, upload: bool):
+        self.upload = upload
         self.ib_save_path = ib_save_path
         self.model_name = model_name
         self.mount_details = mount_details
         self.username = username
         self.job_status_client = job_status_client
+        self.evaluation_results = None
+        self.prediction_results = None
         self.ibsdk = ibsdk
 
     def save_on_ib_storage(self, obj, filename):
         pass
 
-    def build_package_structure(self, output_dir):
+    def build_local_package_directory(self, output_dir):
 
         package_name = self.model_name
         model_name = self.model_name
@@ -76,21 +80,47 @@ class IbCallback(TrainerCallback):
         # get ib_package location
         template_dir_path = _abspath('ib_package/ModelServiceTemplate')
         ibformers_path = Path(_abspath('')).parent
-        save_folder = out_dir / 'saved_model'
-        shutil.copytree(template_dir_path, save_folder)
-        package_dir = save_folder / 'src' / 'py' / package_name
-        shutil.move(package_dir.parent / 'package_name', package_dir)
-        prepare_package_json(save_folder / "package.json",
+        dir_to_be_copied = out_dir / 'package'
+        save_model_dir = dir_to_be_copied / 'saved_model'
+        shutil.copytree(template_dir_path, save_model_dir)
+        package_dir = save_model_dir / 'src' / 'py' / package_name
+        shutil.move(str(package_dir.parent / 'package_name'), str(package_dir))
+        prepare_package_json(save_model_dir / "package.json",
                              model_name=model_name, model_class_name=model_class_name, package_name=package_name)
 
         # copy ibformers lib into the package, do not copy trainer
         shutil.copytree(ibformers_path, package_dir / 'ibformers', ignore=lambda x, y: self.ibformers_do_not_copy)
 
+        # copy model files
+        model_src_path = out_dir / 'model'
+        assert model_src_path.is_dir(), 'Missing model files in output directory'
+        model_dest_path = package_dir / 'model_data'
+        if self.upload:
+            for fl_path in model_src_path.iterdir():
+                shutil.move(str(fl_path), str(model_dest_path))
+
+        # save evaluation results
+        if self.evaluation_results is not None:
+            eval_path = dir_to_be_copied / 'evaluation.json'
+            with open(eval_path, 'w') as f:
+                json.dump(self.evaluation_results, f)
+
+        # save prediction results
+        if self.prediction_results is not None:
+            pred_path = dir_to_be_copied / 'predictions.json'
+            with open(pred_path, 'w') as f:
+                json.dump(self.prediction_results, f)
+
+        return dir_to_be_copied
+
     def move_data_to_ib(self, output_dir):
-        self.build_package_structure(output_dir)
+        dir_to_be_copied = self.build_local_package_directory(output_dir)
         # copy data to ib
-
-
+        self.set_status({'task_state': 'UPLOADING FILES TO IB'})
+        upload_dir(sdk=self.ibsdk,
+                   local_folder=dir_to_be_copied,
+                   remote_folder=self.ib_save_path,
+                   mount_details=self.mount_details)
 
     def set_status(self, new_status: Dict):
         self.job_status_client.update_job_status(task_data=new_status)
@@ -105,12 +135,9 @@ class IbCallback(TrainerCallback):
 
     def on_evaluate(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
-
-            if 'predict_predictions' in kwargs["metrics"]:
-                predictions = kwargs["metrics"]['predict_predictions']
-                self.move_data_to_ib(args.output_dir)
-                a = 1
-
+            # workaround for missing on_predict callback in the transformers TrainerCallback
+            if 'predict_loss' in kwargs["metrics"]:
+                self.on_predict(args, state, control, **kwargs)
             else:
                 metrics = {}
                 metrics['precision'] = kwargs["metrics"]['eval_precision']
@@ -118,6 +145,14 @@ class IbCallback(TrainerCallback):
                 metrics['f1'] = kwargs["metrics"]['eval_f1']
                 self.set_status({"evaluation_results": metrics,
                                  "progress": state.global_step / state.max_steps})
+
+                self.evaluation_results = metrics
+
+    def on_predict(self, args, state, control, **kwargs):
+        predictions = kwargs["metrics"]['predict_predictions']
+        self.prediction_results = predictions
+        # as prediction is the last step of the training - use this event to save the predictions to ib
+        self.move_data_to_ib(args.output_dir)
 
 
 @dataclass
@@ -146,6 +181,10 @@ class IbArguments:
     ib_save_path: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to save ib_package on the IB space"},
+    )
+    upload: Optional[bool] = field(
+        default=None,
+        metadata={"help": "Whether to upload model files to ib_save_path"}
     )
 
 
@@ -234,46 +273,3 @@ def s3_write(client, local_file: str, remote_file: str, bucket_name: str, prefix
 def _abspath(relpath: str) -> str:
     dirpath, _ = os.path.split(__file__)
     return os.path.join(dirpath, relpath)
-
-
-def copy_from_template(model_name: str, model_class_name: str, package_name: str) -> str:
-    """Creates a folder for the Model Service implementation of the
-    LayoutLM model, without the model data. The model data should be
-    inserted by the training script.
-    Returns the root save folder of the model, as well as the location
-    to save the model data specifically
-    """
-
-    # Create a folder for the location of the model
-    tmp_folder = f'/tmp/data/{generate_randomness()}'
-    save_folder = os.path.join(tmp_folder, 'saved_model')
-
-    # Get the path to the template we want to populate
-    template_dir_path = _abspath('res/ModelServiceTemplate')
-
-    for root, _, files in os.walk(template_dir_path):
-        for f in files:
-            original_location = os.path.join(root, f)
-            if root != template_dir_path:
-                new_relative_location = os.path.relpath(root, template_dir_path)
-                new_location = os.path.join(save_folder, new_relative_location, f)
-            else:
-                new_location = os.path.join(save_folder, f)
-
-            new_location = new_location.replace('package_name', package_name)
-
-            # For each file, read it, templatize, and write
-            with open(original_location, 'r') as f_read:
-                content = f_read.read()
-                content = content.replace('{{model_package}}', package_name)
-                content = content.replace('{{model_class_name}}', model_class_name)
-                content = content.replace('{{model_name}}', model_name)
-
-                if not os.path.exists(os.path.dirname(new_location)):
-                    os.makedirs(os.path.dirname(new_location))
-
-                with open(new_location, 'w+') as f_write:
-                    f_write.write(content)
-
-    model_data_location = os.path.join(save_folder, f'src/py/{package_name}/model_data')
-    return tmp_folder, model_data_location

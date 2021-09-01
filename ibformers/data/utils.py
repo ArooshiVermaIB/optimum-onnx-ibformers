@@ -27,6 +27,32 @@ def feed_single_example(fn):
     return split_batch
 
 
+def feed_single_example_and_flatten(fn: Callable[[Mapping[str, List[Any]]],
+                                                List[Mapping[str, List[Any]]]]):
+    """
+    Examples processed by map method of hf/datasets are processed in batches.
+    This is a helper function/decorator to use if you want to get single examples instead of
+    whole batch, applied function is fed by single example, but can return multiple examples e.g. chunking, augmentation
+    :param fn: function to decorate
+    :return: batch of examples updated with function results
+    """
+    def split_batch(batch, **kwargs) -> Dict[str, List[Any]]:
+        batch_keys = list(batch.keys())
+        len_of_batch = len(batch[batch_keys[0]])
+        outs = []
+        for i in range(len_of_batch):
+            item_dict = {k: v[i] for k, v in batch.items()}
+            out: List[Mapping[str, Any]] = fn(item_dict, **kwargs)
+            if out is None:
+                continue
+            outs.extend(out)
+        out_keys = [] if len(out) == 0 else list(outs[0].keys())
+        dict_of_lists = convert_to_dict_of_lists(outs, out_keys)
+        batch.update(dict_of_lists)
+        return batch
+    return split_batch
+
+
 def feed_batch(fn):
     """
     Function which is wrapped by this decorator might return only part of keys delivered in the input
