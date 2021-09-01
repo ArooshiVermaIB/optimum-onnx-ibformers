@@ -1,4 +1,4 @@
-from typing import TypeVar, List
+from typing import TypeVar, List, Sequence, Any
 
 import numpy as np
 
@@ -6,7 +6,7 @@ from ibformers.data.utils import feed_single_example, convert_to_dict_of_lists, 
 
 
 @feed_single_example_and_flatten
-def produce_chunks(example, tokenizer, max_length, chunking_strategy="FIRST_ONLY", chunk_overlap=64, **kwargs):
+def produce_chunks(example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS", chunk_overlap=64, **kwargs):
     if chunking_strategy == "FIRST_ONLY":
         return first_only(example, tokenizer, max_length)
     elif chunking_strategy == "ALL_CHUNKS":
@@ -28,29 +28,36 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int):
     chunked = {k: _chunk_with_overlap(example[k],
                                       chunk_size=max_length - 2,
                                       overlap=overlap) for k in keys_to_chunk if k in example}
+
+    tokenizer.prepare_for_model(example["input_ids"], max_length=max_length,
+                                add_special_tokens=True)
+
     other_keys = [i for i in list(example.keys()) if i not in keys_to_chunk]
     transposed = [{k: v[i] for k, v in chunked.items()} for i, _ in enumerate(chunked['input_ids'])]
-    trasposed_plus_other_keys = [{**i, **{k: example[k] for k in other_keys}} for i in transposed]
 
+    transposed_plus_other_keys = [{**i, **{k: example[k] for k in other_keys}} for i in transposed]
+    processed = []
+    for chunk in transposed_plus_other_keys:
+        # For some reason, return_special_tokens_mask=True doesn't work correctly here...
+        # doing it in two steps is a workaround
+        chunk_processed = tokenizer.prepare_for_model(chunk['input_ids'], add_special_tokens=True)
+        assert len(chunk_processed['input_ids']) <= max_length, \
+            f"len(blah['input_ids']) <= max_length : {len(chunk_processed['input_ids'])} <= {max_length}"
 
-    # chunks = tokenizer.prepare_for_model(example["input_ids"], max_length=max_length,
-    #                                      add_special_tokens=True)
-    # special_mask = np.array(tokenizer.get_special_tokens_mask(chunks["input_ids"], already_has_special_tokens=True))
-    # chunks['special_tokens_mask'] = special_mask
-    #
-    # max_len_wo_special = len(special_mask) - special_mask.sum()
-    # chunks['offset_mapping'] = example['offset_mapping'][:max_len_wo_special]
-    # chunks['word_map'] = example['word_map'][:max_len_wo_special]
-    #
-    # if 'bboxes' in example:
-    #     chunks["bboxes"] = np.array(example["bboxes"])[:max_len_wo_special]
-    #     chunks["bboxes"] = fill_special_tokens(chunks["bboxes"], special_mask, 0)
-    #
-    # if 'token_label_ids' in example:
-    #     chunks["token_label_ids"] = np.array(example["token_label_ids"])[:max_len_wo_special]
-    #     chunks['token_label_ids'] = fill_special_tokens(chunks["token_label_ids"], special_mask, -100)
+        chunk_processed = {**chunk, **chunk_processed}
 
-    return trasposed_plus_other_keys
+        for k in chunk_processed:
+            chunk[k] = chunk_processed[k]
+        special_mask = np.array(tokenizer.get_special_tokens_mask(chunk_processed["input_ids"],
+                                                                  already_has_special_tokens=True))
+        chunk_processed['special_tokens_mask'] = special_mask
+
+        chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], special_mask, 0)
+        chunk_processed['token_label_ids'] = fill_special_tokens(chunk["token_label_ids"], special_mask, -100)
+
+        processed.append(chunk_processed)
+
+    return processed
 
 
 def first_only(example, tokenizer, max_length: int):
@@ -84,7 +91,8 @@ def first_only(example, tokenizer, max_length: int):
 # produce_chunks(example, )
 
 
-def fill_special_tokens(arr, special_mask, fill_value):
+def fill_special_tokens(arr: Sequence[Any], special_mask: Sequence[int], fill_value: int):
+    arr = np.array(arr)
     new_dims = [len(special_mask)] + list(arr.shape[1:])
     filled = np.full_like(arr, shape=new_dims, fill_value=fill_value)
     filled[np.logical_not(special_mask)] = arr
