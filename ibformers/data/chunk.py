@@ -25,9 +25,16 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int):
     """
     # TODO: check how many tokens are added and reomve hardcodded "2"
     keys_to_chunk = ["input_ids", "bboxes", "token_label_ids", "offset_mapping", "token_character_starts", "word_map"]
+
     chunked = {k: _chunk_with_overlap(example[k],
                                       chunk_size=max_length - 2,
                                       overlap=overlap) for k in keys_to_chunk if k in example}
+
+    chunk_ranges = _chunk_with_overlap(list(range(len(example['input_ids']))),
+                                       chunk_size=max_length - 2,
+                                       overlap=overlap)
+
+    chunked['chunk_ranges'] = [(i[0], i[-1]) for i in chunk_ranges]
 
     tokenizer.prepare_for_model(example["input_ids"], max_length=max_length,
                                 add_special_tokens=True)
@@ -56,6 +63,11 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int):
         chunk_processed['token_label_ids'] = fill_special_tokens(chunk["token_label_ids"], special_mask, -100)
 
         processed.append(chunk_processed)
+
+
+
+    # TODO: we might want to chunk also global objects like words, images etc.
+    #  to not duplicate these large objects for each chunk
 
     return processed
 
