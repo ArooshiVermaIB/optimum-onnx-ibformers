@@ -620,7 +620,7 @@ if __name__ == "__main__":
     hyperparams = {
         "adam_epsilon": 1e-8,
         "batch_size": 2,
-        "chunk_size": 64,
+        "chunk_size": 128,
         "epochs": 5,
         "learning_rate": 5e-05,
         "loss_agg_steps": 1,
@@ -633,7 +633,8 @@ if __name__ == "__main__":
         "warmup": 0.0,
         "weight_decay": 0,
     }
-    dataset_filename = '/Users/rafalpowalski/python/annotation/uber/UberEats.ibannotator'
-    save_path = '/Users/rafalpowalski/python/testqa/scripts/layout_lm_lib/data/saved_model'
+    example_dir = Path(__file__).parent.parent / "example"
+    dataset_filename = os.path.join(example_dir, "UberEats.ibannotator")
+    save_path = os.path.join(example_dir, "saved_model")
     sdk = InstabaseSDKDummy(None, "rpowalski")
     run_train(hyperparams, dataset_filename, save_path, sdk, 'rpowalski', DummyJobStatus())
