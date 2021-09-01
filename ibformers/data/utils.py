@@ -1,4 +1,4 @@
-from typing import List, Any, Dict, Mapping, Callable
+from typing import List, Any, Dict, Mapping, Callable, Sequence
 
 import numpy as np
 from fuzzysearch import find_near_matches
@@ -30,7 +30,7 @@ def feed_single_example(fn):
 
 
 def feed_single_example_and_flatten(fn: Callable[[Mapping[str, List[Any]]],
-                                                List[Mapping[str, List[Any]]]]):
+                                                Sequence[Mapping[str, List[Any]]]]):
     """
     Examples processed by map method of hf/datasets are processed in batches.
     This is a helper function/decorator to use if you want to get single examples instead of
@@ -44,8 +44,8 @@ def feed_single_example_and_flatten(fn: Callable[[Mapping[str, List[Any]]],
         outs = []
         for i in range(len_of_batch):
             item_dict = {k: v[i] for k, v in batch.items()}
-            out: List[Mapping[str, Any]] = fn(item_dict, **kwargs)
-            if out is None:
+            out: List[Mapping[str, Any]] = list(fn(item_dict, **kwargs))
+            if not out:
                 continue
             outs.extend(out)
         out_keys = [] if len(out) == 0 else list(outs[0].keys())
