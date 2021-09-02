@@ -58,8 +58,6 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
 
         chunk_processed = {**chunk, **chunk_processed}
 
-        for k in chunk_processed:
-            chunk[k] = chunk_processed[k]
         special_mask = np.array(tokenizer.get_special_tokens_mask(chunk_processed["input_ids"],
                                                                   already_has_special_tokens=True))
         chunk_processed['special_tokens_mask'] = special_mask
