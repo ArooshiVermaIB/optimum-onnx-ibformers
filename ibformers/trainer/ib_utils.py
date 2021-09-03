@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional, Any, Iterable, Tuple
@@ -155,6 +156,9 @@ class IbCallback(TrainerCallback):
         self.prediction_results = predictions
         # as prediction is the last step of the training - use this event to save the predictions to ib
         self.move_data_to_ib(args.output_dir)
+
+        # This is a hacky way to let the frontend know that there are new preds available
+        self.set_status({'predictions_uuid': uuid.uuid4().hex})
 
 
 @dataclass
