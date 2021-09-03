@@ -66,6 +66,7 @@ class IbCallback(TrainerCallback):
         self.evaluation_results = None
         self.prediction_results = None
         self.ibsdk = ibsdk
+        self.job_status = {}
 
     def save_on_ib_storage(self, obj, filename):
         pass
@@ -123,7 +124,8 @@ class IbCallback(TrainerCallback):
                    mount_details=self.mount_details)
 
     def set_status(self, new_status: Dict):
-        self.job_status_client.update_job_status(task_data=new_status)
+        self.job_status.update(new_status)
+        self.job_status_client.update_job_status(task_data=self.job_status)
 
     def on_step_end(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
