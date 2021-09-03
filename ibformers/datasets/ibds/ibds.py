@@ -84,6 +84,17 @@ class _SearchKey(NamedTuple):
     page: int
     word: str
 
+class LabelWithId(TypedDict):
+    id: int
+    text: str
+
+
+class LabelEntity(TypedDict):
+    name: str
+    order_id: int
+    text: str
+    char_spans: List
+    token_spans: List
 
 class IbDsBuilderConfig(BuilderConfig):
     """Base class for :class:`DatasetBuilder` data configuration.
@@ -166,11 +177,90 @@ class IbDsBuilderConfig(BuilderConfig):
             return self.name
 
 
-def process_parsedibocr(parsedibocr,
+def _read_parsedibocr(
+        builder: ParsedIBOCRBuilder
+) -> Tuple[List[WordPolyDict], List[IBOCRRecordLayout]]:
+    """Open an ibdoc or ibocr using the ibfile and return the words and layout information for each page"""
+    words = []
+    layouts = []
+    record: IBOCRRecord
+    # Assuming each record is a page in order and each record is single-page
+    # Assuming nothing weird is going on with page numbers
+    for record in builder.get_ibocr_records():
+        words += [i for j in record.get_lines() for i in j]
+        l = record.get_metadata_list()
+        layouts.extend([i.get_layout() for i in l])
+
+    assert all(
+        word['page'] in range(len(layouts)) for word in words
+    ), "Something with the page numbers went wrong"
+
+    return words, layouts
+
+
+
+
+def process_labels_from_annotation(id2label: Dict[AnnotationLabelId, str],
+                                   annotation_file: AnnotationFile,
+                                   words: List[WordPolyDict],
+                                   str2int: Dict[str, int]) -> List[LabelEntity]:
+    token_label_ids = np.zeros((len(words)), dtype=np.int64)
+    entities = []
+
+    key_to_words = {
+        _SearchKey(x['start_x'], x['start_y'], x['page'], x['raw_word']): i
+        for i, x in enumerate(words)
+    }
+    assert len(key_to_words) == len(
+        words
+    ), "Issue with assumption that _SearchKey(x, y, page, word) is unique"
+
+    annotation: Annotation
+    for label_id, annotation in annotation_file['annotations'].items():
+        metadata = annotation['metadata']
+        label_name = id2label[label_id]
+        word_metadata: AnnotationWordMetadata
+        label_words = []
+        for word_metadata in metadata:
+            if word_metadata['dataType'] != 'WordPoly':
+                raise ValueError("Unexpected (non-wordpoly) annotation. Skipping.")
+
+            pos = word_metadata['position']
+            rect: AnnotationRect = pos['rect']
+            key = _SearchKey(rect['x'], rect['y'], pos['page'], word_metadata['rawWord'])
+            if key not in key_to_words:
+                raise RuntimeError(
+                    f"Couldn't find word {repr(key)} in document {annotation_file['ocrPath']}."
+                )
+            word_id_global = key_to_words[key]
+
+            word_text = word_metadata['rawWord']
+            assert word_text.strip() == words[word_id_global]['word'].strip(), \
+                "Annotation does not match with document words"
+
+            label_words.append(LabelWithId(id=word_id_global, text=word_text))
+
+        # TODO: information about multi-item entity separation should be obtained during annotation
+        # group consecutive words as the same entity occurrence
+        label_words.sort(key=lambda x: x["id"])
+        label_groups = [list(group) for group in consecutive_groups(label_words, ordering=lambda x: x["id"])]
+        # create spans for groups, span will be created by getting id for first and last word in the group
+        label_token_spans = [[group[0]["id"], group[-1]["id"] + 1] for group in label_groups]
+
+        for span in label_token_spans:
+            token_label_ids[span[0]:span[1]] = str2int[label_name]
+
+        entity: LabelEntity = LabelEntity(name=label_name, order_id=0, text=annotation['value'], char_spans=[],
+                                          token_spans=label_token_spans)
+        entities.append(entity)
+    return entities
+
+
+def process_parsedibocr(parsedibocr: ParsedIBOCRBuilder,
                         open_fn,
                         doc_annotations: AnnotationFile,
-                        id2label: Dict[str, str],
-                        str2int: Dict[str, int],
+                        id2label: Dict[AnnotationLabelId, str],  # TODO rename this
+                        str2int: Dict[str, int],  # TODO rename this
                         use_image: bool,
                         image_processor: ImageProcessor,
                         ):
@@ -184,23 +274,11 @@ def process_parsedibocr(parsedibocr,
     :return: Dictionary containing words, bboxes and per-word annotations
     """
 
-    words = []
-    layouts = []
+    words, layouts = _read_parsedibocr(parsedibocr)
     record: IBOCRRecord
 
-    # Assuming each record is a page in order and each record is single-page
-    # Assuming nothing weird is going on with page numbers
-    for record in parsedibocr.get_ibocr_records():
-        words += [i for j in record.get_lines() for i in j]
-        l = record.get_metadata_list()
-        layouts.extend([i.get_layout() for i in l])
-
-    assert all(
-        word['page'] in range(len(layouts)) for word in words
-    ), "Something with the page numbers went wrong"
-
-    # get content of the WordPollys
-    word_lst = [w['word'] for w in words]
+    # get content of the WordPolys
+    word_lst: List[str] = [w['word'] for w in words]
     bbox_arr = np.array([[w['start_x'], w['start_y'], w['end_x'], w['end_y']] for w in words])
     word_pages_arr = np.array([w['page'] for w in words])
 
@@ -223,42 +301,12 @@ def process_parsedibocr(parsedibocr,
     norm_bboxes = bbox_arr * 1000 / width_per_token[:, None]
     norm_page_bboxes = page_bboxes * 1000 / page_bboxes[:, 2:3]
 
-    entities = []
-    annotation: Annotation
     token_label_ids = np.zeros((len(word_lst)), dtype=np.int64)
-    for label_id, annotation in doc_annotations['annotations'].items():
-        metadata = annotation['metadata']
-        label_name = id2label[label_id]
-        word_metadata: AnnotationWordMetadata
-        label_words = []
-        for word_metadata in metadata:
-            if word_metadata['dataType'] != 'WordPoly':
-                raise ValueError("Unexpected (non-wordpoly) annotation. Skipping.")
-            word_id_in_page = int(word_metadata['appData']['id']) - 1  # switch to 0-indexing
-            page_num = word_metadata['position']['page']
-            word_id_global = word_id_in_page + page_spans[page_num, 0]
-            word_text = word_metadata['rawWord']
-            assert word_text.strip() == words[word_id_global]['word'].strip(), \
-                "Annotation does not match with document words"
 
-            label_words.append({'id': word_id_global, 'text': word_text})
-
-        # TODO: information about multi-item entity separation should be obtained during annotation
-        # group consecutive words as the same entity occurrence
-        label_words.sort(key=lambda x: x["id"])
-        label_groups = [list(group) for group in consecutive_groups(label_words, ordering=lambda x: x["id"])]
-        # create spans for groups, span will be created by getting id for first and last word in the group
-        label_token_spans = [[group[0]["id"], group[-1]["id"] + 1] for group in label_groups]
-
-        for span in label_token_spans:
-            token_label_ids[span[0]:span[1]] = str2int[label_name]
-
-        entity = {'name': label_name,
-                  'order_id': 0,
-                  'text': annotation['value'],
-                  'char_spans': [],
-                  'token_spans': label_token_spans}
-        entities.append(entity)
+    entities = process_labels_from_annotation(id2label=id2label,
+                                              annotation_file=doc_annotations,
+                                              words=words,
+                                              str2int=str2int)
 
     features = {
         "id": doc_annotations["ocrPath"],
@@ -341,25 +389,25 @@ class IbDs(datasets.GeneratorBasedBuilder):
         classes = ['O'] + list(self.id2label.values())
 
         ds_features = {
-                    'id': datasets.Value('string'),
-                    'words': datasets.Sequence(datasets.Value('string')),
-                    'bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=4)),
-                    # needed to generate prediction file, after evaluation
-                    'word_original_bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('float32'), length=4)),
-                    'word_page_nums': datasets.Sequence(datasets.Value('int32')),
-                    'page_bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=4)),
-                    'page_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
-                    'token_label_ids': datasets.Sequence(datasets.features.ClassLabel(names=classes)),
-                    'entities': datasets.Sequence(
-                        {
-                            'name': datasets.Value('string'),  # change to id?
-                            'order_id': datasets.Value('int64'),  # not supported yet, annotation app need to implement it
-                            'text': datasets.Value('string'),
-                            'char_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
-                            'token_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2))
-                        }
-                    ),
+            'id': datasets.Value('string'),
+            'words': datasets.Sequence(datasets.Value('string')),
+            'bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=4)),
+            # needed to generate prediction file, after evaluation
+            'word_original_bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('float32'), length=4)),
+            'word_page_nums': datasets.Sequence(datasets.Value('int32')),
+            'page_bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=4)),
+            'page_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
+            'token_label_ids': datasets.Sequence(datasets.features.ClassLabel(names=classes)),
+            'entities': datasets.Sequence(
+                {
+                    'name': datasets.Value('string'),  # change to id?
+                    'order_id': datasets.Value('int64'),  # not supported yet, annotation app need to implement it
+                    'text': datasets.Value('string'),
+                    'char_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
+                    'token_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2))
                 }
+            ),
+        }
 
         if self.config.use_image:
             # first dimension is defined as a number of pages in the document
@@ -420,7 +468,6 @@ class IbDs(datasets.GeneratorBasedBuilder):
             if not (ocr_path.endswith('.ibdoc') or ocr_path.endswith('.ibocr')):
                 raise ValueError(f"Invaild document path: {ocr_path}")
 
-            # TODO use context manager and close
             with open_fn(ocr_path, 'rb') as f:
                 data = f.read()
             builder: ParsedIBOCRBuilder
