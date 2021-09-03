@@ -278,14 +278,15 @@ def process_parsedibocr(parsedibocr,
         for lay in layouts[:1]:
             img_path = Path(lay.get_processed_image_path())
             try:
-                img = open_fn(str(img_path))
+                with open_fn(str(img_path)) as img_file:
+                    img_arr = image_processor(img_file).astype(np.uint8)
             except OSError:
                 # try relative path - useful for debugging
                 ocr_path = Path(doc_annotations['ocrPath'])
                 img_rel_path = ocr_path.parent.parent / 's1_process_files' / 'images' / img_path.name
-                img = open_fn(img_rel_path, 'rb')
+                with open_fn(img_rel_path, 'rb') as img_file:
+                    img_arr = image_processor(img_file).astype(np.uint8)
 
-            img_arr = image_processor(img).astype(np.uint8)
             img_lst.append(img_arr)
 
         # assert len(norm_page_bboxes) == len(img_lst), "Number of images should match number of pages in document"
@@ -419,7 +420,9 @@ class IbDs(datasets.GeneratorBasedBuilder):
             if not (ocr_path.endswith('.ibdoc') or ocr_path.endswith('.ibocr')):
                 raise ValueError(f"Invaild document path: {ocr_path}")
 
-            data = open_fn(ocr_path, 'rb').read()
+            # TODO use context manager and close
+            with open_fn(ocr_path, 'rb') as f:
+                data = f.read()
             builder: ParsedIBOCRBuilder
             builder, err = ParsedIBOCRBuilder.load_from_str(ocr_path, data)
             if err:
