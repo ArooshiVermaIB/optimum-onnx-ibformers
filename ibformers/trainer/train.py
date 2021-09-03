@@ -48,7 +48,7 @@ from ibformers.datasets import DATASETS_PATH
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.10.0.dev0")
 from ibformers.trainer.ib_utils import IbCallback, IbArguments, InstabaseSDK
-from ibformers.trainer.trainer_old import IbTrainer
+from ibformers.trainer.trainer import IbTrainer
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
 
@@ -172,6 +172,10 @@ class DataTrainingArguments:
         default=False,
         metadata={"help": "Whether to return all the entity levels during evaluation or just the overall ones."},
     )
+    pipeline_name: str = field(
+        default="layoutlm_sl",
+        metadata={"help": "pipeline which is defining a training process"},
+    )
 
     def __post_init__(self):
         if self.dataset_name_or_path is None and self.train_file is None and self.validation_file is None:
@@ -236,7 +240,13 @@ def prepare_ib_params(
         out_dict['lr_scheduler_type'] = hyperparams['scheduler_type']
 
     out_dict['dataset_name_or_path'] = 'ibds'
-    out_dict['model_name_or_path'] = 'microsoft/layoutlm-base-uncased'
+    out_dict['model_name_or_path'] = hyperparams['model_name']
+    if 'layoutlmv2' in hyperparams['model_name'].lower() or 'layoutxlm' in hyperparams['model_name'].lower():
+        pipeline_name = 'layoutlmv2_sl'
+    else:
+        pipeline_name = 'layoutlm_sl'
+    out_dict['pipeline_name'] = pipeline_name
+
     out_dict['dataset_config_name'] = 'ibds'
 
     out_dict['train_file'] = dataset_filename
@@ -411,7 +421,7 @@ def run_train(
                   'load_from_cache_file': not data_args.overwrite_cache,
                   'fn_kwargs': fn_kwargs
                   }
-    pipeline = PIPELINES['layoutlm_sl']
+    pipeline = PIPELINES[data_args.pipeline_name]
     collate_fn = pipeline["collate"]
     compute_metrics = pipeline['compute_metrics']
 
@@ -620,10 +630,10 @@ if __name__ == "__main__":
     hyperparams = {
         "adam_epsilon": 1e-8,
         "batch_size": 2,
-        "chunk_size": 128,
+        "chunk_size": 510,
         "epochs": 5,
         "learning_rate": 5e-05,
-        "loss_agg_steps": 1,
+        "loss_agg_steps": 2,
         "max_grad_norm": 1.0,
         "optimizer_type": "AdamW",
         "scheduler_type": "constant_schedule_with_warmup",
@@ -632,9 +642,10 @@ if __name__ == "__main__":
         "use_mixed_precision": False,
         "warmup": 0.0,
         "weight_decay": 0,
+        "model_name": "microsoft/layoutlmv2-base-uncased"
     }
     example_dir = Path(__file__).parent.parent / "example"
     dataset_filename = os.path.join(example_dir, "UberEats.ibannotator")
     save_path = os.path.join(example_dir, "saved_model")
-    sdk = InstabaseSDKDummy(None, "rpowalski")
-    run_train(hyperparams, dataset_filename, save_path, sdk, 'rpowalski', DummyJobStatus())
+    sdk = InstabaseSDKDummy(None, "user")
+    run_train(hyperparams, dataset_filename, save_path, sdk, 'user', DummyJobStatus())

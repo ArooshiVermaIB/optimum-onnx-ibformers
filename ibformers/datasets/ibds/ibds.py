@@ -1,16 +1,18 @@
 import json
 import urllib
-from typing import Tuple, List, Dict, Any, Union, NamedTuple, Optional
+from pathlib import Path
+from typing import Tuple, List, Dict, Any, Union, NamedTuple, Optional, Callable
 import datasets
 from datasets import BuilderConfig, Features, config
 from datasets.fingerprint import Hasher
 
-from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder, IBOCRRecord, IBOCRRecordLayout
+from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder, IBOCRRecord, IBOCRRecordLayout, ParsedIBOCR
 from instabase.ocr.client.libs.ocr_types import WordPolyDict
 from typing_extensions import TypedDict, Literal
 from more_itertools import consecutive_groups
 import numpy as np
 
+from ibformers.data.utils import ImageProcessor
 
 _DESCRIPTION = """\
 Internal Instabase Dataset format organized into set of IbDoc files and IbAnnotator file.
@@ -164,26 +166,31 @@ class IbDsBuilderConfig(BuilderConfig):
             return self.name
 
 
-def read_ibdoc(ibdoc_path, open_fn):
+def process_parsedibocr(parsedibocr,
+                        open_fn,
+                        doc_annotations: AnnotationFile,
+                        id2label: Dict[str, str],
+                        str2int: Dict[str, int],
+                        use_image: bool,
+                        image_processor: ImageProcessor,
+                        ):
     """
-    Open an ibdoc or ibocr using the ibfile and return the
-    words and layout information for each page
-    :param ibdoc_path: path of the ibdoc
-    :param open_fn: function used to open the file
-    :return: Tuple of words and layouts (pages)
+    prepare examples based on annotations and ocr information
+    :param image_processor:
+    :param doc_annotations: content of ibannotator file
+    :param id2label: dictionary which contain mapping from entity ids to their names
+    :param str2int: mapping from entity name to class_id used for token classification
+    :param use_image: whether to load an image as a feature
+    :return: Dictionary containing words, bboxes and per-word annotations
     """
-    data = open_fn(ibdoc_path, 'rb').read()
-    builder: ParsedIBOCRBuilder
-    builder, err = ParsedIBOCRBuilder.load_from_str(ibdoc_path, data)
-    if err:
-        raise IOError(u'Could not load file: {}'.format(ibdoc_path))
 
     words = []
     layouts = []
     record: IBOCRRecord
+
     # Assuming each record is a page in order and each record is single-page
     # Assuming nothing weird is going on with page numbers
-    for record in builder.get_ibocr_records():
+    for record in parsedibocr.get_ibocr_records():
         words += [i for j in record.get_lines() for i in j]
         l = record.get_metadata_list()
         layouts.extend([i.get_layout() for i in l])
@@ -192,25 +199,7 @@ def read_ibdoc(ibdoc_path, open_fn):
         word['page'] in range(len(layouts)) for word in words
     ), "Something with the page numbers went wrong"
 
-    return words, layouts
-
-
-def process_example(
-    doc_annotations: AnnotationFile,
-    words: List[WordPolyDict],
-    layouts: List[IBOCRRecordLayout],
-    id2label: Dict[str, str],
-    str2int: Dict[str, int]
-) -> Dict[str, Any]:
-    """
-    prepare examples based on annotations and ocr information
-    :param doc_annotations: content of ibannotator file
-    :param words: list of words read from ibdoc
-    :param layouts: list of layouts read from ibdoc
-    :param id2label: dictionary which contain mapping from entity ids to their names
-    :param str2int: mapping from entity name to class_id used for token classification
-    :return: Dictionary containing words, bboxes and per-word annotations
-    """
+    # get content of the WordPollys
     word_lst = [w['word'] for w in words]
     bbox_arr = np.array([[w['start_x'], w['start_y'], w['end_x'], w['end_y']] for w in words])
     word_pages_arr = np.array([w['page'] for w in words])
@@ -271,7 +260,7 @@ def process_example(
                   'token_spans': label_token_spans}
         entities.append(entity)
 
-    return {
+    features = {
         "id": doc_annotations["ocrPath"],
         "words": word_lst,
         "bboxes": norm_bboxes,
@@ -281,7 +270,29 @@ def process_example(
         "page_spans": page_spans,
         'token_label_ids': token_label_ids,
         "entities": entities,
-        }
+    }
+
+    if use_image:
+        img_lst = []
+        # TODO: support multi-page documents, currently quite difficult in hf/datasets
+        for lay in layouts[:1]:
+            img_path = Path(lay.get_processed_image_path())
+            try:
+                img = open_fn(str(img_path))
+            except OSError:
+                # try relative path - useful for debugging
+                ocr_path = Path(doc_annotations['ocrPath'])
+                img_rel_path = ocr_path.parent.parent / 's1_process_files' / 'images' / img_path.name
+                img = open_fn(img_rel_path, 'rb')
+
+            img_arr = image_processor(img).astype(np.uint8)
+            img_lst.append(img_arr)
+
+        # assert len(norm_page_bboxes) == len(img_lst), "Number of images should match number of pages in document"
+        # features['images'] = np.stack(img_lst, axis=0)
+        features['images'] = img_arr
+
+    return features
 
 
 class IbDsConfig(IbDsBuilderConfig):
@@ -289,7 +300,7 @@ class IbDsConfig(IbDsBuilderConfig):
     Config for Instabase Format Datasets
     """
 
-    def __init__(self, use_image=False, ibsdk=None, **kwargs):
+    def __init__(self, use_image=True, ibsdk=None, **kwargs):
         """BuilderConfig for Instabase Format Datasets.
         Args:
           **kwargs: keyword arguments forwarded to super.
@@ -309,6 +320,10 @@ class IbDs(datasets.GeneratorBasedBuilder):
         IbDsConfig(name="ibds", version=datasets.Version("1.0.0"), description="Instabase Format Datasets"),
     ]
 
+    def __init__(self, *args, **kwargs):
+        super(IbDs, self).__init__(*args, **kwargs)
+        self.image_processor = ImageProcessor(do_resize=True, size=224) if self.config.use_image else None
+
     def _info(self):
 
         # get schema of the the dataset
@@ -324,12 +339,7 @@ class IbDs(datasets.GeneratorBasedBuilder):
         self.id2label = {lab["id"]: lab["name"] for lab in labels}
         classes = ['O'] + list(self.id2label.values())
 
-        return datasets.DatasetInfo(
-            # This is the description that will appear on the datasets page.
-            description=_DESCRIPTION,
-            # datasets.features.FeatureConnectors
-            features=datasets.Features(
-                {
+        ds_features = {
                     'id': datasets.Value('string'),
                     'words': datasets.Sequence(datasets.Value('string')),
                     'bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=4)),
@@ -349,7 +359,21 @@ class IbDs(datasets.GeneratorBasedBuilder):
                         }
                     ),
                 }
-            ),
+
+        if self.config.use_image:
+            # first dimension is defined as a number of pages in the document
+            # workaround with sequences - dynamic dimensions are not yet supported by hf/datasets
+            # ds_features['images'] = datasets.Array4D(shape=(None, 3, 224, 224), dtype="uint8")
+            # ds_features['images'] = datasets.Sequence(datasets.Sequence(
+            #     datasets.Sequence(datasets.Sequence(datasets.Value('uint8'), length=224), length=224), length=3))
+            # for now support only 1-page documents
+            ds_features['images'] = datasets.Array3D(shape=(3, 224, 224), dtype="uint8")
+
+        return datasets.DatasetInfo(
+            # This is the description that will appear on the datasets page.
+            description=_DESCRIPTION,
+            # datasets.features.FeatureConnectors
+            features=datasets.Features(ds_features),
             # If there's a common (input, target) tuple from the features,
             # specify them here. They'll be used if as_supervised=True in
             # builder.as_dataset.
@@ -388,13 +412,20 @@ class IbDs(datasets.GeneratorBasedBuilder):
 
     def _generate_examples(self, files, open_fn):
         """Yields examples."""
-        for file in files:
-            ocr_path = file['ocrPath']
+        str2int = self.info.features['token_label_ids'].feature._str2int
+
+        for annotations in files:
+            ocr_path = annotations['ocrPath']
             if not (ocr_path.endswith('.ibdoc') or ocr_path.endswith('.ibocr')):
                 raise ValueError(f"Invaild document path: {ocr_path}")
 
-            words, layouts = read_ibdoc(ocr_path, open_fn)
-            str2int = self.info.features['token_label_ids'].feature._str2int
-            doc_dict = process_example(file, words, layouts, self.id2label, str2int)
+            data = open_fn(ocr_path, 'rb').read()
+            builder: ParsedIBOCRBuilder
+            builder, err = ParsedIBOCRBuilder.load_from_str(ocr_path, data)
+            if err:
+                raise IOError(u'Could not load file: {}'.format(ocr_path))
 
-            yield file['ocrPath'], doc_dict
+            doc_dict = process_parsedibocr(builder, open_fn, annotations,
+                                           self.id2label, str2int, self.config.use_image, self.image_processor)
+
+            yield annotations['ocrPath'], doc_dict

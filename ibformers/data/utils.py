@@ -2,6 +2,29 @@ from typing import List, Any, Dict, Mapping, Callable, Sequence
 
 import numpy as np
 from fuzzysearch import find_near_matches
+from transformers.image_utils import ImageFeatureExtractionMixin
+from PIL import Image
+
+
+class ImageProcessor(ImageFeatureExtractionMixin):
+    def __init__(self, do_resize=True, size=224, resample=Image.BILINEAR, **kwargs):
+        super().__init__(**kwargs)
+        self.do_resize = do_resize
+        self.size = size
+        self.resample = resample
+
+    def __call__(self, f):
+        image = Image.open(f).convert("RGB")
+
+        # transformations (resizing)
+        if self.do_resize and self.size is not None:
+            image = self.resize(image=image, size=self.size, resample=self.resample)
+
+        image = self.to_numpy_array(image, rescale=False)
+        # flip color channels from RGB to BGR (as Detectron2 requires this)
+        image = image[::-1, :, :]
+
+        return image
 
 
 def feed_single_example(fn):

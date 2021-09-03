@@ -6,7 +6,7 @@ from ibformers.data.utils import feed_single_example, convert_to_dict_of_lists, 
 
 
 @feed_single_example_and_flatten
-def produce_chunks(example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS",
+def produce_chunks(example, tokenizer, max_length, chunking_strategy="FIRST_ONLY",
                    chunk_overlap=64, **kwargs) -> Sequence:
     if chunking_strategy == "FIRST_ONLY":
         return first_only(example, tokenizer, max_length)

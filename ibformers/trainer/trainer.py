@@ -4,14 +4,14 @@ from logging import StreamHandler
 from typing import Optional, List
 import numpy as np
 from datasets import IterableDataset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from transformers.trainer import Trainer
 from transformers import EvalPrediction, is_torch_tpu_available
 from transformers.file_utils import is_in_notebook, is_apex_available, is_datasets_available, is_sagemaker_dp_enabled, \
     is_sagemaker_mp_enabled, is_training_run_on_sagemaker
 from transformers.trainer_pt_utils import nested_truncate, IterableDatasetShard, nested_concat, nested_numpify, \
     find_batch_size
-from transformers.trainer_utils import EvalLoopOutput, denumpify_detensorize
+from transformers.trainer_utils import EvalLoopOutput, denumpify_detensorize, PredictionOutput
 from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
@@ -44,8 +44,13 @@ if is_training_run_on_sagemaker():
 
 class IbTrainer(Trainer):
     """
-    Copied from transformers to include few modifications inside the evaluation loop
+    Copied from transformers to include few modifications inside the training loop
+    Old trainer will be changed once transformers will be updated on ib
     """
+    def __init__(self, *args, post_process_function=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.post_process_function = post_process_function
+
     def evaluation_loop(
         self,
         dataloader: DataLoader,
@@ -214,3 +219,15 @@ class IbTrainer(Trainer):
                 metrics[f"{metric_key_prefix}_{key}"] = metrics.pop(key)
 
         return EvalLoopOutput(predictions=all_preds, label_ids=all_labels, metrics=metrics, num_samples=num_samples)
+
+    def predict(
+        self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
+    ) -> PredictionOutput:
+        """
+        run predict method from original trainer but call on_predict callback in the end
+=
+        """
+        output = super().predict(test_dataset, ignore_keys, metric_key_prefix)
+        self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
+
+        return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
