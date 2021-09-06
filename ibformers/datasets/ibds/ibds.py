@@ -1,7 +1,7 @@
 import json
 import urllib
 from pathlib import Path
-from typing import Tuple, List, Dict, Any, Union, NamedTuple, Optional, Callable
+from typing import Tuple, List, Dict, Any, Union, NamedTuple, Optional, Callable, Sequence
 import datasets
 from datasets import BuilderConfig, Features, config
 from datasets.fingerprint import Hasher
@@ -84,6 +84,7 @@ class _SearchKey(NamedTuple):
     page: int
     word: str
 
+
 class LabelWithId(TypedDict):
     id: int
     text: str
@@ -96,6 +97,7 @@ class LabelEntity(TypedDict):
     char_spans: List
     token_spans: List
 
+
 class IbDsBuilderConfig(BuilderConfig):
     """Base class for :class:`DatasetBuilder` data configuration.
     Copied from BuilderConfig class
@@ -106,10 +108,10 @@ class IbDsBuilderConfig(BuilderConfig):
         super(IbDsBuilderConfig, self).__init__(*args, **kwargs)
 
     def create_config_id(
-        self,
-        config_kwargs: dict,
-        custom_features: Optional[Features] = None,
-        use_auth_token: Optional[Union[bool, str]] = None,
+            self,
+            config_kwargs: dict,
+            custom_features: Optional[Features] = None,
+            use_auth_token: Optional[Union[bool, str]] = None,
     ) -> str:
         """
         The config id is used to build the cache directory.
@@ -198,12 +200,10 @@ def _read_parsedibocr(
     return words, layouts
 
 
-
-
 def process_labels_from_annotation(id2label: Dict[AnnotationLabelId, str],
                                    annotation_file: AnnotationFile,
                                    words: List[WordPolyDict],
-                                   str2int: Dict[str, int]) -> List[LabelEntity]:
+                                   str2int: Dict[str, int]) -> Tuple[List[LabelEntity], Sequence[int]]:
     token_label_ids = np.zeros((len(words)), dtype=np.int64)
     entities = []
 
@@ -253,7 +253,7 @@ def process_labels_from_annotation(id2label: Dict[AnnotationLabelId, str],
         entity: LabelEntity = LabelEntity(name=label_name, order_id=0, text=annotation['value'], char_spans=[],
                                           token_spans=label_token_spans)
         entities.append(entity)
-    return entities
+    return entities, token_label_ids
 
 
 def process_parsedibocr(parsedibocr: ParsedIBOCRBuilder,
@@ -301,12 +301,10 @@ def process_parsedibocr(parsedibocr: ParsedIBOCRBuilder,
     norm_bboxes = bbox_arr * 1000 / width_per_token[:, None]
     norm_page_bboxes = page_bboxes * 1000 / page_bboxes[:, 2:3]
 
-    token_label_ids = np.zeros((len(word_lst)), dtype=np.int64)
-
-    entities = process_labels_from_annotation(id2label=id2label,
-                                              annotation_file=doc_annotations,
-                                              words=words,
-                                              str2int=str2int)
+    entities, token_label_ids = process_labels_from_annotation(id2label=id2label,
+                                                               annotation_file=doc_annotations,
+                                                               words=words,
+                                                               str2int=str2int)
 
     features = {
         "id": doc_annotations["ocrPath"],
@@ -332,7 +330,7 @@ def process_parsedibocr(parsedibocr: ParsedIBOCRBuilder,
                 # try relative path - useful for debugging
                 ocr_path = Path(doc_annotations['ocrPath'])
                 img_rel_path = ocr_path.parent.parent / 's1_process_files' / 'images' / img_path.name
-                with open_fn(img_rel_path, 'rb') as img_file:
+                with open_fn(str(img_rel_path), 'rb') as img_file:
                     img_arr = image_processor(img_file).astype(np.uint8)
 
             img_lst.append(img_arr)
@@ -349,7 +347,7 @@ class IbDsConfig(IbDsBuilderConfig):
     Config for Instabase Format Datasets
     """
 
-    def __init__(self, use_image=True, ibsdk=None, **kwargs):
+    def __init__(self, use_image=False, ibsdk=None, **kwargs):
         """BuilderConfig for Instabase Format Datasets.
         Args:
           **kwargs: keyword arguments forwarded to super.

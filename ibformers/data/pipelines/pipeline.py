@@ -6,7 +6,7 @@ from ibformers.data.collators.collate import DataCollatorWithBBoxesForTokenClass
 from ibformers.data.metrics import compute_metrics_for_sl
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.chunk import produce_chunks
-from ibformers.data.transform import norm_bboxes_for_layoutlm
+from ibformers.data.transform import norm_bboxes_for_layoutlm, stack_pages
 
 
 def chain(example_batch, fn_lst, **kwargs):
@@ -58,14 +58,15 @@ def prepare_dataset(dataset, pipeline, **kwargs):
 
 
 # layoutlm sequence labeling pipeline
-layoutlm_sl = {'preprocess': [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+layoutlm_sl = {'dataset_load_kwargs': {},
+               'preprocess': [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
                'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox')],
                'collate': DataCollatorWithBBoxesForTokenClassification,
                'model_class': AutoModelForTokenClassification,
                'compute_metrics': compute_metrics_for_sl}
 
-
-layoutlmv2_sl = {'preprocess': [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks],
+layoutlmv2_sl = {'dataset_load_kwargs': {'use_image': True},
+                 'preprocess': [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
                  'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox'), ('images', 'image')],
                  'collate': DataCollatorWithBBoxesForTokenClassification,
                  'model_class': AutoModelForTokenClassification,

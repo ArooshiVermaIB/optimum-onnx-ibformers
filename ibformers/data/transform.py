@@ -41,7 +41,6 @@ T = TypeVar('T', bound=_NormBboxesInput)
 
 @feed_single_example
 def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
-
     bboxes, page_bboxes, page_spans = example['bboxes'], example['page_bboxes'], example['page_spans']
     norm_bboxes, norm_page_bboxes = _norm_bboxes_for_layoutlm(bboxes, page_bboxes, page_spans)
 
@@ -60,3 +59,21 @@ def _norm_bboxes_for_layoutlm(bboxes: List[List[int]],
     norm_page_bboxes[:, 3] = 1000
 
     return norm_bboxes, norm_page_bboxes
+
+
+@feed_single_example
+def stack_pages(example, **kwargs):
+    bboxes = np.array(example['bboxes'])
+    if example['token_page_nums'][0] == example['token_page_nums'][-1]:
+        return {'bboxes': bboxes}
+    page_nums = np.array(example['token_page_nums'])
+    special_tokens_mask = np.array(example['special_tokens_mask'])
+
+    # stack pages one under each other and squeeze them so the dimension is not greater than 1000
+    page_offset = page_nums - page_nums[0]
+    y_coord = bboxes[np.logical_not(special_tokens_mask)][:, (1, 3)] + page_offset[:, None] * 1000
+    y_coord_norm = y_coord / (page_offset[-1] + 1)
+    bboxes[np.logical_not(special_tokens_mask), 1] = y_coord_norm[:, 0]
+    bboxes[np.logical_not(special_tokens_mask), 3] = y_coord_norm[:, 1]
+
+    return {'bboxes': bboxes}

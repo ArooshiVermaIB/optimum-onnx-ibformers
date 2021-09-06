@@ -6,6 +6,30 @@ import pandas as pd
 from datasets import load_metric, Dataset
 
 
+def combine_chunks(y_chunks, *, stride: int):
+    """
+    When we get predictions for overlapping chunks of an input sequence, we have to combine the predictions, doing
+    something with the overlap. In this function, we simply take the feature-wise mean for each of the tokens that
+    have predictions from multiple chunks.
+
+    >>> example = [torch.FloatTensor(i).unsqueeze(-1) for i in [[1, 2, 3], [4, 5, 6], [7, 8]]]
+    >>> [i.shape for i in example]
+    [torch.Size([3, 1]), torch.Size([3, 1]), torch.Size([2, 1])]
+    >>> expected = torch.FloatTensor([1, 2, 3.5, 5, 6.5, 8]) # 3.5 is the mean of 3 and 4; 6.5 is the mean of 6 and 7
+    >>> combine_chunks(example, stride=1).squeeze()
+    tensor([1.0000, 2.0000, 3.5000, 5.0000, 6.5000, 8.0000])
+    """
+
+    res = [y_chunks[0]]
+    for chunk in y_chunks[1:]:
+        previous_overlap = res[-1][-stride:]
+        current_overlap, rest = chunk[:stride], chunk[stride:]
+        m = torch.stack([previous_overlap, current_overlap]).mean(0)
+        res[-1][-stride:] = m
+        res.append(rest)
+    return torch.cat(res)
+
+
 def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
     features = dataset.features
     assert 'id' in features, 'dataset need to contain ids of documents'
@@ -14,8 +38,12 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
     preds, labels = predictions
 
     ids = dataset['id']
+
+    if len(set(ids)) != len(ids):
+        pass
+        # TODO: add chunk support, use for that chunk offsets stored in ds features
     assert len(set(ids)) == len(ids), 'chunks are not supported by this function'
-    # TODO: add chunk support, use for that chunk offsets stored in ds features
+
 
     # softmax for np
     pred_prob = np.exp(preds) / np.sum(np.exp(preds), axis=-1, keepdims=True)

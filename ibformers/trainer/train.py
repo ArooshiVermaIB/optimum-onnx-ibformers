@@ -231,7 +231,7 @@ def prepare_ib_params(
     out_dict['logging_strategy'] = 'epoch'
     out_dict['evaluation_strategy'] = 'epoch'
     out_dict['disable_tqdm'] = True
-    out_dict['logging_steps'] = 50
+    out_dict['logging_steps'] = 10
     if hyperparams['scheduler_type'] == "constant_schedule_with_warmup":
         out_dict['lr_scheduler_type'] = 'constant_with_warmup'
     elif hyperparams['scheduler_type'] == 'linear_schedule_with_warmup':
@@ -344,6 +344,12 @@ def run_train(
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
+    # load pipeline
+    pipeline = PIPELINES[data_args.pipeline_name]
+    collate_fn = pipeline["collate"]
+    compute_metrics = pipeline['compute_metrics']
+    load_kwargs = pipeline["dataset_load_kwargs"]
+
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
     # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
     # (the dataset will be downloaded automatically from the datasets Hub).
@@ -377,6 +383,7 @@ def run_train(
             cache_dir=model_args.cache_dir,
             data_files=data_files,
             ibsdk=ibsdk,
+            **load_kwargs,
         )
     else:
         raw_datasets = load_dataset(
@@ -384,6 +391,7 @@ def run_train(
             name=data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
             data_files=data_files,
+            **load_kwargs
         )
 
     # Load pretrained model and tokenizer
@@ -421,9 +429,6 @@ def run_train(
                   'load_from_cache_file': not data_args.overwrite_cache,
                   'fn_kwargs': fn_kwargs
                   }
-    pipeline = PIPELINES[data_args.pipeline_name]
-    collate_fn = pipeline["collate"]
-    compute_metrics = pipeline['compute_metrics']
 
     if training_args.do_train:
         if "train" not in raw_datasets:
@@ -630,7 +635,7 @@ if __name__ == "__main__":
     hyperparams = {
         "adam_epsilon": 1e-8,
         "batch_size": 2,
-        "chunk_size": 510,
+        "chunk_size": 128,
         "epochs": 5,
         "learning_rate": 5e-05,
         "loss_agg_steps": 2,

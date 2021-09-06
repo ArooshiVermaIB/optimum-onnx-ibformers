@@ -1,6 +1,6 @@
 import numpy as np
 
-from ibformers.data.utils import spread_with_mapping, recalculate_spans, feed_batch
+from ibformers.data.utils import spread_with_mapping, recalculate_spans, feed_batch, spread_with_first_token
 
 
 @feed_batch
@@ -40,9 +40,15 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
     if 'bboxes' in example_batch:
         encodings['bboxes'] = spread_with_mapping(example_batch['bboxes'], encodings['word_map'])
 
-    # token labels as well
+    # page_nums need to be spread
+    if 'word_page_nums' in example_batch:
+        encodings['token_page_nums'] = spread_with_mapping(example_batch['word_page_nums'], encodings['word_map'])
+
+    # token labels as well - use only first token of the word as a label
     if 'token_label_ids' in example_batch:
-        encodings['token_label_ids'] = spread_with_mapping(example_batch['token_label_ids'], encodings['word_map'])
+        encodings['token_label_ids'] = spread_with_first_token(example_batch['token_label_ids'], encodings['offset_mapping'])
+
+        # encodings['token_label_ids'] = spread_with_mapping(example_batch['token_label_ids'], encodings['word_map'])
 
     # page spans need to be adjusted for new token ranges
     if 'page_spans' in example_batch:
@@ -99,6 +105,10 @@ def tokenize_layoutlmv2(example_batch, tokenizer, padding=False, **kwargs):
     # rename keys
     encodings['bboxes'] = encodings.pop('bbox')
     encodings['token_label_ids'] = encodings.pop('labels')
+
+    # page_nums need to be spread
+    if 'word_page_nums' in example_batch:
+        encodings['token_page_nums'] = spread_with_mapping(example_batch['word_page_nums'], encodings['word_map'])
 
     # page spans need to be adjusted for new token ranges
     if 'page_spans' in example_batch:

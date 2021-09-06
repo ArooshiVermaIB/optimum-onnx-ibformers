@@ -3,6 +3,7 @@ import sys
 from logging import StreamHandler
 from typing import Optional, List
 import numpy as np
+import torch
 from datasets import IterableDataset
 from torch.utils.data import DataLoader, Dataset
 from transformers.trainer import Trainer
@@ -39,7 +40,6 @@ if is_torch_tpu_available():
 
 if is_training_run_on_sagemaker():
     logging.add_handler(StreamHandler(sys.stdout))
-
 
 
 class IbTrainer(Trainer):
