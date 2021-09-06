@@ -78,6 +78,7 @@ def first_only(example, tokenizer, max_length: int):
     max_len_wo_special = len(special_mask) - special_mask.sum()
     chunks['offset_mapping'] = example['offset_mapping'][:max_len_wo_special]
     chunks['word_map'] = example['word_map'][:max_len_wo_special]
+    chunks['token_page_nums'] = example['token_page_nums'][:max_len_wo_special]
 
     if 'bboxes' in example:
         chunks["bboxes"] = np.array(example["bboxes"])[:max_len_wo_special]
