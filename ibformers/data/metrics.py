@@ -82,7 +82,7 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
 
         # generate correct answers to print pred/gold mismatches
         golden_words_dict = defaultdict(list)
-        non_zero_golden_class = np.nonzero(doc_lab)[0]
+        non_zero_golden_class = np.nonzero(doc_lab > 0)[0]
         for idx in non_zero_golden_class:
             class_idx = doc_lab[idx]
             tag_name = label_list[class_idx]
