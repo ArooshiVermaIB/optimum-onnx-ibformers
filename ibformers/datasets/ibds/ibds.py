@@ -256,6 +256,36 @@ def process_labels_from_annotation(id2label: Dict[AnnotationLabelId, str],
     return entities, token_label_ids
 
 
+def get_images_from_layouts(layouts: List[IBOCRRecordLayout],
+                            image_processor: ImageProcessor,
+                            ocr_path: str,
+                            open_fn: Callable):
+    """
+    :param layouts: list of layouts (pages) objects
+    :param image_processor: callable object used to process images
+    :param ocr_path: path of ocr used to obtain relative path of images
+    :param open_fn: fn used to open the image
+    :return:
+    """
+    img_lst = []
+    # TODO: support multi-page documents, currently quite difficult in hf/datasets
+    for lay in layouts[:1]:
+        img_path = Path(lay.get_processed_image_path())
+        try:
+            with open_fn(str(img_path)) as img_file:
+                img_arr = image_processor(img_file).astype(np.uint8)
+        except OSError:
+            # try relative path - useful for debugging
+            ocr_path = Path(ocr_path)
+            img_rel_path = ocr_path.parent.parent / 's1_process_files' / 'images' / img_path.name
+            with open_fn(str(img_rel_path), 'rb') as img_file:
+                img_arr = image_processor(img_file).astype(np.uint8)
+
+        img_lst.append(img_arr)
+    # img_arr_all = np.stack(img_lst, axis=0)
+    return img_arr
+
+
 def process_parsedibocr(parsedibocr: ParsedIBOCRBuilder,
                         open_fn,
                         doc_annotations: AnnotationFile,
@@ -305,9 +335,10 @@ def process_parsedibocr(parsedibocr: ParsedIBOCRBuilder,
                                                                annotation_file=doc_annotations,
                                                                words=words,
                                                                str2int=str2int)
+    ocr_path = doc_annotations['ocrPath']
 
     features = {
-        "id": doc_annotations["ocrPath"],
+        "id": ocr_path,
         "words": word_lst,
         "bboxes": norm_bboxes,
         "word_original_bboxes": bbox_arr,
@@ -315,29 +346,13 @@ def process_parsedibocr(parsedibocr: ParsedIBOCRBuilder,
         "page_bboxes": norm_page_bboxes,
         "page_spans": page_spans,
         'token_label_ids': token_label_ids,
-        "entities": entities,
+        # "entities": entities,
     }
 
     if use_image:
-        img_lst = []
-        # TODO: support multi-page documents, currently quite difficult in hf/datasets
-        for lay in layouts[:1]:
-            img_path = Path(lay.get_processed_image_path())
-            try:
-                with open_fn(str(img_path)) as img_file:
-                    img_arr = image_processor(img_file).astype(np.uint8)
-            except OSError:
-                # try relative path - useful for debugging
-                ocr_path = Path(doc_annotations['ocrPath'])
-                img_rel_path = ocr_path.parent.parent / 's1_process_files' / 'images' / img_path.name
-                with open_fn(str(img_rel_path), 'rb') as img_file:
-                    img_arr = image_processor(img_file).astype(np.uint8)
-
-            img_lst.append(img_arr)
-
-        # assert len(norm_page_bboxes) == len(img_lst), "Number of images should match number of pages in document"
-        # features['images'] = np.stack(img_lst, axis=0)
-        features['images'] = img_arr
+        images = get_images_from_layouts(layouts, image_processor, ocr_path, open_fn)
+        # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
+        features['images'] = images
 
     return features
 
@@ -396,15 +411,16 @@ class IbDs(datasets.GeneratorBasedBuilder):
             'page_bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=4)),
             'page_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
             'token_label_ids': datasets.Sequence(datasets.features.ClassLabel(names=classes)),
-            'entities': datasets.Sequence(
-                {
-                    'name': datasets.Value('string'),  # change to id?
-                    'order_id': datasets.Value('int64'),  # not supported yet, annotation app need to implement it
-                    'text': datasets.Value('string'),
-                    'char_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
-                    'token_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2))
-                }
-            ),
+            # Do not output entities as this ds is used only by SL models by now
+            # 'entities': datasets.Sequence(
+            #     {
+            #         'name': datasets.Value('string'),  # change to id?
+            #         'order_id': datasets.Value('int64'),  # not supported yet, annotation app need to implement it
+            #         'text': datasets.Value('string'),
+            #         'char_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
+            #         'token_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2))
+            #     }
+            # ),
         }
 
         if self.config.use_image:
