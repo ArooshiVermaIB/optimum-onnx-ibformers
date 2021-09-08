@@ -1,8 +1,9 @@
+import random
 from dataclasses import dataclass
 from typing import Union, Optional
 
 import torch
-from transformers import PreTrainedTokenizerBase
+from transformers import PreTrainedTokenizerBase, PreTrainedModel
 from transformers.file_utils import PaddingStrategy
 
 
@@ -36,6 +37,7 @@ class DataCollatorWithBBoxesForTokenClassification:
     """
 
     tokenizer: PreTrainedTokenizerBase
+    model: Optional[PreTrainedModel] = None
     padding: Union[bool, str, PaddingStrategy] = True
     max_length: Optional[int] = None
     pad_to_multiple_of: Optional[int] = None
@@ -66,12 +68,39 @@ class DataCollatorWithBBoxesForTokenClassification:
             batch[bbox_name] = [bbox + [[0, 0, 0, 0]] * (sequence_length - len(bbox)) for bbox in bboxes]
             batch["labels"] = [label + [self.label_pad_token_id] * (sequence_length - len(label)) for label in labels]
         else:
-            batch[bbox_name] = [[[0, 0, 0, 0]] * (sequence_length - len(bbox)) + bbox for bbox in bboxes]
-            batch["labels"] = [[self.label_pad_token_id] * (sequence_length - len(label)) + label for label in labels]
+            raise ValueError('Only right padding is supported')
 
         batch = {k: torch.tensor(v, dtype=torch.int64) for k, v in batch.items()}
 
         # for k, v in batch.items():
         #     print(f'{k}:{v.shape}')
+
+        return batch
+
+
+@dataclass
+class DataCollatorWithBBoxesAugmentedForTokenClassification(DataCollatorWithBBoxesForTokenClassification):
+    """
+    Data collator that will dynamically pad the inputs received, as well as the labels.
+
+    """
+
+    def __call__(self, features):
+        batch = super(DataCollatorWithBBoxesAugmentedForTokenClassification, self).__call__(features)
+
+        if self.model.training:
+            # do bbox augmentation
+            bbox = batch['bbox']
+            non_zeros_idx = (bbox[:, :, 0] != 0).to(bbox.dtype)
+
+            x_offset = random.randrange(-20, 20)
+            y_offset = random.randrange(-20, 20)
+            x_scale = random.uniform(0.95, 1.05)
+            y_scale = random.uniform(0.95, 1.05)
+
+            bbox[:, :, [0, 2]] = (bbox[:, :, [0, 2]] * x_scale + x_offset).clamp(1, 999).to(dtype=bbox.dtype)
+            bbox[:, :, [1, 3]] = (bbox[:, :, [1, 3]] * y_scale + y_offset).clamp(1, 999).to(dtype=bbox.dtype)
+            bbox = bbox * non_zeros_idx[:, :, None]
+            batch['bbox'] = bbox
 
         return batch

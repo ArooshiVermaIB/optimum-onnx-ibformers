@@ -238,6 +238,7 @@ def prepare_ib_params(
         out_dict['lr_scheduler_type'] = 'linear'
     else:
         out_dict['lr_scheduler_type'] = hyperparams['scheduler_type']
+    out_dict['adafactor'] = False
 
     out_dict['dataset_name_or_path'] = 'ibds'
     out_dict['model_name_or_path'] = hyperparams['model_name']
@@ -458,9 +459,6 @@ def run_train(
         # with training_args.main_process_first(desc="prediction dataset map pre-processing"):
         predict_dataset = prepare_dataset(predict_dataset, pipeline, **map_kwargs)
 
-    # Data collator
-    data_collator = collate_fn(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None)
-
     if training_args.do_train:
         column_names = train_dataset.column_names
         features = train_dataset.features
@@ -520,6 +518,9 @@ def run_train(
     #
     # def __init__(self, job_status_client: 'JobStatusClient', ibsdk: InstabaseSDK,
     #              username: str, mount_details: Dict, model_name: str, ib_save_path: str):
+
+    # Data collator
+    data_collator = collate_fn(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None, model=model)
 
     # Initialize our Trainer
     trainer = IbTrainer(
@@ -635,8 +636,8 @@ if __name__ == "__main__":
     hyperparams = {
         "adam_epsilon": 1e-8,
         "batch_size": 2,
-        "chunk_size": 128,
-        "epochs": 5,
+        "chunk_size": 512,
+        "epochs": 3,
         "learning_rate": 5e-05,
         "loss_agg_steps": 2,
         "max_grad_norm": 1.0,
@@ -650,6 +651,7 @@ if __name__ == "__main__":
         "model_name": "microsoft/layoutlmv2-base-uncased"
     }
     example_dir = Path(__file__).parent.parent / "example"
+    # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'
     dataset_filename = os.path.join(example_dir, "UberEats.ibannotator")
     save_path = os.path.join(example_dir, "saved_model")
     sdk = InstabaseSDKDummy(None, "user")

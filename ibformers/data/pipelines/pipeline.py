@@ -2,7 +2,8 @@ from functools import partial
 
 from transformers import DataCollatorForTokenClassification, AutoModelForTokenClassification
 
-from ibformers.data.collators.collate import DataCollatorWithBBoxesForTokenClassification
+from ibformers.data.collators.collate import DataCollatorWithBBoxesForTokenClassification, \
+    DataCollatorWithBBoxesAugmentedForTokenClassification
 from ibformers.data.metrics import compute_metrics_for_sl
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.chunk import produce_chunks
@@ -61,14 +62,14 @@ def prepare_dataset(dataset, pipeline, **kwargs):
 layoutlm_sl = {'dataset_load_kwargs': {},
                'preprocess': [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
                'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox')],
-               'collate': DataCollatorWithBBoxesForTokenClassification,
+               'collate': DataCollatorWithBBoxesAugmentedForTokenClassification,
                'model_class': AutoModelForTokenClassification,
                'compute_metrics': compute_metrics_for_sl}
 
 layoutlmv2_sl = {'dataset_load_kwargs': {'use_image': True},
                  'preprocess': [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
                  'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox'), ('images', 'image')],
-                 'collate': DataCollatorWithBBoxesForTokenClassification,
+                 'collate': DataCollatorWithBBoxesAugmentedForTokenClassification,
                  'model_class': AutoModelForTokenClassification,
                  'compute_metrics': compute_metrics_for_sl}
 
