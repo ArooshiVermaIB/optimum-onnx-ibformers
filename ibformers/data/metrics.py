@@ -1,72 +1,90 @@
 from collections import defaultdict
-from typing import Tuple
+from typing import Tuple, Iterator, Union, List, Sequence
 
 import numpy as np
 import pandas as pd
 from datasets import load_metric, Dataset
 
 
-def combine_chunks(y_chunks, *, stride: int):
+def doc_chunk_iter(doc_ids: List[str]) -> Iterator[Tuple[str, int, int]]:
+    """
+    function will return list of doc_ids with ranges of chunks corresponding to given doc_id
+    :param doc_ids: list of document ids
+    :return: Iterator of tuples
+    """
+    from_idx = 0
+    next_doc_ids = doc_ids[1:] + ["*end*"]
+    for i, (doc_id, next_doc_id) in enumerate(zip(doc_ids, next_doc_ids)):
+        if doc_id != next_doc_id:
+            yield doc_id, from_idx, i+1
+            from_idx = i+1
+
+
+def join_chunks(chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Sequence[int, int]]) -> np.ndarray:
     """
     When we get predictions for overlapping chunks of an input sequence, we have to combine the predictions, doing
     something with the overlap. In this function, we simply take the feature-wise mean for each of the tokens that
     have predictions from multiple chunks.
-
-    >>> example = [torch.FloatTensor(i).unsqueeze(-1) for i in [[1, 2, 3], [4, 5, 6], [7, 8]]]
-    >>> [i.shape for i in example]
-    [torch.Size([3, 1]), torch.Size([3, 1]), torch.Size([2, 1])]
-    >>> expected = torch.FloatTensor([1, 2, 3.5, 5, 6.5, 8]) # 3.5 is the mean of 3 and 4; 6.5 is the mean of 6 and 7
-    >>> combine_chunks(example, stride=1).squeeze()
-    tensor([1.0000, 2.0000, 3.5000, 5.0000, 6.5000, 8.0000])
+    Join list of ndarray of chunks based on the information in the chunk_ranges list
+    :param chunks: Chunks which need to be joined
+    :param chunk_ranges: Sequence of ranges which inform about position of chunk in the original document
+    :return:
     """
+    if len(chunks) == 1:
+        rng = chunk_ranges[0]
+        return np.array(chunks[0])[rng[0]:rng[1]]
+    strictly_increasing = all(i[0] < j[0] for i, j in zip(chunk_ranges, chunk_ranges[1:]))
+    assert strictly_increasing, f"Ranges of the chunks seems incorrect: Value: {chunk_ranges}"
+    max_size = chunk_ranges[-1][-1]
+    first_chunk = np.array(chunks[0])
+    chunk_shape = first_chunk.shape
+    doc_arr = np.full((len(chunks), max_size, *chunk_shape[1:]), fill_value=np.nan)
+    for i, (chunk, rng) in enumerate(zip(chunks, chunk_ranges)):
+        rng_len = rng[1]-rng[0]
+        doc_arr[i, rng[0]:rng[1]] = chunk[:rng_len]
 
-    res = [y_chunks[0]]
-    for chunk in y_chunks[1:]:
-        previous_overlap = res[-1][-stride:]
-        current_overlap, rest = chunk[:stride], chunk[stride:]
-        m = torch.stack([previous_overlap, current_overlap]).mean(0)
-        res[-1][-stride:] = m
-        res.append(rest)
-    return torch.cat(res)
+    doc_arr_mean = np.nanmean(doc_arr, axis=0)
+
+    return doc_arr_mean.astype(first_chunk.dtype)
 
 
 def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
     features = dataset.features
     assert 'id' in features, 'dataset need to contain ids of documents'
     label_list = features['labels'].feature.names
-
     preds, labels = predictions
-
     ids = dataset['id']
+    chunk_ranges = dataset['chunk_ranges']
+    pred_dict = {}
 
-    if len(set(ids)) != len(ids):
-        pass
-        # TODO: add chunk support, use for that chunk offsets stored in ds features
-    assert len(set(ids)) == len(ids), 'chunks are not supported by this function'
+    for doc_id, chunk_from_idx, chunk_to_idx in doc_chunk_iter(ids):
+        doc = dataset[chunk_from_idx]
+        assert doc_id == doc['id'], "Chunk doc_id and doc_id obtained from the dataset does not match"
+
+        chunk_ranges_lst = chunk_ranges[chunk_from_idx: chunk_to_idx]
+        # get rid of CLS token and last token for preds and labels
+        preds_arr = preds[chunk_from_idx: chunk_to_idx, 1:-1]
+        labels_arr = labels[chunk_from_idx: chunk_to_idx, 1:-1]
+        offset_mapping_lst = dataset['offset_mapping'][chunk_from_idx:chunk_to_idx]
+
+        doc_preds = join_chunks(preds_arr, chunk_ranges_lst)
+        doc_labels = join_chunks(labels_arr, chunk_ranges_lst)
+        doc_offsets = join_chunks(offset_mapping_lst, chunk_ranges_lst)
+        word_indices = np.array(doc_offsets)[:, 0] == 0
 
 
-    # softmax for np
-    pred_prob = np.exp(preds) / np.sum(np.exp(preds), axis=-1, keepdims=True)
-    pred_conf = np.max(pred_prob, axis=-1)
-    pred_class_index = np.argmax(pred_prob, axis=-1)
+        # softmax for np
+        doc_prob = np.exp(doc_preds) / np.sum(np.exp(doc_preds), axis=-1, keepdims=True)
+        doc_conf = np.max(doc_prob, axis=-1)
+        doc_class_index = np.argmax(doc_prob, axis=-1)
 
-    # temporary fix for old version of transformers in IB
-    dataset._output_all_columns = True
-
-    predictions = {}
-
-    for doc_conf, doc_class_index, doc_lab, doc in zip(pred_conf, pred_class_index, labels, dataset):
-        # remove padding
-        inp_len = len(doc['attention_mask'])
-        doc_conf, doc_class_index, doc_lab = doc_conf[:inp_len], doc_class_index[:inp_len], doc_lab[:inp_len]
-        # remove special tokens
-        non_special = np.logical_not(np.array(doc['special_tokens_mask']))
-        doc_conf, doc_class_index, doc_lab = doc_conf[non_special], doc_class_index[non_special], doc_lab[non_special]
         # get word level predictions - we might want to change that to support token level predictions
         # word-begin indices
-        word_indices = np.array(doc['offset_mapping'])[:, 0] == 0
-        doc_conf, doc_class_index, doc_lab = doc_conf[word_indices], doc_class_index[word_indices], doc_lab[
-            word_indices]
+
+        doc_conf = doc_conf[word_indices]
+        doc_class_index = doc_class_index[word_indices]
+        doc_labels = doc_labels[word_indices]
+
         non_zero_class = np.nonzero(doc_class_index)[0]
         doc_words_dict = defaultdict(list)
         for idx in non_zero_class:
@@ -82,9 +100,9 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
 
         # generate correct answers to print pred/gold mismatches
         golden_words_dict = defaultdict(list)
-        non_zero_golden_class = np.nonzero(doc_lab > 0)[0]
+        non_zero_golden_class = np.nonzero(doc_labels > 0)[0]
         for idx in non_zero_golden_class:
-            class_idx = doc_lab[idx]
+            class_idx = doc_labels[idx]
             tag_name = label_list[class_idx]
             golden_words_dict[tag_name].append(doc['words'][idx])
 
@@ -99,11 +117,9 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
                            'gold': golden,
                            'is_match': pred_text == golden}
 
-        predictions[doc['id']] = doc_dict
+        pred_dict[doc['id']] = doc_dict
 
-    dataset._output_all_columns = False
-
-    return predictions
+    return pred_dict
 
 
 def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
@@ -145,17 +161,17 @@ def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
     print(pd.DataFrame(final_results))
 
     # get prediction dict and print mismatches
-    predictions = get_predictions_for_sl(predictions, dataset)
+    pred_dict = get_predictions_for_sl(predictions, dataset)
 
     print("MISMATCH EXAMPLES")
     max_examples = 2
     for lab in label_list[1:]:
         mismatches = ["\tpred:\t'" + v[lab]['text'] + "'\n\tgold:\t'" + v[lab]['gold'] + "'\n"
-                      for k, v in predictions.items() if not v[lab]['is_match']]
+                      for k, v in pred_dict.items() if not v[lab]['is_match']]
         mismatch_text = '  '.join(mismatches[:max_examples])
         if len(mismatches) > 0:
             print(f"{lab}:\n{mismatch_text}", end="")
 
-    final_results['predictions'] = predictions
+    final_results['predictions'] = pred_dict
 
     return final_results

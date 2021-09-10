@@ -6,7 +6,7 @@ from ibformers.data.utils import feed_single_example, convert_to_dict_of_lists, 
 
 
 @feed_single_example_and_flatten
-def produce_chunks(example, tokenizer, max_length, chunking_strategy="FIRST_ONLY",
+def produce_chunks(example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS",
                    chunk_overlap=64, **kwargs) -> Sequence:
     if chunking_strategy == "FIRST_ONLY":
         return first_only(example, tokenizer, max_length)
@@ -38,7 +38,7 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
                                        chunk_size=max_length - 2,
                                        overlap=overlap)
 
-    chunked['chunk_ranges'] = [(i[0], i[-1]) for i in chunk_ranges]
+    chunked['chunk_ranges'] = [(i[0], i[-1]+1) for i in chunk_ranges]
 
     # This includes things like the document's ID
     other_keys = [i for i in list(example.keys()) if i not in keys_to_chunk]
