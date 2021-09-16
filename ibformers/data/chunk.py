@@ -26,7 +26,7 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
     """
     # TODO: check how many tokens are added and reomve hardcodded "2"
     keys_to_chunk = ["input_ids", "bboxes", "token_label_ids", "offset_mapping",
-                     "token_character_starts", "word_map", "token_page_nums"]
+                     "word_starts", "word_map", "token_page_nums"]
 
     chunked = {k: _chunk_with_overlap(example[k],
                                       chunk_size=max_length - 2,
@@ -78,6 +78,7 @@ def first_only(example, tokenizer, max_length: int):
     max_len_wo_special = len(special_mask) - special_mask.sum()
     chunks['offset_mapping'] = example['offset_mapping'][:max_len_wo_special]
     chunks['word_map'] = example['word_map'][:max_len_wo_special]
+    chunks['word_starts'] = example['word_starts'][:max_len_wo_special]
     chunks['token_page_nums'] = example['token_page_nums'][:max_len_wo_special]
 
     if 'bboxes' in example:

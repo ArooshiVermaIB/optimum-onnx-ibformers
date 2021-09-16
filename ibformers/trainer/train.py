@@ -215,8 +215,9 @@ def prepare_ib_params(
     out_dict = {}
 
     out_dict['do_train'] = True
-    out_dict['do_eval'] = False
+    out_dict['do_eval'] = True
     out_dict['do_predict'] = True
+    out_dict['log_level'] = 'warning'
     out_dict['num_train_epochs'] = hyperparams['epochs']
     out_dict['per_device_train_batch_size'] = int(hyperparams['batch_size'])
     out_dict['learning_rate'] = hyperparams['learning_rate']
@@ -242,8 +243,10 @@ def prepare_ib_params(
 
     out_dict['dataset_name_or_path'] = 'ibds'
     out_dict['model_name_or_path'] = hyperparams['model_name']
-    if 'layoutlmv2' in hyperparams['model_name'].lower() or 'layoutxlm' in hyperparams['model_name'].lower():
+    if 'layoutlmv2' in hyperparams['model_name'].lower():
         pipeline_name = 'layoutlmv2_sl'
+    elif 'layoutxlm' in hyperparams['model_name'].lower():
+        pipeline_name = 'layoutxlm_sl'
     else:
         pipeline_name = 'layoutlm_sl'
     out_dict['pipeline_name'] = pipeline_name
@@ -460,10 +463,8 @@ def run_train(
         predict_dataset = prepare_dataset(predict_dataset, pipeline, **map_kwargs)
 
     if training_args.do_train:
-        column_names = train_dataset.column_names
         features = train_dataset.features
     else:
-        column_names = eval_dataset.column_names
         features = eval_dataset.features
 
     # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
@@ -626,12 +627,7 @@ if __name__ == "__main__":
             pass
 
         def update_job_status(self, task_name=None, task_data=None, task_state=None):
-            if task_name:
-                print(task_name)
-            if task_data:
-                print(task_data)
-            if task_state:
-                print(task_state)
+            pass
 
     hyperparams = {
         "adam_epsilon": 1e-8,
@@ -643,12 +639,12 @@ if __name__ == "__main__":
         "max_grad_norm": 1.0,
         "optimizer_type": "AdamW",
         "scheduler_type": "constant_schedule_with_warmup",
-        "stride": 8,
-        "use_gpu": False,
+        "stride": 64,
+        "use_gpu": True,
         "use_mixed_precision": False,
         "warmup": 0.0,
         "weight_decay": 0,
-        "model_name": "microsoft/layoutlmv2-base-uncased"
+        "model_name": "microsoft/layoutxlm-base"
     }
     example_dir = Path(__file__).parent.parent / "example"
     # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'

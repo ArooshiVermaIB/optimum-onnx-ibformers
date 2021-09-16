@@ -153,12 +153,10 @@ def tag_answer_in_doc(words, answer):
     return matches
 
 
-def spread_with_first_token(features_batch, offsets_batch, fill_value=-100):
+def spread_with_first_token(features_batch, word_starts, fill_value=-100):
     spread_features_batch = []
-    for features, offsets in zip(features_batch, offsets_batch):
-        offsets = np.array(offsets)[:, 0]
-        is_first_token = offsets == 0
-        spread_features = np.full((offsets.shape[0]), fill_value=fill_value)
+    for features, is_first_token in zip(features_batch, word_starts):
+        spread_features = np.full((is_first_token.shape[0]), fill_value=fill_value)
         features = np.array(features)
         spread_features[is_first_token] = features
         spread_features_batch.append(spread_features)

@@ -17,24 +17,16 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
 
     # add token offsets for a document
     # add also word<->token mapping which indicate word index for given token
-    batch_token_starts = []
+    batch_word_starts = []
     batch_word_map = []
-    for single_offset in encodings['offset_mapping']:
-        offset_mapping = np.array(single_offset)
-        token_lens = offset_mapping[:, 1] - offset_mapping[:, 0]
-        # space positions are just before new word which is indicating by 0 occuring in the first position
-        new_word_positions = (offset_mapping[:, 0] == 0).astype(np.int)
-        word_map = np.cumsum(new_word_positions) - 1
-        # space positions are just before a new word
-        space_positions = np.roll(new_word_positions, shift=-1)
-        # compute token start position in the document, add 0 at the begining (first token starts at 0)
-        token_starts_in_doc = np.pad(np.cumsum(token_lens + space_positions)[:-1], (1, 0))
-
-        batch_token_starts.append(token_starts_in_doc)
+    for i in range(len(encodings.encodings)):
+        word_map = np.array(encodings.encodings[i].word_ids)
+        word_starts = word_map != np.roll(word_map, shift=1)
         batch_word_map.append(word_map)
+        batch_word_starts.append(word_starts)
 
-    encodings["token_character_starts"] = batch_token_starts
     encodings["word_map"] = batch_word_map
+    encodings["word_starts"] = batch_word_starts
 
     # bboxes need to be spread
     if 'bboxes' in example_batch:
@@ -46,7 +38,7 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
 
     # token labels as well - use only first token of the word as a label
     if 'token_label_ids' in example_batch:
-        encodings['token_label_ids'] = spread_with_first_token(example_batch['token_label_ids'], encodings['offset_mapping'])
+        encodings['token_label_ids'] = spread_with_first_token(example_batch['token_label_ids'], encodings['word_starts'])
 
         # encodings['token_label_ids'] = spread_with_mapping(example_batch['token_label_ids'], encodings['word_map'])
 
@@ -83,24 +75,16 @@ def tokenize_layoutlmv2(example_batch, tokenizer, padding=False, **kwargs):
 
     # add token offsets for a document
     # add also word<->token mapping which indicate word index for given token
-    batch_token_starts = []
+    batch_word_starts = []
     batch_word_map = []
-    for single_offset in encodings['offset_mapping']:
-        offset_mapping = np.array(single_offset)
-        token_lens = offset_mapping[:, 1] - offset_mapping[:, 0]
-        # space positions are just before new word which is indicating by 0 occuring in the first position
-        new_word_positions = (offset_mapping[:, 0] == 0).astype(np.int)
-        word_map = np.cumsum(new_word_positions) - 1
-        # space positions are just before a new word
-        space_positions = np.roll(new_word_positions, shift=-1)
-        # compute token start position in the document, add 0 at the begining (first token starts at 0)
-        token_starts_in_doc = np.pad(np.cumsum(token_lens + space_positions)[:-1], (1, 0))
-
-        batch_token_starts.append(token_starts_in_doc)
+    for i in range(len(encodings.encodings)):
+        word_map = np.array(encodings.encodings[i].word_ids)
+        word_starts = word_map != np.roll(word_map, shift=1)
         batch_word_map.append(word_map)
+        batch_word_starts.append(word_starts)
 
-    encodings["token_character_starts"] = batch_token_starts
     encodings["word_map"] = batch_word_map
+    encodings["word_starts"] = batch_word_starts
 
     # rename keys
     encodings['bboxes'] = encodings.pop('bbox')

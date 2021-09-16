@@ -4,7 +4,7 @@ from transformers import DataCollatorForTokenClassification, AutoModelForTokenCl
 
 from ibformers.data.collators.collate import DataCollatorWithBBoxesForTokenClassification, \
     DataCollatorWithBBoxesAugmentedForTokenClassification
-from ibformers.data.metrics import compute_metrics_for_sl
+from ibformers.data.metrics import compute_metrics_for_sl, compute_legacy_metrics_for_sl
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.chunk import produce_chunks
 from ibformers.data.transform import norm_bboxes_for_layoutlm, stack_pages
@@ -62,18 +62,26 @@ def prepare_dataset(dataset, pipeline, **kwargs):
 layoutlm_sl = {'dataset_load_kwargs': {},
                'preprocess': [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
                'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox')],
-               'collate': DataCollatorWithBBoxesAugmentedForTokenClassification,
+               'collate': DataCollatorWithBBoxesForTokenClassification,
                'model_class': AutoModelForTokenClassification,
-               'compute_metrics': compute_metrics_for_sl}
+               'compute_metrics': compute_legacy_metrics_for_sl}
+
+layoutxlm_sl = {'dataset_load_kwargs': {'use_image': True},
+                 'preprocess': [tokenize, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
+                 'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox'), ('images', 'image')],
+                 'collate': DataCollatorWithBBoxesForTokenClassification,
+                 'model_class': AutoModelForTokenClassification,
+                 'compute_metrics': compute_legacy_metrics_for_sl}
 
 layoutlmv2_sl = {'dataset_load_kwargs': {'use_image': True},
                  'preprocess': [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
                  'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox'), ('images', 'image')],
-                 'collate': DataCollatorWithBBoxesAugmentedForTokenClassification,
+                 'collate': DataCollatorWithBBoxesForTokenClassification,
                  'model_class': AutoModelForTokenClassification,
-                 'compute_metrics': compute_metrics_for_sl}
+                 'compute_metrics': compute_legacy_metrics_for_sl}
 
 # TODO: add AutoModel type to pipeline dict
 
 PIPELINES = {'layoutlm_sl': layoutlm_sl,
-             'layoutlmv2_sl': layoutlmv2_sl}
+             'layoutlmv2_sl': layoutlmv2_sl,
+             'layoutxlm_sl': layoutxlm_sl}

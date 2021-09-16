@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Tuple, Iterator, Union, List, Sequence
+from typing import Tuple, Iterator, Union, List, Sequence, Mapping, Dict
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,7 @@ def doc_chunk_iter(doc_ids: List[str]) -> Iterator[Tuple[str, int, int]]:
             from_idx = i+1
 
 
-def join_chunks(chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Sequence[int, int]]) -> np.ndarray:
+def join_chunks(chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Sequence[int]]) -> np.ndarray:
     """
     When we get predictions for overlapping chunks of an input sequence, we have to combine the predictions, doing
     something with the overlap. In this function, we simply take the feature-wise mean for each of the tokens that
@@ -65,13 +65,12 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
         # get rid of CLS token and last token for preds and labels
         preds_arr = preds[chunk_from_idx: chunk_to_idx, 1:-1]
         labels_arr = labels[chunk_from_idx: chunk_to_idx, 1:-1]
-        offset_mapping_lst = dataset['offset_mapping'][chunk_from_idx:chunk_to_idx]
+        word_starts = dataset['word_starts'][chunk_from_idx:chunk_to_idx]
 
         doc_preds = join_chunks(preds_arr, chunk_ranges_lst)
         doc_labels = join_chunks(labels_arr, chunk_ranges_lst)
-        doc_offsets = join_chunks(offset_mapping_lst, chunk_ranges_lst)
-        word_indices = np.array(doc_offsets)[:, 0] == 0
-
+        doc_word_starts = join_chunks(word_starts, chunk_ranges_lst)
+        word_indices = np.array(doc_word_starts)
 
         # softmax for np
         doc_prob = np.exp(doc_preds) / np.sum(np.exp(doc_preds), axis=-1, keepdims=True)
@@ -104,22 +103,96 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
         for idx in non_zero_golden_class:
             class_idx = doc_labels[idx]
             tag_name = label_list[class_idx]
-            golden_words_dict[tag_name].append(doc['words'][idx])
+            org_bbox = doc['word_original_bboxes'][idx]
+            word = dict(word=doc['words'][idx],
+                        start_x=org_bbox[0], start_y=org_bbox[1], end_x=org_bbox[2], end_y=org_bbox[3],
+                        conf=0.,
+                        idx=idx)
+            golden_words_dict[tag_name].append(word)
 
         doc_dict = {}
         for k in label_list[1:]:
             pred_words = doc_words_dict.get(k, [])
             pred_text = ' '.join([w['word'] for w in pred_words])
-            golden = ' '.join(golden_words_dict.get(k, []))
+            gold_words = golden_words_dict.get(k, [])
+            gold_text = ' '.join([w['word'] for w in gold_words])
             doc_dict[k] = {'words': pred_words,
                            'text': pred_text,
                            'avg_confidence': np.mean([w['conf'] for w in pred_words]),
-                           'gold': golden,
-                           'is_match': pred_text == golden}
+                           'gold_text': gold_text,
+                           'gold_words': gold_words,
+                           'is_match': pred_text == gold_text}
 
         pred_dict[doc['id']] = doc_dict
 
     return pred_dict
+
+
+def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset):
+
+    all_tags = dataset.features['labels'].feature.names
+    # get prediction dict and print mismatches
+    pred_dict = get_predictions_for_sl(predictions, dataset)
+
+    print("MISMATCH EXAMPLES")
+    max_examples = 2
+    for lab in all_tags[1:]:
+        mismatches = ["\tpred:\t'" + v[lab]['text'] + "'\n\tgold:\t'" + v[lab]['gold_text'] + "'\n"
+                      for k, v in pred_dict.items() if not v[lab]['is_match']]
+        mismatch_text = '  '.join(mismatches[:max_examples])
+        if len(mismatches) > 0:
+            print(f"{lab}:\n{mismatch_text}", end="")
+
+    # get list of document gold labels - List[Dict[List]]
+    ground_truths: List[Dict[List]] = [{k: [wrd['idx'] for wrd in v['gold_words']] for k, v in doc_lab.items()}
+                                       for doc_lab in pred_dict.values()]
+    pred_words: List[Dict[List]] = [{k: [wrd['idx'] for wrd in v['words']] for k, v in doc_lab.items()}
+                                    for doc_lab in pred_dict.values()]
+
+    token_level: Mapping[str, Mapping[str, int]] = {
+        k: {'true_positives': 0, 'total_positives': 0, 'total_true': 0}
+        for k in all_tags
+        if k != 'O'
+    }
+
+    doc_level_results: List[Mapping[str, int]] = []
+    for y_true, y_pred in zip(ground_truths, pred_words):
+        # Throw away the confidence number
+        for t in all_tags:
+            if t == 'O':
+                continue
+            a = set(y_pred.get(t, []))
+            b = set(y_true.get(t, []))
+            token_level[t]['total_positives'] += len(a)
+            token_level[t]['total_true'] += len(b)
+            token_level[t]['true_positives'] += len(a.intersection(b))
+
+    df = pd.DataFrame(doc_level_results)
+
+    # TODO: Add other metrics and make customizable
+    doc_level_metrics: Mapping[str, Mapping[str, float]] = {
+        'exact_match': (df == 1).mean().to_dict(),
+    }
+    overall_accuracy = (df == 1).mean().mean()
+
+    token_level_df = pd.DataFrame(token_level).T
+    token_level_df['precision'] = token_level_df.true_positives / token_level_df.total_positives
+    token_level_df['recall'] = token_level_df.true_positives / token_level_df.total_true
+    token_level_df['f1'] = (
+            2
+            * token_level_df.precision
+            * token_level_df.recall
+            / (token_level_df.precision + token_level_df.recall)
+        # Note that this is Pandas, so dividing by zero gives NAN
+    )
+    print("EVALUATION RESULTS")
+    print(token_level_df)
+    token_level_results = token_level_df.fillna("NAN")[['precision', 'recall', 'f1']].to_dict()
+    results = {**doc_level_metrics, **token_level_results}
+
+    results['predictions'] = pred_dict
+
+    return results
 
 
 def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):

@@ -7,7 +7,7 @@ import torch
 from datasets import IterableDataset
 from torch.utils.data import DataLoader, Dataset
 from transformers.trainer import Trainer
-from transformers import EvalPrediction, is_torch_tpu_available
+from transformers import EvalPrediction, is_torch_tpu_available, AdamW
 from transformers.file_utils import is_in_notebook, is_apex_available, is_datasets_available, is_sagemaker_dp_enabled, \
     is_sagemaker_mp_enabled, is_training_run_on_sagemaker
 from transformers.trainer_pt_utils import nested_truncate, IterableDatasetShard, nested_concat, nested_numpify, \
@@ -50,6 +50,11 @@ class IbTrainer(Trainer):
     def __init__(self, *args, post_process_function=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.post_process_function = post_process_function
+        self.test_dataset = None
+
+    def create_optimizer(self) -> torch.optim.Optimizer:
+        config = {'lr': self.args.learning_rate, 'eps': self.args.adam_epsilon}
+        self.optimizer = AdamW(self.model.parameters(), **{i: j for i, j in config.items() if j is not None})
 
     def evaluation_loop(
         self,
@@ -203,7 +208,7 @@ class IbTrainer(Trainer):
         if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             # MODIFICATION - pass eval_dataset to metric computing in order to get document level predictions
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels),
-                                           self.eval_dataset)
+                                           self.eval_dataset if metric_key_prefix == 'eval' else self.test_dataset)
         else:
             metrics = {}
 
@@ -227,7 +232,10 @@ class IbTrainer(Trainer):
         run predict method from original trainer but call on_predict callback in the end
 =
         """
+        # keep the original reference to test_dataset as test_dataloader removes columns not used during model trainn
+        self.test_dataset = test_dataset
         output = super().predict(test_dataset, ignore_keys, metric_key_prefix)
         self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
 
         return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
+
