@@ -1,0 +1,11 @@
+{
+  "name": "ibformers",
+  "version": "0.0.1",
+  "keywords":  "models, transformers",
+  "category": "model-training",
+  "short_description": "Training scripts for transformers",
+  "long_description": "Training scripts for transformers",
+  "authors": ["Instabase"],
+  "beta": true,
+  "solution_type": "pypkg"
+}
