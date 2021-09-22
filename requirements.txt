@@ -1,4 +1,4 @@
-Pillow==8.3.1
+Pillow==8.3.2
 transformers==4.10.0
 datasets==1.11.0
 fuzzysearch==0.7.3
