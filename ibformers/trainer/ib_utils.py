@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -279,3 +280,83 @@ def s3_write(client, local_file: str, remote_file: str, bucket_name: str, prefix
 def _abspath(relpath: str) -> str:
     dirpath, _ = os.path.split(__file__)
     return os.path.join(dirpath, relpath)
+
+
+def prepare_ib_params(
+    hyperparams: Dict,
+    dataset_filename: str,
+    save_path: str,
+    file_client: Any,
+    username: str,
+    job_status_client: 'JobStatusClient',
+    mount_details: Optional[Dict] = None,
+    model_name: str = 'CustomModel'
+) -> Dict:
+    """
+    Map parameters used by model service to names used in the Trainer
+    :param hyperparams:
+    :param dataset_filename:
+    :param save_path:
+    :param file_client:
+    :param username:
+    :param job_status_client:
+    :param mount_details:
+    :param model_name:
+    :return:
+    """
+    out_dict = {}
+
+    out_dict['do_train'] = True
+    out_dict['do_eval'] = True
+    out_dict['do_predict'] = True
+    out_dict['log_level'] = 'warning'
+    out_dict['num_train_epochs'] = hyperparams['epochs']
+    out_dict['per_device_train_batch_size'] = int(hyperparams['batch_size'])
+    out_dict['learning_rate'] = hyperparams['learning_rate']
+    out_dict['max_grad_norm'] = hyperparams['max_grad_norm']
+    out_dict['fp16'] = hyperparams['use_mixed_precision']
+    out_dict['no_cuda'] = not hyperparams['use_gpu']
+    out_dict['warmup_ratio'] = hyperparams['warmup']
+    out_dict['weight_decay'] = hyperparams['weight_decay']
+    out_dict['max_length'] = int(hyperparams['chunk_size'])
+    out_dict['chunk_overlap'] = int(hyperparams['stride'])
+    out_dict['report_to'] = 'none'
+    out_dict['logging_strategy'] = 'epoch'
+    out_dict['evaluation_strategy'] = 'epoch'
+    out_dict['disable_tqdm'] = False
+    out_dict['logging_steps'] = 10
+    if hyperparams['scheduler_type'] == "constant_schedule_with_warmup":
+        out_dict['lr_scheduler_type'] = 'constant_with_warmup'
+    elif hyperparams['scheduler_type'] == 'linear_schedule_with_warmup':
+        out_dict['lr_scheduler_type'] = 'linear'
+    else:
+        out_dict['lr_scheduler_type'] = hyperparams['scheduler_type']
+    out_dict['adafactor'] = False
+
+    out_dict['dataset_name_or_path'] = 'ibds'
+    out_dict['model_name_or_path'] = hyperparams['model_name']
+    if 'layoutlmv2' in hyperparams['model_name'].lower():
+        pipeline_name = 'layoutlmv2_sl'
+    elif 'layoutxlm' in hyperparams['model_name'].lower():
+        pipeline_name = 'layoutxlm_sl'
+    else:
+        pipeline_name = 'layoutlm_sl'
+    out_dict['pipeline_name'] = pipeline_name
+
+    out_dict['dataset_config_name'] = 'ibds'
+
+    out_dict['train_file'] = dataset_filename
+    temp_dir = tempfile.TemporaryDirectory().name
+    out_dict['output_dir'] = temp_dir
+    out_dict['ib_save_path'] = save_path
+
+    out_dict['overwrite_output_dir'] = False
+    out_dict['return_entity_level_metrics'] = True
+
+    out_dict['username'] = username
+    out_dict['file_client'] = file_client
+    out_dict['job_status_client'] = job_status_client
+    out_dict['mount_details'] = mount_details
+    out_dict['model_name'] = model_name
+
+    return out_dict

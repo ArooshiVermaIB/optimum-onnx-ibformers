@@ -230,7 +230,6 @@ class IbTrainer(Trainer):
     ) -> PredictionOutput:
         """
         run predict method from original trainer but call on_predict callback in the end
-=
         """
         # keep the original reference to test_dataset as test_dataloader removes columns not used during model trainn
         self.test_dataset = test_dataset
