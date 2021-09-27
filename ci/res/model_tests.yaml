@@ -19,6 +19,7 @@ NY Drivers Licenses:
     class_weights: false
     upload: false
     use_gpu: true
+    model_name: microsoft/layoutlm-base-uncased
   metrics: # TODO stop assuming higher is better
     # TODO maybe transpose this?
     exact_match:
@@ -58,6 +59,7 @@ Uber Eats Receipts:
     class_weights: false
     upload: false
     use_gpu: true
+    model_name: microsoft/layoutlm-base-uncased
   metrics:
     exact_match:
       date: 0.8

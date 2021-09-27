@@ -14,8 +14,8 @@ def abspath(relpath):
 
 # PROJECT_ROOT = abspath('../../test_package')
 PROJECT_ROOT = abspath('../../ibformers')
-REMOTE_TEMP_ZIP_PATH = 'temp.ibsolution'
-REMOTE_CODE_LOCATION = 'code_temp'
+REMOTE_TEMP_ZIP_PATH = 'temp.ibsolution' # TODO: Make this random
+REMOTE_CODE_LOCATION = 'ibformers' # TODO: Make this within a randomly generated directory
 SCRIPT_FUNCTION = 'ibformers.trainer.train.run_train'
 
 class Environment(TypedDict):

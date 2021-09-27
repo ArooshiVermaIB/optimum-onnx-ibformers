@@ -242,7 +242,7 @@ class Instabase:
         if not device_type:
             device_type = 'gpu' if hyperparams.get('use_gpu', True) else 'false'
         data = dict(
-            script_packages=[os.path.join(self._root_path, script_package, 'src')],
+            script_packages=[os.path.join(self._root_path, script_package)],
             function=script_function,
             arguments=arguments,
             device_type=device_type,
