@@ -1,9 +1,12 @@
 # Publishing
 
 - Add Instabase environments where you want the package published to `environment.yaml`
-- From `ib_deep_learning`, run `python -m ci.publish`. The package in `ib_deep_learning/layoutlm-mtt` will be published to all environments where the current version as specified in (`ib_deep_learning/layoutlm-mtt/package.json`) is not already present
+- From the repository root, run `python -m ci.publish`. The package in `ibformers` will be published
+  to all environments where the current version as specified in (`ibformers/package.json`) is not
+  already present
 
 ## environments.yaml
+
 ```yaml
 dogfood:
   host: https://dogfood.instabase.com
@@ -26,7 +29,7 @@ Example test config
 Test Name:
   env: dogfood
   # The .ibannotator file specified should be accessible using the API key in environments.yaml
-  ibannotator: ib_annotation/data/fs/Prod Drive/datasets/DLs Clean/Drivers Licenses Clean2.ibannotator
+  ibannotator: ib_annotation/data/fs/Prod Drive/datasets/Something.ibannotator
   time_limit: 1200 # 1200 seconds = 20 minutes
   config:
     batch_size: 2

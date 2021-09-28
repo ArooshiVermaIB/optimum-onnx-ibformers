@@ -100,7 +100,7 @@ async def publish(package: str):
     )
 
 
-parser = argparse.ArgumentParser(description='Publish layoutlm package')
+parser = argparse.ArgumentParser(description='Publish ibformers package')
 parser.add_argument(
     '--log-level',
     dest='log_level',
@@ -110,8 +110,8 @@ parser.add_argument(
 parser.add_argument(
     '--package',
     dest='package',
-    default='layoutlm-mtt',
-    help="The location of the package to publish, relative to ib_deep_learning, Defaults to layoutlm-mtt",
+    default='ibformers',
+    help="The location of the package to publish, relative to the ibformers root directory, Defaults to ibformers",
 )
 
 if __name__ == "__main__":
