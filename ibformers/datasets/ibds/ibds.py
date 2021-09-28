@@ -208,6 +208,7 @@ def process_labels_from_annotation(words: List[WordPolyDict],
     token_label_ids = np.zeros((len(words)), dtype=np.int64)
     entities = []
 
+    # return empty annotations for the inference mode, where annotation file is not provided
     if annotation_file is None:
         return entities, token_label_ids
 

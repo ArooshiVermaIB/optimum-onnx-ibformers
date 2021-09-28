@@ -9,7 +9,8 @@ from instabase.model_service.input_utils import resolve_parsed_ibocr_from_reques
 from instabase.model_service.model_cache import Model
 from instabase.ocr.client.libs.algorithms import WordPolyInputColMapper
 from instabase.protos.model_service import model_service_pb2
-from transformers import LayoutLMForTokenClassification, LayoutLMTokenizerFast, AutoTokenizer
+from transformers import AutoTokenizer, PreTrainedTokenizerFast, \
+    PreTrainedModel
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 from ibformers.trainer.ib_utils import _abspath
@@ -27,8 +28,8 @@ class IbModel(Model):
             self.model_data_path = MODEL_PATH
         else:
             self.model_data_path = model_data_path
-        self.tokenizer: Optional[LayoutLMTokenizerFast] = None
-        self.model: Optional[LayoutLMForTokenClassification] = None
+        self.tokenizer: Optional[PreTrainedTokenizerFast] = None
+        self.model: Optional[PreTrainedModel] = None
         self.device: Optional[str] = None
         self.pipeline_config = self.load_pipeline_config(model_data_path)
         self.pipeline = PIPELINES[self.pipeline_config['pipeline_name']]
@@ -68,12 +69,8 @@ class IbModel(Model):
         self.device = None
         torch.cuda.empty_cache()
 
-    def run(self, request: model_service_pb2.RunModelRequest) -> model_service_pb2.ModelResult:
-        assert (
-                self.tokenizer is not None and self.model is not None
-        ), "Trying to run a model that has not yet been loaded"
-        parsed_ibocr = resolve_parsed_ibocr_from_request(request)
 
+    def prepare_mapper_and_word_pollys(self, parsed_ibocr):
         # TODO: investigate if we can remove outputting input column mapper indexes,
         #  it requires lots of additional computation - two additional iteration over all words in document
         record_joined, err = parsed_ibocr.get_joined_page()
@@ -86,6 +83,17 @@ class IbModel(Model):
             word_polys += [i for j in record.get_lines() for i in j]
             l = record.get_metadata_list()
             layouts.extend([i.get_layout() for i in l])
+
+        return mapper, word_polys
+
+
+    def run(self, request: model_service_pb2.RunModelRequest) -> model_service_pb2.ModelResult:
+        assert (
+                self.tokenizer is not None and self.model is not None
+        ), "Trying to run a model that has not yet been loaded"
+        parsed_ibocr = resolve_parsed_ibocr_from_request(request)
+
+        mapper, word_polys = self.prepare_mapper_and_word_pollys(parsed_ibocr)
 
         # pass single document and create in memory dataset
         ds_path = Path(DATASETS_PATH) / self.pipeline_config['dataset_name_or_path']
