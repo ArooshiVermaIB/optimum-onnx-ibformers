@@ -647,7 +647,7 @@ if __name__ == "__main__":
         "warmup": 0.0,
         "weight_decay": 0,
         "model_name": "bert-base-uncased",
-        "pipeline_name": "bert_sl"
+        "pipeline_name": "plain_sl"
     }
     example_dir = Path(__file__).parent.parent / "example"
     # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'

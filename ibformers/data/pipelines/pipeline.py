@@ -80,7 +80,7 @@ layoutlmv2_sl = {'dataset_load_kwargs': {'use_image': True},
                  'model_class': AutoModelForTokenClassification,
                  'compute_metrics': compute_legacy_metrics_for_sl}
 
-bert_sl = {'dataset_load_kwargs': {},
+plain_sl = {'dataset_load_kwargs': {},
            'preprocess': [tokenize, produce_chunks],
            'column_mapping': [('token_label_ids', 'labels')],
            'collate': DataCollatorFor1DTokenClassification,
@@ -92,4 +92,4 @@ bert_sl = {'dataset_load_kwargs': {},
 PIPELINES = {'layoutlm_sl': layoutlm_sl,
              'layoutlmv2_sl': layoutlmv2_sl,
              'layoutxlm_sl': layoutxlm_sl,
-             'bert_sl':bert_sl}
+             'plain_sl':plain_sl}
