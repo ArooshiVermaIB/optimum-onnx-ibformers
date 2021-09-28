@@ -4,6 +4,7 @@ import numpy as np
 from typing_extensions import TypedDict
 
 from ibformers.data.utils import convert_to_dict_of_lists, tag_answer_in_doc, feed_single_example
+from random import shuffle
 
 
 @feed_single_example
@@ -77,3 +78,21 @@ def stack_pages(example, **kwargs):
     bboxes[np.logical_not(special_tokens_mask), 3] = y_coord_norm[:, 1]
 
     return {'bboxes': bboxes}
+
+
+@feed_single_example
+def map_entities_to_special_tokens(example, tokenizer, shuffle_special_tokens=True,**kwargs):
+    entities = example['entities']
+    extra_token_ids = tokenizer.additional_special_tokens
+
+    if shuffle_special_tokens:
+        shuffle(extra_token_ids)
+
+
+
+
+
+
+    a = 1
+
+    return entities

@@ -335,13 +335,14 @@ def prepare_ib_params(
 
     out_dict['dataset_name_or_path'] = 'ibds'
     out_dict['model_name_or_path'] = hyperparams['model_name']
-    if 'layoutlmv2' in hyperparams['model_name'].lower():
-        pipeline_name = 'layoutlmv2_sl'
+    if 'pipeline_name' in hyperparams:
+        out_dict['pipeline_name'] = hyperparams['pipeline_name']
+    elif 'layoutlmv2' in hyperparams['model_name'].lower():
+        out_dict['pipeline_name'] = 'layoutlmv2_sl'
     elif 'layoutxlm' in hyperparams['model_name'].lower():
-        pipeline_name = 'layoutxlm_sl'
+        out_dict['pipeline_name'] = 'layoutxlm_sl'
     else:
-        pipeline_name = 'layoutlm_sl'
-    out_dict['pipeline_name'] = pipeline_name
+        out_dict['pipeline_name'] = 'layoutlm_sl'
 
     out_dict['dataset_config_name'] = 'ibds'
 

@@ -530,7 +530,7 @@ if __name__ == "__main__":
         "adam_epsilon": 1e-8,
         "batch_size": 2,
         "chunk_size": 512,
-        "epochs": 3,
+        "epochs": 1,
         "learning_rate": 5e-05,
         "loss_agg_steps": 2,
         "max_grad_norm": 1.0,
@@ -541,7 +541,8 @@ if __name__ == "__main__":
         "use_mixed_precision": False,
         "warmup": 0.0,
         "weight_decay": 0,
-        "model_name": "microsoft/layoutxlm-base"
+        "model_name": "/Users/rafalpowalski/python/models/layout-base-mqa",
+        "pipeline_name": "layoutlmv2_mqa"
     }
     example_dir = Path(__file__).parent.parent / "example"
     # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'

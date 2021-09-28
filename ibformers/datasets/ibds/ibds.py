@@ -95,6 +95,7 @@ class LabelEntity(TypedDict):
     text: str
     char_spans: List
     token_spans: List
+    token_label_id: int
 
 
 class IbDsBuilderConfig(BuilderConfig):
@@ -255,7 +256,7 @@ def process_labels_from_annotation(words: List[WordPolyDict],
             token_label_ids[span[0]:span[1]] = label2id[label_name]
 
         entity: LabelEntity = LabelEntity(name=label_name, order_id=0, text=annotation['value'], char_spans=[],
-                                          token_spans=label_token_spans)
+                                          token_spans=label_token_spans, token_label_id=label2id[label_name])
         entities.append(entity)
     return entities, token_label_ids
 
@@ -351,11 +352,11 @@ def process_parsedibocr(parsedibocr: ParsedIBOCR,
         "page_bboxes": norm_page_bboxes,
         "page_spans": page_spans,
         'token_label_ids': token_label_ids,
-        # "entities": entities,
+        "entities": entities,
     }
 
     if use_image:
-        images = get_images_from_layouts(layouts, image_processor, ocr_path, open_fn)
+        images = get_images_from_layouts(layouts, image_processor, doc_id, open_fn)
         # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
         features['images'] = images
 
@@ -424,15 +425,15 @@ class IbDs(datasets.GeneratorBasedBuilder):
             'page_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
             'token_label_ids': datasets.Sequence(datasets.features.ClassLabel(names=classes)),
             # Do not output entities as this ds is used only by SL models by now
-            # 'entities': datasets.Sequence(
-            #     {
-            #         'name': datasets.Value('string'),  # change to id?
-            #         'order_id': datasets.Value('int64'),  # not supported yet, annotation app need to implement it
-            #         'text': datasets.Value('string'),
-            #         'char_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
-            #         'token_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2))
-            #     }
-            # ),
+            'entities': datasets.Sequence(
+                {
+                    'name': datasets.Value('string'),  # change to id?
+                    'order_id': datasets.Value('int64'),  # not supported yet, annotation app need to implement it
+                    'text': datasets.Value('string'),
+                    'char_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
+                    'token_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2))
+                }
+            ),
         }
 
         if self.config.use_image:
