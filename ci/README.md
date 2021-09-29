@@ -52,7 +52,7 @@ Test Name:
 # Unpublish
 
 ```bash
-python -m ci.unpublish --package ib_layout_lm_trainer --version 0.0.7
+python -m ci.unpublish --package ibformers --version 0.0.7
 ```
 
 # Advanced

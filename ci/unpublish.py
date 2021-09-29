@@ -61,7 +61,7 @@ parser.add_argument(
 parser.add_argument(
     '--package',
     dest='package',
-    default='ib_layout_lm_trainer',
+    default='ibformers',
     help="The name of the package to unpublish",
 )
 parser.add_argument(
