@@ -3,7 +3,7 @@ from functools import partial
 from transformers import DataCollatorForTokenClassification, AutoModelForTokenClassification
 
 from ibformers.data.collators.collate import DataCollatorWithBBoxesForTokenClassification, \
-    DataCollatorWithBBoxesAugmentedForTokenClassification
+    DataCollatorWithBBoxesAugmentedForTokenClassification, DataCollatorFor1DTokenClassification
 from ibformers.data.metrics import compute_metrics_for_sl, compute_legacy_metrics_for_sl
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.chunk import produce_chunks
@@ -80,8 +80,16 @@ layoutlmv2_sl = {'dataset_load_kwargs': {'use_image': True},
                  'model_class': AutoModelForTokenClassification,
                  'compute_metrics': compute_legacy_metrics_for_sl}
 
+plain_sl = {'dataset_load_kwargs': {},
+           'preprocess': [tokenize, produce_chunks],
+           'column_mapping': [('token_label_ids', 'labels')],
+           'collate': DataCollatorFor1DTokenClassification,
+           'model_class': AutoModelForTokenClassification,
+           'compute_metrics': compute_legacy_metrics_for_sl}
+
 # TODO: add AutoModel type to pipeline dict
 
 PIPELINES = {'layoutlm_sl': layoutlm_sl,
              'layoutlmv2_sl': layoutlmv2_sl,
-             'layoutxlm_sl': layoutxlm_sl}
+             'layoutxlm_sl': layoutxlm_sl,
+             'plain_sl':plain_sl}

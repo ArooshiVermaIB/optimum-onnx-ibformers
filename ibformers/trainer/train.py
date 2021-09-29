@@ -249,6 +249,8 @@ def prepare_ib_params(
         pipeline_name = 'layoutxlm_sl'
     else:
         pipeline_name = 'layoutlm_sl'
+    if 'pipeline_name' in hyperparams:
+        pipeline_name = hyperparams['pipeline_name']
     out_dict['pipeline_name'] = pipeline_name
 
     out_dict['dataset_config_name'] = 'ibds'
@@ -644,7 +646,8 @@ if __name__ == "__main__":
         "use_mixed_precision": False,
         "warmup": 0.0,
         "weight_decay": 0,
-        "model_name": "microsoft/layoutxlm-base"
+        "model_name": "bert-base-uncased",
+        "pipeline_name": "plain_sl"
     }
     example_dir = Path(__file__).parent.parent / "example"
     # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'
