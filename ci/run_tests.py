@@ -94,7 +94,7 @@ async def run_test(
     await sync_task
     logger.debug("Starting the model training task")
     job_id = await sdk.start_model_training_task(
-        script_package=REMOTE_CODE_LOCATION,
+        script_package=REMOTE_CODE_LOCATION + "/ibformers", # TODO change this!!!
         script_function=SCRIPT_FUNCTION,  # TODO: Make more generic
         dataset_filename=test_config['ibannotator'],
         save_path='save_location',
