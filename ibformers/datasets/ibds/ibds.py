@@ -310,7 +310,8 @@ def process_parsedibocr(parsedibocr: ParsedIBOCR,
     """
 
     words, layouts = _read_parsedibocr(parsedibocr)
-    doc_id = parsedibocr.get_document_path(0)[0]
+    doc_id = parsedibocr.get_document_path(0)[0] if doc_annotations is None else doc_annotations['ocrPath']
+
     assert doc_id is not None and doc_id != '', 'An issue occured while obtaining a document path from an ibocr'
     record: IBOCRRecord
 
