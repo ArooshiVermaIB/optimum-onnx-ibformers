@@ -356,7 +356,7 @@ def process_parsedibocr(parsedibocr: ParsedIBOCR,
     }
 
     if use_image:
-        images = get_images_from_layouts(layouts, image_processor, ocr_path, open_fn)
+        images = get_images_from_layouts(layouts, image_processor, doc_id, open_fn)
         # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
         features['images'] = images
 

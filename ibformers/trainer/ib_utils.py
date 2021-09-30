@@ -55,7 +55,7 @@ class IbCallback(TrainerCallback):
     it pass status of training to job_status_client and save required files to the IB location via ibsdk
     """
 
-    ibformers_do_not_copy = ['trainer']
+    ibformers_do_not_copy = []
 
     def __init__(self, job_status_client: 'JobStatusClient', ibsdk: InstabaseSDK,
                  username: str, mount_details: Dict, model_name: str, ib_save_path: str, upload: bool):
@@ -91,7 +91,7 @@ class IbCallback(TrainerCallback):
         prepare_package_json(save_model_dir / "package.json",
                              model_name=model_name, model_class_name=model_class_name, package_name=package_name)
 
-        # copy ibformers lib into the package, do not copy trainer
+        # copy ibformers lib into the package
         shutil.copytree(ibformers_path, package_dir / 'ibformers', ignore=lambda x, y: self.ibformers_do_not_copy)
 
         # copy model files
@@ -124,6 +124,7 @@ class IbCallback(TrainerCallback):
                    local_folder=dir_to_be_copied,
                    remote_folder=self.ib_save_path,
                    mount_details=self.mount_details)
+        self.set_status({'task_state': 'UPOLADING FINISHED'})
 
     def set_status(self, new_status: Dict):
         self.job_status.update(new_status)
@@ -358,5 +359,6 @@ def prepare_ib_params(
     out_dict['job_status_client'] = job_status_client
     out_dict['mount_details'] = mount_details
     out_dict['model_name'] = model_name
+    out_dict['upload'] = hyperparams['upload']
 
     return out_dict
