@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Union, Optional
 
 import torch
-from transformers import PreTrainedTokenizerBase, PreTrainedModel
+from transformers import PreTrainedTokenizerBase, PreTrainedModel, DataCollatorForTokenClassification
 from transformers.file_utils import PaddingStrategy
 
 
@@ -104,3 +104,8 @@ class DataCollatorWithBBoxesAugmentedForTokenClassification(DataCollatorWithBBox
             batch['bbox'] = bbox
 
         return batch
+
+
+def DataCollatorFor1DTokenClassification(*args, **kwargs):
+    kwargs.pop('model')  # TODO: Make this more generic
+    return DataCollatorForTokenClassification(*args, **kwargs)
