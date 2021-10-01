@@ -91,8 +91,11 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
             conf = doc_conf[idx]
             tag_name = label_list[class_idx]
             org_bbox = doc['word_original_bboxes'][idx]
-            word = dict(word=doc['words'][idx],
+            page = doc['word_page_nums'][idx]
+            word = dict(raw_word=doc['words'][idx],
                         start_x=org_bbox[0], start_y=org_bbox[1], end_x=org_bbox[2], end_y=org_bbox[3],
+                        line_height=org_bbox[3] - org_bbox[1], word_width=org_bbox[2] - org_bbox[0],
+                        page=page,
                         conf=conf,
                         idx=idx)
             doc_words_dict[tag_name].append(word)
@@ -104,8 +107,11 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
             class_idx = doc_labels[idx]
             tag_name = label_list[class_idx]
             org_bbox = doc['word_original_bboxes'][idx]
-            word = dict(word=doc['words'][idx],
+            page = doc['word_page_nums'][idx]
+            word = dict(raw_word=doc['words'][idx],
                         start_x=org_bbox[0], start_y=org_bbox[1], end_x=org_bbox[2], end_y=org_bbox[3],
+                        line_height=org_bbox[3] - org_bbox[1], word_width=org_bbox[2] - org_bbox[0],
+                        page=page,
                         conf=0.,
                         idx=idx)
             golden_words_dict[tag_name].append(word)
@@ -113,9 +119,9 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
         doc_dict = {}
         for k in label_list[1:]:
             pred_words = doc_words_dict.get(k, [])
-            pred_text = ' '.join([w['word'] for w in pred_words])
+            pred_text = ' '.join([w['raw_word'] for w in pred_words])
             gold_words = golden_words_dict.get(k, [])
-            gold_text = ' '.join([w['word'] for w in gold_words])
+            gold_text = ' '.join([w['raw_word'] for w in gold_words])
             doc_dict[k] = {'words': pred_words,
                            'text': pred_text,
                            'avg_confidence': np.mean([w['conf'] for w in pred_words]),

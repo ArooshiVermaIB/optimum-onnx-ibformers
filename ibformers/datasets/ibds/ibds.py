@@ -209,6 +209,7 @@ def process_labels_from_annotation(words: List[WordPolyDict],
     token_label_ids = np.zeros((len(words)), dtype=np.int64)
     entities = []
 
+    # return empty annotations for the inference mode, where annotation file is not provided
     if annotation_file is None:
         return entities, token_label_ids
 
@@ -310,8 +311,9 @@ def process_parsedibocr(parsedibocr: ParsedIBOCR,
     """
 
     words, layouts = _read_parsedibocr(parsedibocr)
-    doc_id = parsedibocr.get_document_path(0)[0]
-    assert doc_id is not None and doc_id != ''
+    doc_id = parsedibocr.get_document_path(0)[0] if doc_annotations is None else doc_annotations['ocrPath']
+
+    assert doc_id is not None and doc_id != '', 'An issue occured while obtaining a document path from an ibocr'
     record: IBOCRRecord
 
     # get content of the WordPolys

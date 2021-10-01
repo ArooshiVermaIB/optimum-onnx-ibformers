@@ -1,3 +1,15 @@
+import json
+import os
+import sys
+
+# TODO: remove once packages paths defined in package.json will be added to PYTHONPATH
+pth, _ = os.path.split(__file__)
+if pth not in sys.path:
+    sys.path.append(pth)
+
+
+import tempfile
+from pathlib import Path
 from typing import List, Tuple, Mapping, Optional, NamedTuple
 
 import torch
@@ -6,14 +18,13 @@ from instabase.model_service.input_utils import resolve_parsed_ibocr_from_reques
 from instabase.model_service.model_cache import Model
 from instabase.ocr.client.libs.algorithms import WordPolyInputColMapper
 from instabase.protos.model_service import model_service_pb2
-from transformers import LayoutLMForTokenClassification, LayoutLMTokenizerFast, AutoTokenizer
+from transformers import AutoTokenizer, PreTrainedTokenizerFast, \
+    PreTrainedModel, TrainingArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
-from ibformers.trainer.ib_utils import _abspath
 from ibformers.trainer.trainer import IbTrainer
 
-
-MODEL_PATH = _abspath('model_data/')
+MODEL_PATH = Path(__file__).parent / 'model_data'
 
 
 class IbModel(Model):
@@ -24,10 +35,10 @@ class IbModel(Model):
             self.model_data_path = MODEL_PATH
         else:
             self.model_data_path = model_data_path
-        self.tokenizer: Optional[LayoutLMTokenizerFast] = None
-        self.model: Optional[LayoutLMForTokenClassification] = None
+        self.tokenizer: Optional[PreTrainedTokenizerFast] = None
+        self.model: Optional[PreTrainedModel] = None
         self.device: Optional[str] = None
-        self.pipeline_config = self.load_pipeline_config(model_data_path)
+        self.pipeline_config = self.load_pipeline_config(self.model_data_path)
         self.pipeline = PIPELINES[self.pipeline_config['pipeline_name']]
 
     def load_pipeline_config(self, path):
@@ -50,6 +61,7 @@ class IbModel(Model):
 
         # Initialize our Trainer, trainer class will be used only for prediction
         self.trainer = IbTrainer(
+            args=TrainingArguments(output_dir=tempfile.TemporaryDirectory().name),
             model=self.model,
             train_dataset=None,
             eval_dataset=None,
@@ -65,12 +77,7 @@ class IbModel(Model):
         self.device = None
         torch.cuda.empty_cache()
 
-    def run(self, request: model_service_pb2.RunModelRequest) -> model_service_pb2.ModelResult:
-        assert (
-                self.tokenizer is not None and self.model is not None
-        ), "Trying to run a model that has not yet been loaded"
-        parsed_ibocr = resolve_parsed_ibocr_from_request(request)
-
+    def prepare_mapper_and_word_pollys(self, parsed_ibocr):
         # TODO: investigate if we can remove outputting input column mapper indexes,
         #  it requires lots of additional computation - two additional iteration over all words in document
         record_joined, err = parsed_ibocr.get_joined_page()
@@ -83,6 +90,16 @@ class IbModel(Model):
             word_polys += [i for j in record.get_lines() for i in j]
             l = record.get_metadata_list()
             layouts.extend([i.get_layout() for i in l])
+
+        return mapper, word_polys
+
+    def run(self, request: model_service_pb2.RunModelRequest) -> model_service_pb2.ModelResult:
+        assert (
+                self.tokenizer is not None and self.model is not None
+        ), "Trying to run a model that has not yet been loaded"
+        parsed_ibocr = resolve_parsed_ibocr_from_request(request)
+
+        mapper, word_polys = self.prepare_mapper_and_word_pollys(parsed_ibocr)
 
         # pass single document and create in memory dataset
         ds_path = Path(DATASETS_PATH) / self.pipeline_config['dataset_name_or_path']
@@ -123,13 +140,13 @@ class IbModel(Model):
                 token_idx = word['idx']
                 original_word_poly = word_polys[token_idx]
                 start = mapper.get_index(original_word_poly)
-                assert word['word'] == original_word_poly['word']
+                assert word['raw_word'] == original_word_poly['raw_word']
                 ner_result = model_service_pb2.NERTokenResult(
-                    content=word['word'],
+                    content=word['raw_word'],
                     label=field,
                     score=word['conf'],
                     start_index=start,
-                    end_index=start + len(word['word']),
+                    end_index=start + len(word['raw_word']),
                 )
                 entities.append(ner_result)
         return model_service_pb2.ModelResult(

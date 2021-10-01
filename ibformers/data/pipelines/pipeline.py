@@ -3,7 +3,7 @@ from functools import partial
 from transformers import DataCollatorForTokenClassification, AutoModelForTokenClassification
 
 from ibformers.data.collators.collate import DataCollatorWithBBoxesForTokenClassification, \
-    DataCollatorWithBBoxesAugmentedForTokenClassification
+    DataCollatorWithBBoxesAugmentedForTokenClassification, DataCollatorFor1DTokenClassification
 from ibformers.data.metrics import compute_metrics_for_sl, compute_legacy_metrics_for_sl
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.chunk import produce_chunks
@@ -67,20 +67,19 @@ layoutlm_sl = {'dataset_load_kwargs': {},
                'model_class': AutoModelForTokenClassification,
                'compute_metrics': compute_legacy_metrics_for_sl}
 
-layoutxlm_sl = {'dataset_load_kwargs': {'use_image': False},
+layoutxlm_sl = {'dataset_load_kwargs': {'use_image': True},
                  'preprocess': [tokenize, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
-                 'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox')],
+                 'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox'), ('images', 'image')],
                  'collate': DataCollatorWithBBoxesForTokenClassification,
-                 'model_class': LayoutLMv2NoImgForTokenClassification,
+                 'model_class': AutoModelForTokenClassification,
                  'compute_metrics': compute_legacy_metrics_for_sl}
 
-layoutlmv2_sl = {'dataset_load_kwargs': {'use_image': False},
+layoutlmv2_sl = {'dataset_load_kwargs': {'use_image': True},
                  'preprocess': [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
-                 'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox')],
+                 'column_mapping': [('token_label_ids', 'labels'), ('bboxes', 'bbox'), ('images', 'image')],
                  'collate': DataCollatorWithBBoxesForTokenClassification,
-                 'model_class': LayoutLMv2NoImgForTokenClassification,
+                 'model_class': AutoModelForTokenClassification,
                  'compute_metrics': compute_legacy_metrics_for_sl}
-
 
 layoutlmv2_mqa = {'dataset_load_kwargs': {'use_image': False},
                  'preprocess': [map_entities_to_special_tokens, tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
@@ -89,9 +88,17 @@ layoutlmv2_mqa = {'dataset_load_kwargs': {'use_image': False},
                  'model_class': LayoutLMv2NoImgForTokenClassification,
                  'compute_metrics': compute_legacy_metrics_for_sl}
 
+plain_sl = {'dataset_load_kwargs': {},
+           'preprocess': [tokenize, produce_chunks],
+           'column_mapping': [('token_label_ids', 'labels')],
+           'collate': DataCollatorFor1DTokenClassification,
+           'model_class': AutoModelForTokenClassification,
+           'compute_metrics': compute_legacy_metrics_for_sl}
+
 # TODO: add AutoModel type to pipeline dict
 
 PIPELINES = {'layoutlm_sl': layoutlm_sl,
              'layoutlmv2_sl': layoutlmv2_sl,
              'layoutxlm_sl': layoutxlm_sl,
-             'layoutlmv2_mqa': layoutlmv2_mqa}
+             'layoutlmv2_mqa': layoutlmv2_mqa,
+             'plain_sl':plain_sl}

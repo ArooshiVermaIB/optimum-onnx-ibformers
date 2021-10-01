@@ -1,0 +1,19 @@
+dogfood:
+  host: https://dogfood.instabase.com
+  path: daniel.cahn/my-repo/fs/Instabase Drive/test_location # TODO replace with a shared location
+  token: RtzvlDwk2jUp1F0fj4AofiRTM34qaf # TODO: use env variable
+
+#prod:
+#  host: https://instabase.com
+#  token: SOME_TOKEN
+#  path: SOME_LOCATION
+
+doc-insights-sandbox:
+  host: https://doc-insights.aws.sandbox.instabase.com
+  path: vontell/my-repo/fs/Instabase Drive/automation/
+  token: p67QBJb6MhQKpIZtS2yDafOyMkqdsV
+
+gs-sandbox:
+  host: https://gs.aws.sandbox.instabase.com/
+  path: daniel.halpern/my-repo/fs/Instabase Drive/publishing-space
+  token: BFJGz5BCnmvDXvwrPyoMbsi1as0vuv
