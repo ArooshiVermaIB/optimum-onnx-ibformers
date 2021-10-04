@@ -4,8 +4,13 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import time
-from typing import List, Dict, Any, NamedTuple
+from collections import defaultdict
+from pathlib import Path
+from typing import List, Dict, Any, NamedTuple, Mapping
+
+from typing_extensions import TypedDict
 
 from .lib.build import zip_project
 from .lib.config import ModelTestConfig, PROJECT_ROOT, SCRIPT_FUNCTION
@@ -18,6 +23,7 @@ from .lib.config import (
 from .lib.ibapi import Instabase
 
 POLLING_INTERVAL = 10
+INFERENCE_TIMEOUT = 300  # Allow 5 minutes to run the model in model service
 
 
 def do_comparison(
@@ -104,8 +110,9 @@ async def run_test(
     )
     state = ''
     start_time = time.time()
+    result = None
     while time.time() - start_time < test_config['time_limit']:
-        status = await sdk.get_model_training_job_status(job_id)
+        status = await sdk.get_async_job_status(job_id)
         # TODO: Add assertions/error messages
         if status.get('status') == "ERROR":
             logger.error(f"Server error: {status}")
@@ -136,7 +143,107 @@ async def run_test(
                 logging.info("Test passed")
             return result
         await asyncio.sleep(POLLING_INTERVAL)
-    logger.error(f"Test timed out after {test_config['time_limit']} seconds. Last status: {status}")
+    if not result:
+        logger.error(f"Test timed out after {test_config['time_limit']} seconds. Last status: {status}")
+
+    # Perform inference test after training
+    await run_inference_test(sdk, test_name, test_config)
+    return result
+
+
+class PredictionDict(TypedDict):
+    avg_confidence: float
+    text: str
+    words: List['WordPolyDict']
+
+
+async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelTestConfig):
+    logger = logging.getLogger(test_name)
+
+    logger.info("Running inference test")
+
+    dataset_filename = test_config['ibannotator']
+    save_path = 'save_location'
+    model_name = test_name
+
+    logger.debug("Unload the model_name in case it's already present. "
+                 "Repeating 10 times to capture multiple potential pods.")
+    for _ in range(10):
+        await sdk.unload_model(model_name)
+
+    dataset_path = Path(dataset_filename)
+    annotator_dir = dataset_path.parent
+    project_name = dataset_path.stem
+    model_path = Path(save_path) / 'saved_model'
+    refiner_filename = 'inference_test_refiner.ibrefiner'
+    dev_input_folder = f"{annotator_dir}/{project_name}_input/out/s2_map_records/"
+
+    logger.info("Creating Refiner")
+
+    refiner_path = await sdk.create_refiner_for_model(
+        model_path=str(model_path),
+        refiner_path=str(refiner_filename),
+        model_name=model_name,
+        save_path=save_path,
+        dev_input_folder=dev_input_folder
+    )
+
+    assert refiner_path, "Refiner path not found"
+
+    preds = await sdk.read_file(str(Path(save_path) / "predictions.json"))
+
+    # This has the inference predictions. They should match the output from model service
+    preds_dict: Mapping[str, Mapping[str, PredictionDict]] = json.loads(preds)
+
+    logger.info("Running Refiner")
+
+    # TODO: For now, just run inference against one input record to make sure it doesn't error out
+    # We should ideally run against many or all documents to compare
+    resp = await sdk.run_refiner(program_path=os.path.join(save_path, refiner_filename),
+                                 input_record_keys=[list(preds_dict.keys())[0] + "-0"])
+    if 'job_id' not in resp:
+        logger.error(f"Running Refiner failed with error message: {resp}")
+    job_id = resp['job_id']
+    start_time = time.time()
+    model_result_by_record = {}
+    failed = False
+    # TODO: This timeout should maybe be by test? Not sure...
+    while (time.time() - start_time) < INFERENCE_TIMEOUT:
+        await asyncio.sleep(POLLING_INTERVAL)
+        status = await sdk.get_async_job_status(job_id)
+        logger.debug(status)
+        success = _extract_refiner_results_from_status(logger, status, model_result_by_record)
+        failed = failed or not success
+        if status.get('state') != "PENDING":
+            break
+
+    for filename in model_result_by_record.keys():
+        preds_by_field = model_result_by_record[filename]
+        logger.info(f"predictions for file <{filename}>: {preds_by_field}")
+        # TODO: Instead of printing out the predictions, compare to the preds_dict above!
+    logger.info(f"Inference test {'failed' if failed else 'passed'}")
+
+    # TODO We should return something that indicates whether the test failed
+    #   (For now, ideally the logs should suffice)
+
+
+def _extract_refiner_results_from_status(logger, status, model_result_by_record):
+    status_results_by_record = status.get('results', [{}])[0].get("results_by_record", {})
+    for filename, d in status_results_by_record.items():
+        refined_phrases = d.get("refined_phrases", [])
+        result = [i for i in refined_phrases if i.get('label') == '__model_result']
+        if not result:
+            continue
+        error = result[0].get('error_msg')
+        if error:
+            failed = True
+            logger.error(f"file <{filename}> failed with error message {error}")
+            continue
+        output_json = result[0].get('word')
+        output_dict = output_json and json.loads(output_json)
+        output_text_by_field = {k: " ".join(i[0] for i in v) for k, v in output_dict}
+        model_result_by_record[filename] = output_text_by_field
+    return not failed
 
 
 async def sync_and_unzip(sdk, contents):
