@@ -94,6 +94,7 @@ async def run_test(
     sdk: Instabase, sync_task: asyncio.Task, test_name: str, test_config: ModelTestConfig
 ):
     logger = logging.getLogger(test_name)
+
     logger.debug("Getting mount details")
     mount_details = await sdk.get_mount_details(test_config['ibannotator'])
     logger.debug("Awaiting code sync")
@@ -229,6 +230,7 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
 
 def _extract_refiner_results_from_status(logger, status, model_result_by_record):
     status_results_by_record = status.get('results', [{}])[0].get("results_by_record", {})
+    failed = False
     for filename, d in status_results_by_record.items():
         refined_phrases = d.get("refined_phrases", [])
         result = [i for i in refined_phrases if i.get('label') == '__model_result']
