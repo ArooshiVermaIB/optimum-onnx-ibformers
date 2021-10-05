@@ -103,18 +103,23 @@ async def run_test(
     logger.debug("Awaiting code sync")
     await sync_task
     logger.debug("Starting the model training task")
+    save_path = f'save_location/{test_name}'
+
     job_id = await sdk.start_model_training_task(
-        script_package=REMOTE_CODE_LOCATION + "/ibformers", # TODO change this!!!
+        script_package=REMOTE_CODE_LOCATION + "/ibformers",  # TODO change this!!!
         script_function=SCRIPT_FUNCTION,  # TODO: Make more generic
         dataset_filename=test_config['ibannotator'],
-        save_path='save_location',
+        save_path=save_path,
         mount_details=mount_details,
         model_name=test_name,
         hyperparams=test_config['config'],
     )
     state = ''
     start_time = time.time()
-    result = None
+    success = False
+    done = False
+    status = {}
+    task_data = {}
     while time.time() - start_time < test_config['time_limit']:
         status = await sdk.get_async_job_status(job_id)
         # TODO: Add assertions/error messages
@@ -131,28 +136,34 @@ async def run_test(
 
         state = cur_status.get('task_state')
         if state in {'DONE', 'ERROR', 'FAILURE', 'SUCCESS'} or status.get('status') == "DONE":
-
-            if status.get('results'):
-                results = status.get('results')[0]
-                if 'error' in results:
-                    logger.error(f"Server Error: {results['error']}")
-                    logger.error(f"Stack Trace: {results.get('strace')}")
-                    exit(1)  # TODO: Stop failing fast?
-
-            evaluation_results = task_data.get('evaluation_results')
-            if not evaluation_results:
-                logging.error("evaluation results were not in the status")
-            result = do_comparison(evaluation_results, test_config['metrics'], test_name=test_name)
-            if result:
-                logging.info("Test passed")
-            return result
+            done = True
+            break
         await asyncio.sleep(POLLING_INTERVAL)
-    if not result:
-        logger.error(f"Test timed out after {test_config['time_limit']} seconds. Last status: {status}")
 
-    # Perform inference test after training
-    await run_inference_test(sdk, test_name, test_config)
-    return result
+    if not done:
+        logger.error(f"Test timed out after {test_config['time_limit']} seconds. Last status: {status}")
+        # Don't run inference test if training timed out
+        return success
+
+    if status.get('results'):
+        results = status.get('results')[0]
+        if 'error' in results:
+            logger.error(f"Server Error: {results['error']}")
+            logger.error(f"Stack Trace: {results.get('strace')}")
+            return False  # Fail fast
+
+    evaluation_results = task_data.get('evaluation_results')
+    if evaluation_results:
+        success = do_comparison(evaluation_results, test_config['metrics'], test_name=test_name)
+        if success:
+            logging.info("Test passed")
+    else:
+        logging.error("evaluation results were not in the status")
+        success = False
+
+    # Perform inference test after training, even if the evaluation results were bad
+    inference_success = await run_inference_test(sdk, test_name, test_config)
+    return success and inference_success
 
 
 class PredictionDict(TypedDict):
