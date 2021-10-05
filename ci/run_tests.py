@@ -124,7 +124,7 @@ async def run_test(
         # TODO: Add assertions/error messages
         if status.get('status') == "ERROR":
             logger.error(f"Server error: {status}")
-            exit(1)
+            return False
         cur_status = json.loads(status.get('cur_status', '{}'))
         if state != cur_status.get('task_state'):
             logger.info(f"Job state is now {cur_status.get('task_state')}")
