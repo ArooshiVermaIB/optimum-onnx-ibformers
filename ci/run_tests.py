@@ -172,7 +172,7 @@ class PredictionDict(TypedDict):
     words: List['WordPolyDict']
 
 
-async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelTestConfig):
+async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelTestConfig) -> bool:
     logger = logging.getLogger(test_name)
 
     logger.info("Running inference test")
@@ -189,7 +189,7 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
     dataset_path = Path(dataset_filename)
     annotator_dir = dataset_path.parent
     project_name = dataset_path.stem
-    model_path = Path(save_path) / 'saved_model'
+    model_path = Path(save_path) / test_name / 'saved_model'
     refiner_filename = 'inference_test_refiner.ibrefiner'
     dev_input_folder = f"{annotator_dir}/{project_name}_input/out/s2_map_records/"
 
