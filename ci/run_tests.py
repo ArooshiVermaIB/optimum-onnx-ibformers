@@ -31,7 +31,6 @@ def do_comparison(
     expected_metrics: Dict[str, Dict[str, Any]],
     *,
     test_name: str,
-):
 ) -> bool:
     """
     Check that the evaluation_results are each at least as high as the expected metrics
@@ -210,7 +209,7 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
     # This has the inference predictions. They should match the output from model service
     preds_dict: Mapping[str, Mapping[str, PredictionDict]] = json.loads(preds)
 
-    logger.info("Running Refiner")
+    logger.info(f"Running Refiner {Path(sdk._host) / 'apps/refiner-v5/edit' / refiner_path}")
 
     # TODO: For now, just run inference against one input record to make sure it doesn't error out
     # We should ideally run against many or all documents to compare
@@ -240,6 +239,8 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
 
     # TODO We should return something that indicates whether the test failed
     #   (For now, ideally the logs should suffice)
+
+    return not failed
 
 
 def _extract_refiner_results_from_status(logger, status, model_result_by_record):
@@ -287,8 +288,6 @@ async def run_tests():
                 f"one of the environments in 'environments.yaml': {[i for i in envs]}"
             )
             exit(1)
-
-    sdks = {}
 
     zip_bytes = zip_project(PROJECT_ROOT)
 
