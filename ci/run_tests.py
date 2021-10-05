@@ -32,6 +32,7 @@ def do_comparison(
     *,
     test_name: str,
 ):
+) -> bool:
     """
     Check that the evaluation_results are each at least as high as the expected metrics
     >>> evaluation_results = {
@@ -81,7 +82,9 @@ def do_comparison(
                 )
                 success = False
                 continue
-            if value > evaluation_results_for_metric[field]:
+
+            if not isinstance(evaluation_results_for_metric[field], float) or \
+                    value > evaluation_results_for_metric[field]:
                 logger.error(
                     f"for field '{field}' and metric '{metric}' expected at "
                     f"least '{value}' but observed '{evaluation_results_for_metric[field]}'"
