@@ -16,6 +16,9 @@ from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase
 
 
+HF_TOKEN = 'api_AYGJoxZMBtWlYODoAQgLKAuNVRXaGfQtjX'
+
+
 logger = logging.getLogger(__name__)
 
 

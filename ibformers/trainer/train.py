@@ -47,7 +47,7 @@ from ibformers.datasets import DATASETS_PATH
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.10.0.dev0")
-from ibformers.trainer.ib_utils import IbCallback, IbArguments, InstabaseSDK, prepare_ib_params
+from ibformers.trainer.ib_utils import IbCallback, IbArguments, InstabaseSDK, prepare_ib_params, HF_TOKEN
 from ibformers.trainer.trainer import IbTrainer
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
@@ -313,7 +313,7 @@ def run_train(
         cache_dir=model_args.cache_dir,
         use_fast=True,
         revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
+        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith('instabase/') else None,
     )
 
     # Tokenizer check: this script requires a fast tokenizer.
@@ -394,7 +394,7 @@ def run_train(
         id2label={i: l for l, i in label_to_id.items()},
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
+        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith('instabase/') else None,
     )
 
     model = model_class.from_pretrained(
@@ -403,7 +403,7 @@ def run_train(
         config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
+        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith('instabase/') else None,
     )
 
     callbacks = []
@@ -541,7 +541,8 @@ if __name__ == "__main__":
         "use_mixed_precision": False,
         "warmup": 0.0,
         "weight_decay": 0,
-        "model_name": "microsoft/layoutxlm-base",
+        "model_name": "instabase/laymqa-base",
+        "pipeline_name": "layout_mqa",
         "upload": False,
     }
     example_dir = Path(__file__).parent.parent / "example"
