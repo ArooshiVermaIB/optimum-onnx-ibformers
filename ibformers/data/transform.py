@@ -104,7 +104,7 @@ def build_prefix_with_special_tokens(example, tokenizer, shuffle_extra_tokens=Tr
     prefix = [f'{name} {tok}' for name, tok in zip(entities['name'], used_extra_tokens)] + [tokenizer.sep_token]
 
     # check if for each entity we chose unique token
-    assert len(used_extra_tokens) == len(set(used_extra_tokens)), "Not unique extra tokens were chosen for entities"
+    assert len(used_extra_tokens) == len(set(used_extra_tokens)), "An extra token was re-used for more than one entity class"
 
     entities['extra_tokens'] = used_extra_tokens
     entities['extra_ids'] = used_special_ids
