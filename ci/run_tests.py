@@ -7,6 +7,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from json import JSONDecodeError
 from pathlib import Path
 from typing import List, Dict, Any, NamedTuple, Mapping
 
@@ -177,7 +178,7 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
     logger.info("Running inference test")
 
     dataset_filename = test_config['ibannotator']
-    save_path = 'save_location'
+    save_path = f'save_location/{test_name}'
     model_name = test_name
 
     logger.debug("Unload the model_name in case it's already present. "
@@ -188,7 +189,7 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
     dataset_path = Path(dataset_filename)
     annotator_dir = dataset_path.parent
     project_name = dataset_path.stem
-    model_path = Path(save_path) / test_name / 'saved_model'
+    model_path = Path(save_path) / 'saved_model'
     refiner_filename = 'inference_test_refiner.ibrefiner'
     dev_input_folder = f"{annotator_dir}/{project_name}_input/out/s2_map_records/"
 
@@ -207,7 +208,11 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
     preds = await sdk.read_file(str(Path(save_path) / "predictions.json"))
 
     # This has the inference predictions. They should match the output from model service
-    preds_dict: Mapping[str, Mapping[str, PredictionDict]] = json.loads(preds)
+    try:
+        preds_dict: Mapping[str, Mapping[str, PredictionDict]] = json.loads(preds)
+    except JSONDecodeError as e:
+        logger.error("Exception occured while reading predictions")
+        return False
 
     logger.info(f"Running Refiner {Path(sdk._host) / 'apps/refiner-v5/edit' / refiner_path}")
 
@@ -220,14 +225,13 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
     job_id = resp['job_id']
     start_time = time.time()
     model_result_by_record = {}
-    failed = False
+    success = True
     # TODO: This timeout should maybe be by test? Not sure...
     while (time.time() - start_time) < INFERENCE_TIMEOUT:
         await asyncio.sleep(POLLING_INTERVAL)
         status = await sdk.get_async_job_status(job_id)
         logger.debug(status)
-        success = _extract_refiner_results_from_status(logger, status, model_result_by_record)
-        failed = failed or not success
+        success = _extract_refiner_results_from_status(logger, status, model_result_by_record) and success
         if status.get('state') != "PENDING":
             break
 
@@ -240,7 +244,7 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
     # TODO We should return something that indicates whether the test failed
     #   (For now, ideally the logs should suffice)
 
-    return not failed
+    return success
 
 
 def _extract_refiner_results_from_status(logger, status, model_result_by_record):
@@ -258,7 +262,7 @@ def _extract_refiner_results_from_status(logger, status, model_result_by_record)
             continue
         output_json = result[0].get('word')
         output_dict = output_json and json.loads(output_json)
-        output_text_by_field = {k: " ".join(i[0] for i in v) for k, v in output_dict}
+        output_text_by_field = {k: " ".join(i[0] for i in v) for k, v in output_dict.items()}
         model_result_by_record[filename] = output_text_by_field
     return not failed
 
