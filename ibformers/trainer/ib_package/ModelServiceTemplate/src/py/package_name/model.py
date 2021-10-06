@@ -7,7 +7,6 @@ pth, _ = os.path.split(__file__)
 if pth not in sys.path:
     sys.path.append(pth)
 
-
 import tempfile
 from pathlib import Path
 from typing import List, Tuple, Mapping, Optional, NamedTuple
@@ -18,8 +17,7 @@ from instabase.model_service.input_utils import resolve_parsed_ibocr_from_reques
 from instabase.model_service.model_cache import Model
 from instabase.ocr.client.libs.algorithms import WordPolyInputColMapper
 from instabase.protos.model_service import model_service_pb2
-from transformers import AutoTokenizer, PreTrainedTokenizerFast, \
-    PreTrainedModel, TrainingArguments
+from transformers import AutoTokenizer, PreTrainedTokenizerFast, PreTrainedModel, TrainingArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 from ibformers.trainer.trainer import IbTrainer
@@ -68,7 +66,7 @@ class IbModel(Model):
             tokenizer=self.tokenizer,
             data_collator=data_collator,
             compute_metrics=compute_metrics,
-            post_process_function=None
+            post_process_function=None,
         )
 
     def cleanup(self) -> None:
@@ -95,7 +93,7 @@ class IbModel(Model):
 
     def run(self, request: model_service_pb2.RunModelRequest) -> model_service_pb2.ModelResult:
         assert (
-                self.tokenizer is not None and self.model is not None
+            self.tokenizer is not None and self.model is not None
         ), "Trying to run a model that has not yet been loaded"
         parsed_ibocr = resolve_parsed_ibocr_from_request(request)
 
@@ -103,7 +101,9 @@ class IbModel(Model):
 
         # pass single document and create in memory dataset
         ds_path = Path(DATASETS_PATH) / self.pipeline_config['dataset_name_or_path']
-        name_to_use = str(ds_path) if ds_path.is_dir() else self.pipeline_config['dataset_name_or_path']
+        name_to_use = (
+            str(ds_path) if ds_path.is_dir() else self.pipeline_config['dataset_name_or_path']
+        )
         load_kwargs = self.pipeline["dataset_load_kwargs"]
         if hasattr(self.model.config, 'id2label'):
             load_kwargs['id2label'] = self.model.config.id2label
@@ -121,11 +121,12 @@ class IbModel(Model):
 
         fn_kwargs = {**self.pipeline_config, **{'tokenizer': self.tokenizer}}
 
-        map_kwargs = {'num_proc': 1,
-                      'load_from_cache_file': False,
-                      'keep_in_memory': True,
-                      'fn_kwargs': fn_kwargs
-                      }
+        map_kwargs = {
+            'num_proc': 1,
+            'load_from_cache_file': False,
+            'keep_in_memory': True,
+            'fn_kwargs': fn_kwargs,
+        }
 
         processed_dataset = prepare_dataset(predict_dataset, self.pipeline, **map_kwargs)
         prediction_output = self.trainer.predict(processed_dataset)

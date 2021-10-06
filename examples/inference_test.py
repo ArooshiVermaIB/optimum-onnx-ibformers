@@ -7,7 +7,6 @@ annotation_file = Path(__file__).parent.parent / "ibformers" / "example" / "Uber
 with open(str(annotation_file), 'r') as fl:
     content = json.load(fl)
 
-
 # Load model
 model_path = '/var/folders/k_/kwwcpz8944j2c5xbyfpypmgc0000gn/T/tmpytuo3hie/model'
 model = IbModel(model_data_path=model_path)
@@ -20,12 +19,4 @@ for annotations in content['files']:
     out = model.run(req)
     outs.append(out)
 
-
 print(len(outs))
-
-
-
-
-
-
-
