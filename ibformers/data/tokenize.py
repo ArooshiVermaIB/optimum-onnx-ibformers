@@ -28,6 +28,17 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
     encodings["word_map"] = batch_word_map
     encodings["word_starts"] = batch_word_starts
 
+    if 'prefix_words' in example_batch:
+        prefix_encodings = tokenizer(example_batch['prefix_words'],
+                                     is_split_into_words=True,
+                                     return_offsets_mapping=False,
+                                     add_special_tokens=False,
+                                     return_token_type_ids=False,
+                                     padding=padding,
+                                     )
+
+        encodings['prefix_input_ids'] = prefix_encodings['input_ids']
+
     # bboxes need to be spread
     if 'bboxes' in example_batch:
         encodings['bboxes'] = spread_with_mapping(example_batch['bboxes'], encodings['word_map'])
@@ -38,7 +49,8 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
 
     # token labels as well - use only first token of the word as a label
     if 'token_label_ids' in example_batch:
-        encodings['token_label_ids'] = spread_with_first_token(example_batch['token_label_ids'], encodings['word_starts'])
+        encodings['token_label_ids'] = spread_with_first_token(example_batch['token_label_ids'],
+                                                               encodings['word_starts'])
 
         # encodings['token_label_ids'] = spread_with_mapping(example_batch['token_label_ids'], encodings['word_map'])
 
@@ -89,6 +101,19 @@ def tokenize_layoutlmv2(example_batch, tokenizer, padding=False, **kwargs):
     # rename keys
     encodings['bboxes'] = encodings.pop('bbox')
     encodings['token_label_ids'] = encodings.pop('labels')
+
+    if 'prefix_words' in example_batch:
+        lens_prefix = [len(pwords) for pwords in example_batch['prefix_words']]
+        prefix_encodings = tokenizer(example_batch['prefix_words'],
+                                     boxes=[[[0, 0, 0, 0]] * lpref for lpref in lens_prefix],
+                                     word_labels=None,
+                                     return_offsets_mapping=False,
+                                     add_special_tokens=False,
+                                     return_token_type_ids=False,
+                                     padding=padding,
+                                     )
+
+        encodings['prefix_input_ids'] = prefix_encodings['input_ids']
 
     # page_nums need to be spread
     if 'word_page_nums' in example_batch:

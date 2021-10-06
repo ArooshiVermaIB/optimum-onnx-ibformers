@@ -208,10 +208,8 @@ def process_labels_from_annotation(words: List[WordPolyDict],
 
     token_label_ids = np.zeros((len(words)), dtype=np.int64)
     entities = []
-
-    # return empty annotations for the inference mode, where annotation file is not provided
-    if annotation_file is None:
-        return entities, token_label_ids
+    if annotation_file is not None:
+        label2ann_label_id = {v: k for k, v in ann_label_id2label.items()}
 
     key_to_words = {
         _SearchKey(x['start_x'], x['start_y'], x['page'], x['raw_word']): i
@@ -220,45 +218,55 @@ def process_labels_from_annotation(words: List[WordPolyDict],
     assert len(key_to_words) == len(
         words
     ), "Issue with assumption that _SearchKey(x, y, page, word) is unique"
-
     annotation: Annotation
-    for label_id, annotation in annotation_file['annotations'].items():
-        metadata = annotation['metadata']
-        label_name = ann_label_id2label[label_id]
-        word_metadata: AnnotationWordMetadata
-        label_words = []
-        for word_metadata in metadata:
-            if word_metadata['dataType'] != 'WordPoly':
-                raise ValueError("Unexpected (non-wordpoly) annotation. Skipping.")
+    for label_name, lab_id in label2id.items():
+        if lab_id == 0 and label_name == 'O':
+            continue
+        if annotation_file is None:
+            # get empty entities for inference mode
+            entity: LabelEntity = LabelEntity(name=label_name, order_id=0, text=annotation['value'], char_spans=[],
+                                              token_spans=[], token_label_id=lab_id)
 
-            pos = word_metadata['position']
-            rect: AnnotationRect = pos['rect']
-            key = _SearchKey(rect['x'], rect['y'], pos['page'], word_metadata['rawWord'])
-            if key not in key_to_words:
-                raise RuntimeError(
-                    f"Couldn't find word {repr(key)} in document {annotation_file['ocrPath']}."
-                )
-            word_id_global = key_to_words[key]
+        else:
+            ann_label_id = label2ann_label_id[label_name]
+            annotation = annotation_file['annotations'].get(ann_label_id, {"value": "", "metadata": []})
 
-            word_text = word_metadata['rawWord']
-            assert word_text.strip() == words[word_id_global]['word'].strip(), \
-                "Annotation does not match with document words"
+            metadata = annotation['metadata']
+            word_metadata: AnnotationWordMetadata
+            label_words = []
+            for word_metadata in metadata:
+                if word_metadata['dataType'] != 'WordPoly':
+                    raise ValueError("Unexpected (non-wordpoly) annotation. Skipping.")
 
-            label_words.append(LabelWithId(id=word_id_global, text=word_text))
+                pos = word_metadata['position']
+                rect: AnnotationRect = pos['rect']
+                key = _SearchKey(rect['x'], rect['y'], pos['page'], word_metadata['rawWord'])
+                if key not in key_to_words:
+                    raise RuntimeError(
+                        f"Couldn't find word {repr(key)} in document {annotation_file['ocrPath']}."
+                    )
+                word_id_global = key_to_words[key]
 
-        # TODO: information about multi-item entity separation should be obtained during annotation
-        # group consecutive words as the same entity occurrence
-        label_words.sort(key=lambda x: x["id"])
-        label_groups = [list(group) for group in consecutive_groups(label_words, ordering=lambda x: x["id"])]
-        # create spans for groups, span will be created by getting id for first and last word in the group
-        label_token_spans = [[group[0]["id"], group[-1]["id"] + 1] for group in label_groups]
+                word_text = word_metadata['rawWord']
+                assert word_text.strip() == words[word_id_global]['word'].strip(), \
+                    "Annotation does not match with document words"
 
-        for span in label_token_spans:
-            token_label_ids[span[0]:span[1]] = label2id[label_name]
+                label_words.append(LabelWithId(id=word_id_global, text=word_text))
 
-        entity: LabelEntity = LabelEntity(name=label_name, order_id=0, text=annotation['value'], char_spans=[],
-                                          token_spans=label_token_spans, token_label_id=label2id[label_name])
+            # TODO: information about multi-item entity separation should be obtained during annotation
+            # group consecutive words as the same entity occurrence
+            label_words.sort(key=lambda x: x["id"])
+            label_groups = [list(group) for group in consecutive_groups(label_words, ordering=lambda x: x["id"])]
+            # create spans for groups, span will be created by getting id for first and last word in the group
+            label_token_spans = [[group[0]["id"], group[-1]["id"] + 1] for group in label_groups]
+
+            for span in label_token_spans:
+                token_label_ids[span[0]:span[1]] = lab_id
+
+            entity: LabelEntity = LabelEntity(name=label_name, order_id=0, text=annotation['value'], char_spans=[],
+                                              token_spans=label_token_spans, token_label_id=lab_id)
         entities.append(entity)
+
     return entities, token_label_ids
 
 
@@ -433,7 +441,8 @@ class IbDs(datasets.GeneratorBasedBuilder):
                     'order_id': datasets.Value('int64'),  # not supported yet, annotation app need to implement it
                     'text': datasets.Value('string'),
                     'char_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
-                    'token_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2))
+                    'token_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
+                    'token_label_id': datasets.Value('int64'),
                 }
             ),
         }

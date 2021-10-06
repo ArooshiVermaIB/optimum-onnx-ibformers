@@ -68,31 +68,53 @@ def stack_pages(example, **kwargs):
     if example['token_page_nums'][0] == example['token_page_nums'][-1]:
         return {'bboxes': bboxes}
     page_nums = np.array(example['token_page_nums'])
-    special_tokens_mask = np.array(example['special_tokens_mask'])
+    content_mask = np.array(example['content_tokens_mask'])
 
     # stack pages one under each other and squeeze them so the dimension is not greater than 1000
     page_offset = page_nums - page_nums[0]
-    y_coord = bboxes[np.logical_not(special_tokens_mask)][:, (1, 3)] + page_offset[:, None] * 1000
+    y_coord = bboxes[content_mask][:, (1, 3)] + page_offset[:, None] * 1000
     y_coord_norm = y_coord / (page_offset[-1] + 1)
-    bboxes[np.logical_not(special_tokens_mask), 1] = y_coord_norm[:, 0]
-    bboxes[np.logical_not(special_tokens_mask), 3] = y_coord_norm[:, 1]
+    bboxes[content_mask, 1] = y_coord_norm[:, 0]
+    bboxes[content_mask, 3] = y_coord_norm[:, 1]
 
     return {'bboxes': bboxes}
 
 
 @feed_single_example
-def map_entities_to_special_tokens(example, tokenizer, shuffle_special_tokens=True,**kwargs):
+def build_prefix_with_special_tokens(example, tokenizer, shuffle_extra_tokens=True, **kwargs):
     entities = example['entities']
-    extra_token_ids = tokenizer.additional_special_tokens
+    all_extra_tokens = tokenizer.additional_special_tokens
+    special_token_to_extra_id = {tok: idx for idx, tok in enumerate(all_extra_tokens)}
 
-    if shuffle_special_tokens:
-        shuffle(extra_token_ids)
+    # <extra_0> token will be reserved for O class
+    available_extra_tokens = all_extra_tokens[1:]
 
+    if shuffle_extra_tokens:
+        shuffle(available_extra_tokens)
 
+    used_extra_tokens = []
+    used_special_ids = []
+    # get mapping of extra token to each entity
+    for ent_id in entities['token_label_id']:
+        assert ent_id != 0, "Something wrong. 0 should be reserved for O class"
+        extra_token = available_extra_tokens[ent_id]
+        used_extra_tokens.append(extra_token)
+        used_special_ids.append(special_token_to_extra_id[extra_token])
 
+    prefix = [f'{name} {tok}' for name, tok in zip(entities['name'], used_extra_tokens)] + [tokenizer.sep_token]
 
+    # check if for each entity we chose unique token
+    assert len(used_extra_tokens) == len(set(used_extra_tokens)), "Not unique extra tokens were chosen for entities"
 
+    entities['extra_tokens'] = used_extra_tokens
+    entities['extra_ids'] = used_special_ids
 
-    a = 1
+    # build token_label_ids
+    token_label_ids = np.zeros((len(example['words'])), dtype=np.int64)
+    for spans, tok in zip(entities['token_spans'], used_extra_tokens):
+        extra_id = special_token_to_extra_id[tok]
+        for span in spans:
+            token_label_ids[span[0]:span[1]] = extra_id
 
-    return entities
+    return {'entities': entities, 'token_label_ids': token_label_ids, 'prefix_words': prefix}
+

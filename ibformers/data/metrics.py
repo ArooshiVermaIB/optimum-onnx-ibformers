@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Tuple, Iterator, Union, List, Sequence, Mapping, Dict
+from typing import Tuple, Iterator, Union, List, Sequence, Mapping, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,8 @@ def doc_chunk_iter(doc_ids: List[str]) -> Iterator[Tuple[str, int, int]]:
             from_idx = i+1
 
 
-def join_chunks(chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Sequence[int]]) -> np.ndarray:
+def join_chunks(chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Sequence[int]],
+                content_mask_lst: Optional[List[Sequence[int]]] = None) -> np.ndarray:
     """
     When we get predictions for overlapping chunks of an input sequence, we have to combine the predictions, doing
     something with the overlap. In this function, we simply take the feature-wise mean for each of the tokens that
@@ -28,20 +29,31 @@ def join_chunks(chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Se
     Join list of ndarray of chunks based on the information in the chunk_ranges list
     :param chunks: Chunks which need to be joined
     :param chunk_ranges: Sequence of ranges which inform about position of chunk in the original document
+    :param content_mask_lst: List of content_mask for each chunk. content_mask is a Sequence of booleans.
+        If not passed, content mask won't be used
     :return:
     """
-    if len(chunks) == 1:
-        rng = chunk_ranges[0]
-        return np.array(chunks[0])[rng[0]:rng[1]]
+
+    if content_mask_lst is None:
+        content_mask_lst = [None] * len(chunks)
     strictly_increasing = all(i[0] < j[0] for i, j in zip(chunk_ranges, chunk_ranges[1:]))
     assert strictly_increasing, f"Ranges of the chunks seems incorrect: Value: {chunk_ranges}"
     max_size = chunk_ranges[-1][-1]
     first_chunk = np.array(chunks[0])
     chunk_shape = first_chunk.shape
     doc_arr = np.full((len(chunks), max_size, *chunk_shape[1:]), fill_value=np.nan)
-    for i, (chunk, rng) in enumerate(zip(chunks, chunk_ranges)):
+    for i, (chunk, rng, content_mask) in enumerate(zip(chunks, chunk_ranges, content_mask_lst)):
         rng_len = rng[1]-rng[0]
-        doc_arr[i, rng[0]:rng[1]] = chunk[:rng_len]
+        # for the last chunk there might be padding so content mask will have different length
+        if content_mask is None:
+            content_chunk = chunk
+        elif i == len(chunks) - 1:
+            content_mask_with_padding = content_mask + [False] * (len(chunk) - len(content_mask))
+            content_chunk = chunk[content_mask_with_padding]
+        else:
+            content_chunk = chunk[content_mask]
+        assert len(content_chunk) == rng_len, "Length of content in the chunk should be equal to chunk range length"
+        doc_arr[i, rng[0]:rng[1]] = content_chunk
 
     doc_arr_mean = np.nanmean(doc_arr, axis=0)
 
@@ -62,14 +74,14 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
         assert doc_id == doc['id'], "Chunk doc_id and doc_id obtained from the dataset does not match"
 
         chunk_ranges_lst = chunk_ranges[chunk_from_idx: chunk_to_idx]
-        # get rid of CLS token and last token for preds and labels
-        preds_arr = preds[chunk_from_idx: chunk_to_idx, 1:-1]
-        labels_arr = labels[chunk_from_idx: chunk_to_idx, 1:-1]
+        content_mask_lst = dataset['content_tokens_mask'][chunk_from_idx: chunk_to_idx]
+        preds_arr = preds[chunk_from_idx: chunk_to_idx]
+        labels_arr = labels[chunk_from_idx: chunk_to_idx]
         word_starts = dataset['word_starts'][chunk_from_idx:chunk_to_idx]
 
-        doc_preds = join_chunks(preds_arr, chunk_ranges_lst)
-        doc_labels = join_chunks(labels_arr, chunk_ranges_lst)
-        doc_word_starts = join_chunks(word_starts, chunk_ranges_lst)
+        doc_preds = join_chunks(preds_arr, chunk_ranges_lst, content_mask_lst)
+        doc_labels = join_chunks(labels_arr, chunk_ranges_lst, content_mask_lst)
+        doc_word_starts = join_chunks(word_starts, chunk_ranges_lst, None)
         word_indices = np.array(doc_word_starts)
 
         # softmax for np
@@ -199,6 +211,32 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset):
     results['predictions'] = pred_dict
 
     return results
+
+
+def compute_legacy_metrics_for_mqa(predictions: Tuple, dataset: Dataset):
+    """
+    Function will recompute predictions and labels from extra token head to match sequence labeling format
+    :param predictions:
+    :param dataset:
+    :return:
+    """
+
+    preds, labels = predictions
+    new_preds, new_labels = [], []
+
+    for pred, lab, doc in zip(preds, labels, dataset):
+        reorder_index = np.array([0] + doc['entities']['extra_ids'])
+        new_pred = pred[:, reorder_index]
+        map_dict = {v: idx for idx, v in enumerate(reorder_index)}
+        map_dict[-100] = -100
+        new_lab = np.array([map_dict[l] for l in lab])
+
+        new_preds.append(new_pred)
+        new_labels.append(new_lab)
+
+    new_predictions = (np.stack(new_preds), np.stack(new_labels))
+
+    return compute_legacy_metrics_for_sl(new_predictions, dataset)
 
 
 def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
