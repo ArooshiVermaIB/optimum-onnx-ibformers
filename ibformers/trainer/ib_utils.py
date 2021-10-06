@@ -92,7 +92,8 @@ class IbCallback(TrainerCallback):
                              model_name=model_name, model_class_name=model_class_name, package_name=package_name)
 
         # copy ibformers lib into the package
-        shutil.copytree(ibformers_path, package_dir.parent / 'ibformers', ignore=lambda x, y: self.ibformers_do_not_copy)
+        # TODO will this have an issue without mkdir?
+        shutil.copytree(ibformers_path, package_dir.parent / 'ibformers' / 'ibformers', ignore=lambda x, y: self.ibformers_do_not_copy)
 
         # copy model files
         model_src_path = out_dir / 'model'
