@@ -15,7 +15,6 @@ from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -57,8 +56,16 @@ class IbCallback(TrainerCallback):
 
     ibformers_do_not_copy = []
 
-    def __init__(self, job_status_client: 'JobStatusClient', ibsdk: InstabaseSDK,
-                 username: str, mount_details: Dict, model_name: str, ib_save_path: str, upload: bool):
+    def __init__(
+        self,
+        job_status_client: 'JobStatusClient',
+        ibsdk: InstabaseSDK,
+        username: str,
+        mount_details: Dict,
+        model_name: str,
+        ib_save_path: str,
+        upload: bool,
+    ):
         self.upload = upload
         self.ib_save_path = ib_save_path
         self.model_name = model_name
@@ -88,12 +95,20 @@ class IbCallback(TrainerCallback):
         shutil.copytree(template_dir_path, save_model_dir)
         package_dir = save_model_dir / 'src' / 'py' / package_name
         shutil.move(str(package_dir.parent / 'package_name'), str(package_dir))
-        prepare_package_json(save_model_dir / "package.json",
-                             model_name=model_name, model_class_name=model_class_name, package_name=package_name)
+        prepare_package_json(
+            save_model_dir / "package.json",
+            model_name=model_name,
+            model_class_name=model_class_name,
+            package_name=package_name,
+        )
 
         # copy ibformers lib into the package
         # TODO will this have an issue without mkdir?
-        shutil.copytree(ibformers_path, package_dir.parent / 'ibformers' / 'ibformers', ignore=lambda x, y: self.ibformers_do_not_copy)
+        shutil.copytree(
+            ibformers_path,
+            package_dir.parent / 'ibformers' / 'ibformers',
+            ignore=lambda x, y: self.ibformers_do_not_copy,
+        )
 
         # copy model files
         model_src_path = out_dir / 'model'
@@ -121,10 +136,12 @@ class IbCallback(TrainerCallback):
         dir_to_be_copied = self.build_local_package_directory(output_dir)
         # copy data to ib
         self.set_status({'task_state': 'UPLOADING FILES TO IB'})
-        upload_dir(sdk=self.ibsdk,
-                   local_folder=dir_to_be_copied,
-                   remote_folder=self.ib_save_path,
-                   mount_details=self.mount_details)
+        upload_dir(
+            sdk=self.ibsdk,
+            local_folder=dir_to_be_copied,
+            remote_folder=self.ib_save_path,
+            mount_details=self.mount_details,
+        )
         self.set_status({'task_state': 'UPOLADING FINISHED'})
 
     def set_status(self, new_status: Dict):
@@ -149,8 +166,9 @@ class IbCallback(TrainerCallback):
                 metrics['precision'] = kwargs["metrics"]['eval_precision']
                 metrics['recall'] = kwargs["metrics"]['eval_recall']
                 metrics['f1'] = kwargs["metrics"]['eval_f1']
-                self.set_status({"evaluation_results": metrics,
-                                 "progress": state.global_step / state.max_steps})
+                self.set_status(
+                    {"evaluation_results": metrics, "progress": state.global_step / state.max_steps}
+                )
 
                 self.evaluation_results = metrics
 
@@ -177,7 +195,10 @@ class IbArguments:
         default=None, metadata={"help": "File client object which support different file systems"}
     )
     job_status_client: Optional['JobStatusClient'] = field(
-        default=None, metadata={"help": "Job status client. Used for collecting information of training progress"}
+        default=None,
+        metadata={
+            "help": "Job status client. Used for collecting information of training progress"
+        },
     )
     mount_details: Optional[Dict] = field(
         default=None,
@@ -185,15 +206,16 @@ class IbArguments:
     )
     model_name: Optional[str] = field(
         default="CustomModel",
-        metadata={"help": "The model name which will be appear in the model management dashboard ??"},
+        metadata={
+            "help": "The model name which will be appear in the model management dashboard ??"
+        },
     )
     ib_save_path: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to save ib_package on the IB space"},
     )
     upload: Optional[bool] = field(
-        default=None,
-        metadata={"help": "Whether to upload model files to ib_save_path"}
+        default=None, metadata={"help": "Whether to upload model files to ib_save_path"}
     )
 
 
@@ -221,7 +243,6 @@ def prepare_package_json(path: str, model_name: str, model_class_name: str, pack
 
     with open(path, 'w+') as f_write:
         f_write.write(content)
-
 
 
 def upload_dir(
@@ -292,7 +313,7 @@ def prepare_ib_params(
     username: str,
     job_status_client: 'JobStatusClient',
     mount_details: Optional[Dict] = None,
-    model_name: str = 'CustomModel'
+    model_name: str = 'CustomModel',
 ) -> Dict:
     """
     Map parameters used by model service to names used in the Trainer

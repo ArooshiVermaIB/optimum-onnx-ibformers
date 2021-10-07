@@ -2,12 +2,17 @@ from typing import TypeVar, List, Sequence, Any, Mapping
 
 import numpy as np
 
-from ibformers.data.utils import feed_single_example, convert_to_dict_of_lists, feed_single_example_and_flatten
+from ibformers.data.utils import (
+    feed_single_example,
+    convert_to_dict_of_lists,
+    feed_single_example_and_flatten,
+)
 
 
 @feed_single_example_and_flatten
-def produce_chunks(example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS",
-                   chunk_overlap=64, **kwargs) -> Sequence:
+def produce_chunks(
+    example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS", chunk_overlap=64, **kwargs
+) -> Sequence:
     if chunking_strategy == "FIRST_ONLY":
         return first_only(example, tokenizer, max_length)
     elif chunking_strategy == "ALL_CHUNKS":
@@ -25,20 +30,29 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
     range(3,6) -> [3,4,5]
     """
     # TODO: check how many tokens are added and reomve hardcodded "2"
-    keys_to_chunk = ["input_ids", "bboxes", "token_label_ids", "offset_mapping",
-                     "word_starts", "word_map", "token_page_nums"]
+    keys_to_chunk = [
+        "input_ids",
+        "bboxes",
+        "token_label_ids",
+        "offset_mapping",
+        "word_starts",
+        "word_map",
+        "token_page_nums",
+    ]
 
-    chunked = {k: _chunk_with_overlap(example[k],
-                                      chunk_size=max_length - 2,
-                                      overlap=overlap) for k in keys_to_chunk if k in example}
+    chunked = {
+        k: _chunk_with_overlap(example[k], chunk_size=max_length - 2, overlap=overlap)
+        for k in keys_to_chunk
+        if k in example
+    }
 
     # We want to keep track of how each chunk maps back to the full document, so we can
     # map back during inference
-    chunk_ranges = _chunk_with_overlap(list(range(len(example['input_ids']))),
-                                       chunk_size=max_length - 2,
-                                       overlap=overlap)
+    chunk_ranges = _chunk_with_overlap(
+        list(range(len(example['input_ids']))), chunk_size=max_length - 2, overlap=overlap
+    )
 
-    chunked['chunk_ranges'] = [(i[0], i[-1]+1) for i in chunk_ranges]
+    chunked['chunk_ranges'] = [(i[0], i[-1] + 1) for i in chunk_ranges]
 
     # This includes things like the document's ID
     other_keys = [i for i in list(example.keys()) if i not in keys_to_chunk]
@@ -54,25 +68,34 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
         # For some reason, return_special_tokens_mask=True doesn't work correctly here...
         # doing it in two steps is a workaround
         chunk_processed = tokenizer.prepare_for_model(chunk['input_ids'], add_special_tokens=True)
-        assert len(chunk_processed['input_ids']) <= max_length, \
-            f"len(blah['input_ids']) <= max_length : {len(chunk_processed['input_ids'])} <= {max_length}"
+        assert (
+            len(chunk_processed['input_ids']) <= max_length
+        ), f"len(blah['input_ids']) <= max_length : {len(chunk_processed['input_ids'])} <= {max_length}"
 
         chunk_processed = {**chunk, **chunk_processed}
 
-        special_mask = np.array(tokenizer.get_special_tokens_mask(chunk_processed["input_ids"],
-                                                                  already_has_special_tokens=True))
+        special_mask = np.array(
+            tokenizer.get_special_tokens_mask(
+                chunk_processed["input_ids"], already_has_special_tokens=True
+            )
+        )
         chunk_processed['special_tokens_mask'] = special_mask
 
         chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], special_mask, 0)
-        chunk_processed['token_label_ids'] = fill_special_tokens(chunk["token_label_ids"], special_mask, -100)
+        chunk_processed['token_label_ids'] = fill_special_tokens(
+            chunk["token_label_ids"], special_mask, -100
+        )
 
         yield chunk_processed
 
 
 def first_only(example, tokenizer, max_length: int):
-    chunks = tokenizer.prepare_for_model(example["input_ids"], max_length=max_length,
-                                         add_special_tokens=True)
-    special_mask = np.array(tokenizer.get_special_tokens_mask(chunks["input_ids"], already_has_special_tokens=True))
+    chunks = tokenizer.prepare_for_model(
+        example["input_ids"], max_length=max_length, add_special_tokens=True
+    )
+    special_mask = np.array(
+        tokenizer.get_special_tokens_mask(chunks["input_ids"], already_has_special_tokens=True)
+    )
     chunks['special_tokens_mask'] = special_mask
 
     max_len_wo_special = len(special_mask) - special_mask.sum()
@@ -87,7 +110,9 @@ def first_only(example, tokenizer, max_length: int):
 
     if 'token_label_ids' in example:
         chunks["token_label_ids"] = np.array(example["token_label_ids"])[:max_len_wo_special]
-        chunks['token_label_ids'] = fill_special_tokens(chunks["token_label_ids"], special_mask, -100)
+        chunks['token_label_ids'] = fill_special_tokens(
+            chunks["token_label_ids"], special_mask, -100
+        )
 
     return [chunks]
 
@@ -145,7 +170,7 @@ def _chunk_with_overlap(input_list: List[S], chunk_size: int, overlap: int) -> L
     l = []
     i = 0
     while i + overlap < len(input_list):
-        x = input_list[i: i + chunk_size]
+        x = input_list[i : i + chunk_size]
         l.append(x)
         i += chunk_size - overlap
     return l

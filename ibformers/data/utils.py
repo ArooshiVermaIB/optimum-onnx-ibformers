@@ -35,6 +35,7 @@ def feed_single_example(fn):
     :param fn: function to decorate
     :return: batch of examples updated with function results
     """
+
     def split_batch(batch, **kwargs) -> Dict[str, List[Any]]:
         batch_keys = list(batch.keys())
         len_of_batch = len(batch[batch_keys[0]])
@@ -49,11 +50,13 @@ def feed_single_example(fn):
         dict_of_lists = convert_to_dict_of_lists(outs, out_keys)
         batch.update(dict_of_lists)
         return batch
+
     return split_batch
 
 
-def feed_single_example_and_flatten(fn: Callable[[Mapping[str, List[Any]]],
-                                                Sequence[Mapping[str, List[Any]]]]):
+def feed_single_example_and_flatten(
+    fn: Callable[[Mapping[str, List[Any]]], Sequence[Mapping[str, List[Any]]]]
+):
     """
     Examples processed by map method of hf/datasets are processed in batches.
     This is a helper function/decorator to use if you want to get single examples instead of
@@ -61,6 +64,7 @@ def feed_single_example_and_flatten(fn: Callable[[Mapping[str, List[Any]]],
     :param fn: function to decorate
     :return: batch of examples updated with function results
     """
+
     def split_batch(batch, **kwargs) -> Dict[str, List[Any]]:
         batch_keys = list(batch.keys())
         len_of_batch = len(batch[batch_keys[0]])
@@ -75,6 +79,7 @@ def feed_single_example_and_flatten(fn: Callable[[Mapping[str, List[Any]]],
         dict_of_lists = convert_to_dict_of_lists(outs, out_keys)
         batch.update(dict_of_lists)
         return batch
+
     return split_batch
 
 
@@ -85,10 +90,12 @@ def feed_batch(fn):
     :param fn: function to decorate
     :return: batch of examples updated with function results
     """
+
     def update_batch(batch, **kwargs):
         out = fn(batch, **kwargs)
         batch.update(out)
         return batch
+
     return update_batch
 
 
@@ -132,7 +139,9 @@ def find_matches_in_text(text, answer, only_best=True):
 
     # convert to list of dicts
     # correct text with original casing
-    matches_dict = [{'text': text[m.start:m.end], 'start': m.start, 'end': m.end} for m in selected]
+    matches_dict = [
+        {'text': text[m.start : m.end], 'start': m.start, 'end': m.end} for m in selected
+    ]
 
     return matches_dict
 
@@ -175,8 +184,9 @@ def spread_with_mapping(features_batch, word_map_batch):
 
 
 def recalculate_spans(orig_spans_batch, word_map_batch):
-    assert len(orig_spans_batch) == len(word_map_batch) or len(word_map_batch) == 1, \
-        "Word map length should be either equal to spans, or global for all spans"
+    assert (
+        len(orig_spans_batch) == len(word_map_batch) or len(word_map_batch) == 1
+    ), "Word map length should be either equal to spans, or global for all spans"
     recalculated_spans_batch = []
     for span_idx, span in enumerate(orig_spans_batch):
         span = np.array(span)
@@ -185,4 +195,3 @@ def recalculate_spans(orig_spans_batch, word_map_batch):
         recalculated_spans_batch.append(recalculated_span)
 
     return recalculated_spans_batch
-

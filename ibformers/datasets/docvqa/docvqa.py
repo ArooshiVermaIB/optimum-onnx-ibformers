@@ -16,7 +16,6 @@ The answers to questions are short text spans taken verbatim from the document.
 This means that the answers comprise a set of contiguous text tokens present in the document.
 """
 
-
 BoundingBox = Tuple[float, float, float, float]
 Span = Tuple[int, int]
 
@@ -87,7 +86,13 @@ def load_msocr_file(ocr_path):
 
         assert len(words) == len(bboxes_norm)
 
-    doc = OcrDoc(doc_id=str(ocr_path), words=words, bboxes=bboxes_norm, page_bboxes=page_bboxes, page_spans=page_spans)
+    doc = OcrDoc(
+        doc_id=str(ocr_path),
+        words=words,
+        bboxes=bboxes_norm,
+        page_bboxes=page_bboxes,
+        page_spans=page_spans,
+    )
 
     return doc
 
@@ -110,7 +115,9 @@ class Docvqa(datasets.GeneratorBasedBuilder):
     """TODO(docvqa): Short description of my dataset."""
 
     BUILDER_CONFIGS = [
-        DocvqaConfig(name="docvqa", version=datasets.Version("1.0.0"), description="DocVQA dataset"),
+        DocvqaConfig(
+            name="docvqa", version=datasets.Version("1.0.0"), description="DocVQA dataset"
+        ),
     ]
 
     def _info(self):
@@ -124,9 +131,15 @@ class Docvqa(datasets.GeneratorBasedBuilder):
                     "id": datasets.Value("string"),
                     "image_id": datasets.Value("string"),
                     "words": datasets.Sequence(datasets.Value("string")),
-                    "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
-                    "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
-                    "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
+                    "bboxes": datasets.Sequence(
+                        datasets.Sequence(datasets.Value("int32"), length=4)
+                    ),
+                    "page_bboxes": datasets.Sequence(
+                        datasets.Sequence(datasets.Value("int32"), length=4)
+                    ),
+                    "page_spans": datasets.Sequence(
+                        datasets.Sequence(datasets.Value("int32"), length=2)
+                    ),
                     "question": datasets.Value("string"),
                     "answers": datasets.Value("string"),
                     # These are the features of your dataset like images, labels ...
@@ -146,12 +159,16 @@ class Docvqa(datasets.GeneratorBasedBuilder):
         # downloaded_files = dl_manager.download_and_extract(urls_to_download)
 
         # requirement for now is to have a dataset downloaded in below location
-        downloaded_files = {"train": "/Users/rafalpowalski/datasets/docvqa/train/train_v1.0.json",
-                            "val": "/Users/rafalpowalski/datasets/docvqa/val/val_v1.0.json"}
+        downloaded_files = {
+            "train": "/Users/rafalpowalski/datasets/docvqa/train/train_v1.0.json",
+            "val": "/Users/rafalpowalski/datasets/docvqa/val/val_v1.0.json",
+        }
 
         return [
             # datasets.SplitGenerator(name=datasets.Split.TRAIN, gen_kwargs={"filepath": downloaded_files["train"]}),
-            datasets.SplitGenerator(name=datasets.Split.VALIDATION, gen_kwargs={"filepath": downloaded_files["val"]}),
+            datasets.SplitGenerator(
+                name=datasets.Split.VALIDATION, gen_kwargs={"filepath": downloaded_files["val"]}
+            ),
         ]
 
     def _generate_examples(self, filepath):
@@ -164,7 +181,6 @@ class Docvqa(datasets.GeneratorBasedBuilder):
         # TODO: maybe it should be per document_id which will have multiple question answer pairs?
 
         for example in ds["data"]:
-
             image_id = example["image"].split('/')[-1].split('.')[0]
             ocr_path = ocr_path_dir / f"{image_id}.json"
             # TODO: add image to the example
