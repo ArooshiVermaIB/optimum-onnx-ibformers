@@ -41,7 +41,7 @@
           "warmup": 0.0,
           "weight_decay": 0,
           "class_weights": 3,
-          "model_name": "microsoft/layoutxlmv-base"
+          "model_name": "microsoft/layoutxlm-base"
         }
       },
       {
