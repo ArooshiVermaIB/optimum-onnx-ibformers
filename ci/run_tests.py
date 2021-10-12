@@ -9,7 +9,7 @@ import time
 from collections import defaultdict
 from json import JSONDecodeError
 from pathlib import Path
-from typing import List, Dict, Any, NamedTuple, Mapping
+from typing import List, Dict, Any, NamedTuple, Mapping, Optional
 
 from typing_extensions import TypedDict
 
@@ -95,15 +95,15 @@ def do_comparison(
     return success
 
 
-async def run_test(
-    sdk: Instabase, sync_task: asyncio.Task, test_name: str, test_config: ModelTestConfig
+async def run_training_test(
+    sdk: Instabase, wait_for: asyncio.Task, test_name: str, test_config: ModelTestConfig
 ):
     logger = logging.getLogger(test_name)
 
     logger.debug("Getting mount details")
     mount_details = await sdk.get_mount_details(test_config['ibannotator'])
     logger.debug("Awaiting code sync")
-    await sync_task
+    await wait_for
     logger.debug("Starting the model training task")
     save_path = f'save_location/{test_name}'
 
@@ -165,9 +165,7 @@ async def run_test(
         logging.error("evaluation results were not in the status")
         success = False
 
-    # Perform inference test after training, even if the evaluation results were bad
-    inference_success = await run_inference_test(sdk, test_name, test_config)
-    return success and inference_success
+    return success
 
 
 class PredictionDict(TypedDict):
@@ -176,8 +174,14 @@ class PredictionDict(TypedDict):
     words: List['WordPolyDict']
 
 
-async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelTestConfig) -> bool:
+async def run_inference_test(
+    sdk: Instabase, wait_for: Optional[asyncio.Task], test_name: str, test_config: ModelTestConfig
+) -> bool:
     logger = logging.getLogger(test_name)
+
+    if wait_for:
+        logger.info("Waiting for training test to finish before starting inference test")
+        await wait_for
 
     logger.info("Running inference test")
 
@@ -186,7 +190,7 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
     model_name = test_name
 
     logger.debug(
-        "Unload the model_name in case it's already present. "
+        f"Unload the model '{model_name}' in case it's already present. "
         "Repeating 10 times to capture multiple potential pods."
     )
     for _ in range(10):
@@ -247,9 +251,18 @@ async def run_inference_test(sdk: Instabase, test_name: str, test_config: ModelT
 
     for filename in model_result_by_record.keys():
         preds_by_field = model_result_by_record[filename]
-        logger.info(f"predictions for file <{filename}>: {preds_by_field}")
+        training_pred = preds_dict.get(filename[:-2])
+
+        for field, inference_val in preds_by_field.items():
+            train_val = training_pred.get(field, {}).get("text", "")
+            if inference_val != train_val:
+                logging.error(
+                    f"For file <{filename}> and field <{field}>, expected training prediction <{train_val}> "
+                    f"equal inference prediction <{inference_val}>"
+                )
+                success = False
         # TODO: Instead of printing out the predictions, compare to the preds_dict above!
-    logger.info(f"Inference test {'failed' if failed else 'passed'}")
+    logger.info(f"Inference test {'passed' if success else 'failed'}")
 
     # TODO We should return something that indicates whether the test failed
     #   (For now, ideally the logs should suffice)
@@ -291,8 +304,20 @@ async def sync_and_unzip(sdk, contents):
     logger.debug(f"Done syncing code")
 
 
-async def run_tests():
+async def run_tests(train: bool, inference: bool, test_name: Optional[str]):
     model_tests = await load_model_tests()
+    if not model_tests:
+        logging.error("No tests found in model_tests.yaml.")
+        exit(1)
+
+    if test_name:
+        model_tests = {k: v for k, v in model_tests.items() if k == test_name}
+        if not model_tests:
+            logging.error(
+                f"Test '{test_name}' not found in list of tests {list(model_tests.keys())}"
+            )
+            exit(1)
+
     envs = await load_environments()
     for test_name, test_config in model_tests.items():
         env = test_config['env']
@@ -315,7 +340,8 @@ async def run_tests():
             token=env_config['token'],
             root_path=env_config['path'],
         )
-        sync_tasks[env_name] = asyncio.create_task(sync_and_unzip(sdk, zip_bytes))
+        if train:
+            sync_tasks[env_name] = asyncio.create_task(sync_and_unzip(sdk, zip_bytes))
     del zip_bytes
 
     tasks: List[asyncio.Task] = []
@@ -329,17 +355,27 @@ async def run_tests():
             token=env_config['token'],
             root_path=env_config['path'],
         )
-
-        tasks.append(
-            asyncio.create_task(
-                run_test(
+        train_task = None
+        if train:
+            train_task = asyncio.create_task(
+                run_training_test(
                     sdk,
-                    sync_task=sync_tasks[env_name],
+                    wait_for=sync_tasks[env_name],
                     test_name=test_name,
                     test_config=test_config,
                 )
             )
-        )
+            tasks.append(train_task)
+        if inference:
+            inference_task = asyncio.create_task(
+                run_inference_test(
+                    sdk,
+                    wait_for=train_task,
+                    test_name=test_name,
+                    test_config=test_config,
+                )
+            )
+            tasks.append(inference_task)
 
     results = await asyncio.gather(*tasks)
     if not all(results):
@@ -352,12 +388,40 @@ parser.add_argument(
     '--log-level', dest='log_level', default='INFO', help="DEBUG, INFO, WARNING, ERROR"
 )
 
+parser.add_argument(
+    '--quiet', dest='quiet', action='store_true', default=False, help="Log more concisely"
+)
+
+parser.add_argument(
+    '--test',
+    dest='test_name',
+    default=None,
+    help="If specified, runs only the test with the specified name",
+    type=str,
+)
+
+parser.add_argument(
+    '--no-train', dest='train', action='store_false', help="Don't run training tests"
+)
+parser.add_argument(
+    '--no-inference', dest='inference', action='store_false', help="Don't run inference tests"
+)
+parser.set_defaults(train=True, inference=True)
+
 if __name__ == "__main__":
     namespace = parser.parse_args()
 
-    logging.basicConfig(
-        level=namespace.log_level,
-        format='[%(levelname)s] [%(asctime)s] [%(name)s] (%(module)s.%(funcName)s:%(lineno)d) %(message)s',
+    VERBOSE_FORMAT = (
+        '[%(levelname)s] [%(asctime)s] [%(name)s] (%(module)s.%(funcName)s:%(lineno)d) %(message)s'
     )
 
-    asyncio.run(run_tests())
+    logging.basicConfig(
+        level=namespace.log_level,
+        format=VERBOSE_FORMAT if not namespace.quiet else "%(message)s",
+    )
+
+    asyncio.run(
+        run_tests(
+            train=namespace.train, inference=namespace.inference, test_name=namespace.test_name
+        )
+    )
