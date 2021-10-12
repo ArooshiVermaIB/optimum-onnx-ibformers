@@ -63,14 +63,14 @@ Uber Eats XLM:
     model_name: microsoft/layoutxlm-base
   metrics:
     precision:
-      date: 0.8
-      total: 0.95
+      date: 0.6
+      total: 0.6
     recall:
-      date: 0.95
-      total: 0.95
+      date: 0.6
+      total: 0.6
     f1:
-      date: 0.9
-      total: 0.95
+      date: 0.6
+      total: 0.6
 
 
 Uber Eats v2:
@@ -83,14 +83,14 @@ Uber Eats v2:
     model_name: layoutlmv2-base-uncased
   metrics:
     precision:
-      date: 0.8
-      total: 0.95
+      date: 0.6
+      total: 0.6
     recall:
-      date: 0.95
-      total: 0.95
+      date: 0.6
+      total: 0.6
     f1:
-      date: 0.9
-      total: 0.95
+      date: 0.6
+      total: 0.6
 
 Uber Eats BERT:
   env: doc-insights-sandbox
@@ -103,11 +103,11 @@ Uber Eats BERT:
     pipeline_name: plain_sl
   metrics:
     precision:
-      date: 0.8
-      total: 0.95
+      date: 0.6
+      total: 0.6
     recall:
-      date: 0.95
-      total: 0.95
+      date: 0.6
+      total: 0.6
     f1:
-      date: 0.9
-      total: 0.95
+      date: 0.6
+      total: 0.6
