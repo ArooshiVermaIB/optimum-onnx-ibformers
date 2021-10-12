@@ -1,4 +1,4 @@
-NY Drivers Licenses:
+NYDriversLicenses:
   env: dogfood
   ibannotator: ib_annotation/data/fs/Prod Drive/datasets/DLs Clean/Drivers Licenses Clean.ibannotator
   time_limit: 1200 # 20 minutes
@@ -34,7 +34,7 @@ NY Drivers Licenses:
       DL Number: 0.9
       Name: 0.6
       Address: 0.8
-Uber Eats Receipts:
+UberEatsReceipts:
   env: doc-insights-sandbox
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
   time_limit: 1200 # 20 minutes
@@ -53,7 +53,7 @@ Uber Eats Receipts:
       date: 0.9
       total: 0.95
 
-Uber Eats XLM:
+UberEatsXLM:
   env: doc-insights-sandbox
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
   time_limit: 1200 # 20 minutes
@@ -73,7 +73,7 @@ Uber Eats XLM:
       total: 0.6
 
 
-Uber Eats v2:
+UberEatsV2:
   env: doc-insights-sandbox
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
   time_limit: 1200 # 20 minutes
@@ -92,7 +92,7 @@ Uber Eats v2:
       date: 0.6
       total: 0.6
 
-Uber Eats BERT:
+UberEatsBERT:
   env: doc-insights-sandbox
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
   time_limit: 1200 # 20 minutes
