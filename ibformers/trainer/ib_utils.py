@@ -358,7 +358,7 @@ def prepare_ib_params(
     if 'epochs' in hyperparams:
         out_dict['num_train_epochs'] = hyperparams.pop('epochs')
     if 'batch_size' in hyperparams:
-        out_dict['per_device_train_batch_size'] = int(hyperparams['batch_size'])
+        out_dict['per_device_train_batch_size'] = int(hyperparams.pop('batch_size'))
     if 'learning_rate' in hyperparams:
         out_dict['learning_rate'] = hyperparams.pop('learning_rate')
     if 'max_grad_norm' in hyperparams:
