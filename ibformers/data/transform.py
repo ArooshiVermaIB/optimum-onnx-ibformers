@@ -41,20 +41,25 @@ T = TypeVar('T', bound=_NormBboxesInput)
 
 @feed_single_example
 def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
-    bboxes, page_bboxes, page_spans = example['bboxes'], example['page_bboxes'], example['page_spans']
+    bboxes, page_bboxes, page_spans = (
+        example['bboxes'],
+        example['page_bboxes'],
+        example['page_spans'],
+    )
     norm_bboxes, norm_page_bboxes = _norm_bboxes_for_layoutlm(bboxes, page_bboxes, page_spans)
 
-    return {'bboxes': norm_bboxes,
-            'page_bboxes': norm_page_bboxes}
+    return {'bboxes': norm_bboxes, 'page_bboxes': norm_page_bboxes}
 
 
-def _norm_bboxes_for_layoutlm(bboxes: List[List[int]],
-                              page_bboxes: List[List[int]],
-                              page_spans: List[Tuple[int, int]]) -> Tuple[List[List[float]], List[List[float]]]:
+def _norm_bboxes_for_layoutlm(
+    bboxes: List[List[int]], page_bboxes: List[List[int]], page_spans: List[Tuple[int, int]]
+) -> Tuple[List[List[float]], List[List[float]]]:
     norm_bboxes = np.array(bboxes)
     norm_page_bboxes = np.array(page_bboxes)
     for (_, _, _, page_height), (page_start_i, page_end_i) in zip(page_bboxes, page_spans):
-        norm_bboxes[page_start_i:page_end_i, [1, 3]] = norm_bboxes[page_start_i:page_end_i, [1, 3]] / (page_height/1000)
+        norm_bboxes[page_start_i:page_end_i, [1, 3]] = norm_bboxes[
+            page_start_i:page_end_i, [1, 3]
+        ] / (page_height / 1000)
 
     norm_page_bboxes[:, 3] = 1000
 

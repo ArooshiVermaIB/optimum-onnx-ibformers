@@ -39,7 +39,8 @@ from transformers import (
     HfArgumentParser,
     PreTrainedTokenizerFast,
     TrainingArguments,
-    set_seed, )
+    set_seed,
+)
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
@@ -50,7 +51,10 @@ from ibformers.datasets import DATASETS_PATH
 from ibformers.trainer.ib_utils import IbCallback, IbArguments, InstabaseSDK, prepare_ib_params
 from ibformers.trainer.trainer import IbTrainer
 
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
+require_version(
+    "datasets>=1.8.0",
+    "To fix: pip install -r examples/pytorch/token-classification/requirements.txt",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,18 +69,24 @@ class ModelArguments:
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
     config_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
+        default=None,
+        metadata={"help": "Pretrained config name or path if not the same as model_name"},
     )
     tokenizer_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
+        default=None,
+        metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"},
     )
     cache_dir: Optional[str] = field(
         default=None,
-        metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
+        metadata={
+            "help": "Where do you want to store the pretrained models downloaded from huggingface.co"
+        },
     )
     model_revision: str = field(
         default="main",
-        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
+        metadata={
+            "help": "The specific model version to use (can be a branch name, tag name or commit id)."
+        },
     )
     use_auth_token: bool = field(
         default=False,
@@ -93,19 +103,27 @@ class DataAndPipelineArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
 
-    task_name: Optional[str] = field(default="ner", metadata={"help": "The name of the task (ner, pos...)."})
+    task_name: Optional[str] = field(
+        default="ner", metadata={"help": "The name of the task (ner, pos...)."}
+    )
     dataset_name_or_path: Optional[str] = field(
-        default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
+        default=None,
+        metadata={"help": "The name of the dataset to use (via the datasets library)."},
     )
     dataset_config_name: Optional[str] = field(
-        default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
+        default=None,
+        metadata={
+            "help": "The configuration name of the dataset to use (via the datasets library)."
+        },
     )
     train_file: Optional[str] = field(
         default=None, metadata={"help": "The input training data file (a csv or JSON file)."}
     )
     validation_file: Optional[str] = field(
         default=None,
-        metadata={"help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."},
+        metadata={
+            "help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."
+        },
     )
     test_file: Optional[str] = field(
         default=None,
@@ -127,9 +145,7 @@ class DataAndPipelineArguments:
     )
     chunk_overlap: int = field(
         default=None,
-        metadata={
-            "help": "Overlap needed for producing multiple chunks"
-        },
+        metadata={"help": "Overlap needed for producing multiple chunks"},
     )
     pad_to_max_length: bool = field(
         default=False,
@@ -162,16 +178,24 @@ class DataAndPipelineArguments:
     )
     return_entity_level_metrics: bool = field(
         default=False,
-        metadata={"help": "Whether to return all the entity levels during evaluation or just the overall ones."},
+        metadata={
+            "help": "Whether to return all the entity levels during evaluation or just the overall ones."
+        },
     )
     pipeline_name: str = field(
         default=None,
-        metadata={"help": "pipeline which is defining a training process. "
-                          "Default is None which is trying to infer it from model name"},
+        metadata={
+            "help": "pipeline which is defining a training process. "
+            "Default is None which is trying to infer it from model name"
+        },
     )
 
     def __post_init__(self):
-        if self.dataset_name_or_path is None and self.train_file is None and self.validation_file is None:
+        if (
+            self.dataset_name_or_path is None
+            and self.train_file is None
+            and self.validation_file is None
+        ):
             raise ValueError("Need either a dataset name or a training/validation file.")
         else:
             if self.train_file is not None:
@@ -199,7 +223,6 @@ def run_train(
     model_name: Optional[str] = 'CustomModel',
     **kwargs: Any,
 ):
-
     # scripts will support both running from model-training-tasks and running from shell
     if hyperparams is not None:
         assert dataset_filename is not None
@@ -208,15 +231,27 @@ def run_train(
         assert username is not None
         assert job_status_client is not None
 
-    parser = HfArgumentParser((ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
+    )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, ib_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, ib_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1])
+        )
     elif hyperparams is not None:
         # support running from model-training-tasks
-        hparams_dict = prepare_ib_params(hyperparams, dataset_filename, save_path, file_client,
-                                         username, job_status_client, mount_details, model_name)
+        hparams_dict = prepare_ib_params(
+            hyperparams,
+            dataset_filename,
+            save_path,
+            file_client,
+            username,
+            job_status_client,
+            mount_details,
+            model_name,
+        )
         model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
     else:
         model_args, data_args, training_args, ib_args = parser.parse_args_into_dataclasses()
@@ -248,7 +283,11 @@ def run_train(
 
     # Detecting last checkpoint.
     last_checkpoint = None
-    if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
+    if (
+        os.path.isdir(training_args.output_dir)
+        and training_args.do_train
+        and not training_args.overwrite_output_dir
+    ):
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
         if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
             raise ValueError(
@@ -303,10 +342,12 @@ def run_train(
             name=data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
             data_files=data_files,
-            **load_kwargs
+            **load_kwargs,
         )
 
-    tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
+    tokenizer_name_or_path = (
+        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_name_or_path,
@@ -327,15 +368,17 @@ def run_train(
     # Preprocessing the dataset
     # Padding strategy
 
-    fn_kwargs = {'tokenizer': tokenizer,
-                 'padding': 'max_length' if data_args.pad_to_max_length else False,
-                 'max_length': data_args.max_length,
-                 'chunk_overlap': data_args.chunk_overlap,
-                 }
-    map_kwargs = {'num_proc': data_args.preprocessing_num_workers,
-                  'load_from_cache_file': not data_args.overwrite_cache,
-                  'fn_kwargs': fn_kwargs
-                  }
+    fn_kwargs = {
+        'tokenizer': tokenizer,
+        'padding': 'max_length' if data_args.pad_to_max_length else False,
+        'max_length': data_args.max_length,
+        'chunk_overlap': data_args.chunk_overlap,
+    }
+    map_kwargs = {
+        'num_proc': data_args.preprocessing_num_workers,
+        'load_from_cache_file': not data_args.overwrite_cache,
+        'fn_kwargs': fn_kwargs,
+    }
 
     if training_args.do_train:
         if "train" not in raw_datasets:
@@ -408,17 +451,22 @@ def run_train(
 
     callbacks = []
     if ibtrain:
-        callbacks.append(IbCallback(job_status_client=ib_args.job_status_client,
-                                    ibsdk=ibsdk,
-                                    username=ib_args.username,
-                                    mount_details=ib_args.mount_details,
-                                    model_name=ib_args.model_name,
-                                    ib_save_path=ib_args.ib_save_path,
-                                    upload=ib_args.upload,
-                                    ))
+        callbacks.append(
+            IbCallback(
+                job_status_client=ib_args.job_status_client,
+                ibsdk=ibsdk,
+                username=ib_args.username,
+                mount_details=ib_args.mount_details,
+                model_name=ib_args.model_name,
+                ib_save_path=ib_args.ib_save_path,
+                upload=ib_args.upload,
+            )
+        )
 
     # Data collator
-    data_collator = collate_fn(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None, model=model)
+    data_collator = collate_fn(
+        tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None, model=model
+    )
 
     # Initialize our Trainer
     trainer = IbTrainer(
@@ -430,7 +478,7 @@ def run_train(
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         callbacks=callbacks,
-        post_process_function=None
+        post_process_function=None,
     )
 
     # Training
@@ -446,7 +494,9 @@ def run_train(
         trainer.save_model(model_save_path)  # Saves the tokenizer too for easy upload
         data_args.save(model_save_path)  # Saves the pipeline & data arguments
         max_train_samples = (
-            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
+            data_args.max_train_samples
+            if data_args.max_train_samples is not None
+            else len(train_dataset)
         )
         metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
@@ -460,7 +510,11 @@ def run_train(
 
         metrics = trainer.evaluate()
 
-        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
+        max_eval_samples = (
+            data_args.max_eval_samples
+            if data_args.max_eval_samples is not None
+            else len(eval_dataset)
+        )
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
         # trainer.log_metrics("eval", metrics)
@@ -541,7 +595,7 @@ if __name__ == "__main__":
         "use_mixed_precision": False,
         "warmup": 0.0,
         "weight_decay": 0,
-        "model_name": "microsoft/layoutxlm-base"
+        "model_name": "microsoft/layoutxlm-base",
     }
     example_dir = Path(__file__).parent.parent / "example"
     # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'

@@ -16,11 +16,13 @@ def doc_chunk_iter(doc_ids: List[str]) -> Iterator[Tuple[str, int, int]]:
     next_doc_ids = doc_ids[1:] + ["*end*"]
     for i, (doc_id, next_doc_id) in enumerate(zip(doc_ids, next_doc_ids)):
         if doc_id != next_doc_id:
-            yield doc_id, from_idx, i+1
-            from_idx = i+1
+            yield doc_id, from_idx, i + 1
+            from_idx = i + 1
 
 
-def join_chunks(chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Sequence[int]]) -> np.ndarray:
+def join_chunks(
+    chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Sequence[int]]
+) -> np.ndarray:
     """
     When we get predictions for overlapping chunks of an input sequence, we have to combine the predictions, doing
     something with the overlap. In this function, we simply take the feature-wise mean for each of the tokens that
@@ -32,7 +34,7 @@ def join_chunks(chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Se
     """
     if len(chunks) == 1:
         rng = chunk_ranges[0]
-        return np.array(chunks[0])[rng[0]:rng[1]]
+        return np.array(chunks[0])[rng[0] : rng[1]]
     strictly_increasing = all(i[0] < j[0] for i, j in zip(chunk_ranges, chunk_ranges[1:]))
     assert strictly_increasing, f"Ranges of the chunks seems incorrect: Value: {chunk_ranges}"
     max_size = chunk_ranges[-1][-1]
@@ -40,8 +42,8 @@ def join_chunks(chunks: Union[List[Sequence], np.ndarray], chunk_ranges: List[Se
     chunk_shape = first_chunk.shape
     doc_arr = np.full((len(chunks), max_size, *chunk_shape[1:]), fill_value=np.nan)
     for i, (chunk, rng) in enumerate(zip(chunks, chunk_ranges)):
-        rng_len = rng[1]-rng[0]
-        doc_arr[i, rng[0]:rng[1]] = chunk[:rng_len]
+        rng_len = rng[1] - rng[0]
+        doc_arr[i, rng[0] : rng[1]] = chunk[:rng_len]
 
     doc_arr_mean = np.nanmean(doc_arr, axis=0)
 
@@ -59,12 +61,14 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
 
     for doc_id, chunk_from_idx, chunk_to_idx in doc_chunk_iter(ids):
         doc = dataset[chunk_from_idx]
-        assert doc_id == doc['id'], "Chunk doc_id and doc_id obtained from the dataset does not match"
+        assert (
+            doc_id == doc['id']
+        ), "Chunk doc_id and doc_id obtained from the dataset does not match"
 
-        chunk_ranges_lst = chunk_ranges[chunk_from_idx: chunk_to_idx]
+        chunk_ranges_lst = chunk_ranges[chunk_from_idx:chunk_to_idx]
         # get rid of CLS token and last token for preds and labels
-        preds_arr = preds[chunk_from_idx: chunk_to_idx, 1:-1]
-        labels_arr = labels[chunk_from_idx: chunk_to_idx, 1:-1]
+        preds_arr = preds[chunk_from_idx:chunk_to_idx, 1:-1]
+        labels_arr = labels[chunk_from_idx:chunk_to_idx, 1:-1]
         word_starts = dataset['word_starts'][chunk_from_idx:chunk_to_idx]
 
         doc_preds = join_chunks(preds_arr, chunk_ranges_lst)
@@ -92,12 +96,18 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
             tag_name = label_list[class_idx]
             org_bbox = doc['word_original_bboxes'][idx]
             page = doc['word_page_nums'][idx]
-            word = dict(raw_word=doc['words'][idx],
-                        start_x=org_bbox[0], start_y=org_bbox[1], end_x=org_bbox[2], end_y=org_bbox[3],
-                        line_height=org_bbox[3] - org_bbox[1], word_width=org_bbox[2] - org_bbox[0],
-                        page=page,
-                        conf=conf,
-                        idx=idx)
+            word = dict(
+                raw_word=doc['words'][idx],
+                start_x=org_bbox[0],
+                start_y=org_bbox[1],
+                end_x=org_bbox[2],
+                end_y=org_bbox[3],
+                line_height=org_bbox[3] - org_bbox[1],
+                word_width=org_bbox[2] - org_bbox[0],
+                page=page,
+                conf=conf,
+                idx=idx,
+            )
             doc_words_dict[tag_name].append(word)
 
         # generate correct answers to print pred/gold mismatches
@@ -108,12 +118,18 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
             tag_name = label_list[class_idx]
             org_bbox = doc['word_original_bboxes'][idx]
             page = doc['word_page_nums'][idx]
-            word = dict(raw_word=doc['words'][idx],
-                        start_x=org_bbox[0], start_y=org_bbox[1], end_x=org_bbox[2], end_y=org_bbox[3],
-                        line_height=org_bbox[3] - org_bbox[1], word_width=org_bbox[2] - org_bbox[0],
-                        page=page,
-                        conf=0.,
-                        idx=idx)
+            word = dict(
+                raw_word=doc['words'][idx],
+                start_x=org_bbox[0],
+                start_y=org_bbox[1],
+                end_x=org_bbox[2],
+                end_y=org_bbox[3],
+                line_height=org_bbox[3] - org_bbox[1],
+                word_width=org_bbox[2] - org_bbox[0],
+                page=page,
+                conf=0.0,
+                idx=idx,
+            )
             golden_words_dict[tag_name].append(word)
 
         doc_dict = {}
@@ -122,12 +138,14 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
             pred_text = ' '.join([w['raw_word'] for w in pred_words])
             gold_words = golden_words_dict.get(k, [])
             gold_text = ' '.join([w['raw_word'] for w in gold_words])
-            doc_dict[k] = {'words': pred_words,
-                           'text': pred_text,
-                           'avg_confidence': np.mean([w['conf'] for w in pred_words]),
-                           'gold_text': gold_text,
-                           'gold_words': gold_words,
-                           'is_match': pred_text == gold_text}
+            doc_dict[k] = {
+                'words': pred_words,
+                'text': pred_text,
+                'avg_confidence': np.mean([w['conf'] for w in pred_words]),
+                'gold_text': gold_text,
+                'gold_words': gold_words,
+                'is_match': pred_text == gold_text,
+            }
 
         pred_dict[doc['id']] = doc_dict
 
@@ -135,7 +153,6 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
 
 
 def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset):
-
     all_tags = dataset.features['labels'].feature.names
     # get prediction dict and print mismatches
     pred_dict = get_predictions_for_sl(predictions, dataset)
@@ -143,17 +160,24 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset):
     print("MISMATCH EXAMPLES")
     max_examples = 2
     for lab in all_tags[1:]:
-        mismatches = ["\tpred:\t'" + v[lab]['text'] + "'\n\tgold:\t'" + v[lab]['gold_text'] + "'\n"
-                      for k, v in pred_dict.items() if not v[lab]['is_match']]
+        mismatches = [
+            "\tpred:\t'" + v[lab]['text'] + "'\n\tgold:\t'" + v[lab]['gold_text'] + "'\n"
+            for k, v in pred_dict.items()
+            if not v[lab]['is_match']
+        ]
         mismatch_text = '  '.join(mismatches[:max_examples])
         if len(mismatches) > 0:
             print(f"{lab}:\n{mismatch_text}", end="")
 
     # get list of document gold labels - List[Dict[List]]
-    ground_truths: List[Dict[List]] = [{k: [wrd['idx'] for wrd in v['gold_words']] for k, v in doc_lab.items()}
-                                       for doc_lab in pred_dict.values()]
-    pred_words: List[Dict[List]] = [{k: [wrd['idx'] for wrd in v['words']] for k, v in doc_lab.items()}
-                                    for doc_lab in pred_dict.values()]
+    ground_truths: List[Dict[List]] = [
+        {k: [wrd['idx'] for wrd in v['gold_words']] for k, v in doc_lab.items()}
+        for doc_lab in pred_dict.values()
+    ]
+    pred_words: List[Dict[List]] = [
+        {k: [wrd['idx'] for wrd in v['words']] for k, v in doc_lab.items()}
+        for doc_lab in pred_dict.values()
+    ]
 
     token_level: Mapping[str, Mapping[str, int]] = {
         k: {'true_positives': 0, 'total_positives': 0, 'total_true': 0}
@@ -185,10 +209,10 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset):
     token_level_df['precision'] = token_level_df.true_positives / token_level_df.total_positives
     token_level_df['recall'] = token_level_df.true_positives / token_level_df.total_true
     token_level_df['f1'] = (
-            2
-            * token_level_df.precision
-            * token_level_df.recall
-            / (token_level_df.precision + token_level_df.recall)
+        2
+        * token_level_df.precision
+        * token_level_df.recall
+        / (token_level_df.precision + token_level_df.recall)
         # Note that this is Pandas, so dividing by zero gives NAN
     )
     print("EVALUATION RESULTS")
@@ -224,9 +248,7 @@ def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
 
     results = metric.compute(predictions=true_predictions, references=true_labels)
     # Unpack nested dictionaries
-    final_results = {'precision': {},
-                     'recall': {},
-                     'f1': {}}
+    final_results = {'precision': {}, 'recall': {}, 'f1': {}}
 
     for key, value in results.items():
         if isinstance(value, dict):
@@ -245,8 +267,11 @@ def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
     print("MISMATCH EXAMPLES")
     max_examples = 2
     for lab in label_list[1:]:
-        mismatches = ["\tpred:\t'" + v[lab]['text'] + "'\n\tgold:\t'" + v[lab]['gold'] + "'\n"
-                      for k, v in pred_dict.items() if not v[lab]['is_match']]
+        mismatches = [
+            "\tpred:\t'" + v[lab]['text'] + "'\n\tgold:\t'" + v[lab]['gold'] + "'\n"
+            for k, v in pred_dict.items()
+            if not v[lab]['is_match']
+        ]
         mismatch_text = '  '.join(mismatches[:max_examples])
         if len(mismatches) > 0:
             print(f"{lab}:\n{mismatch_text}", end="")

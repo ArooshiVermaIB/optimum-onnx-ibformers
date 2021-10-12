@@ -83,8 +83,10 @@ def do_comparison(
                 success = False
                 continue
 
-            if not isinstance(evaluation_results_for_metric[field], float) or \
-                    value > evaluation_results_for_metric[field]:
+            if (
+                not isinstance(evaluation_results_for_metric[field], float)
+                or value > evaluation_results_for_metric[field]
+            ):
                 logger.error(
                     f"for field '{field}' and metric '{metric}' expected at "
                     f"least '{value}' but observed '{evaluation_results_for_metric[field]}'"
@@ -141,7 +143,9 @@ async def run_training_test(
         await asyncio.sleep(POLLING_INTERVAL)
 
     if not done:
-        logger.error(f"Test timed out after {test_config['time_limit']} seconds. Last status: {status}")
+        logger.error(
+            f"Test timed out after {test_config['time_limit']} seconds. Last status: {status}"
+        )
         # Don't run inference test if training timed out
         return success
 
@@ -206,7 +210,7 @@ async def run_inference_test(
         refiner_path=str(refiner_filename),
         model_name=model_name,
         save_path=save_path,
-        dev_input_folder=dev_input_folder
+        dev_input_folder=dev_input_folder,
     )
 
     assert refiner_path, "Refiner path not found"
@@ -224,8 +228,10 @@ async def run_inference_test(
 
     # TODO: For now, just run inference against one input record to make sure it doesn't error out
     # We should ideally run against many or all documents to compare
-    resp = await sdk.run_refiner(program_path=os.path.join(save_path, refiner_filename),
-                                 input_record_keys=[list(preds_dict.keys())[0] + "-0"])
+    resp = await sdk.run_refiner(
+        program_path=os.path.join(save_path, refiner_filename),
+        input_record_keys=[list(preds_dict.keys())[0] + "-0"],
+    )
     if 'job_id' not in resp:
         logger.error(f"Running Refiner failed with error message: {resp}")
     job_id = resp['job_id']
@@ -237,7 +243,9 @@ async def run_inference_test(
         await asyncio.sleep(POLLING_INTERVAL)
         status = await sdk.get_async_job_status(job_id)
         logger.debug(status)
-        success = _extract_refiner_results_from_status(logger, status, model_result_by_record) and success
+        success = (
+            _extract_refiner_results_from_status(logger, status, model_result_by_record) and success
+        )
         if status.get('state') != "PENDING":
             break
 
