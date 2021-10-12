@@ -327,62 +327,84 @@ def prepare_ib_params(
     :param model_name:
     :return:
     """
-    out_dict = {}
+    hyperparams = {**hyperparams}
 
-    out_dict['do_train'] = True
-    out_dict['do_eval'] = True
-    out_dict['do_predict'] = True
-    out_dict['log_level'] = 'warning'
-    out_dict['num_train_epochs'] = hyperparams['epochs']
-    out_dict['per_device_train_batch_size'] = int(hyperparams['batch_size'])
-    out_dict['learning_rate'] = hyperparams['learning_rate']
-    out_dict['max_grad_norm'] = hyperparams['max_grad_norm']
-    out_dict['fp16'] = hyperparams['use_mixed_precision']
-    out_dict['no_cuda'] = not hyperparams['use_gpu']
-    out_dict['warmup_ratio'] = hyperparams['warmup']
-    out_dict['weight_decay'] = hyperparams['weight_decay']
-    out_dict['max_length'] = int(hyperparams['chunk_size'])
-    out_dict['chunk_overlap'] = int(hyperparams['stride'])
-    out_dict['report_to'] = 'none'
-    out_dict['logging_strategy'] = 'epoch'
-    out_dict['evaluation_strategy'] = 'epoch'
-    out_dict['disable_tqdm'] = False
-    out_dict['logging_steps'] = 10
-    if hyperparams['scheduler_type'] == "constant_schedule_with_warmup":
-        out_dict['lr_scheduler_type'] = 'constant_with_warmup'
-    elif hyperparams['scheduler_type'] == 'linear_schedule_with_warmup':
-        out_dict['lr_scheduler_type'] = 'linear'
-    else:
-        out_dict['lr_scheduler_type'] = hyperparams['scheduler_type']
-    out_dict['adafactor'] = False
-
-    out_dict['dataset_name_or_path'] = 'ibds'
-    out_dict['model_name_or_path'] = hyperparams['model_name']
-    if 'layoutlmv2' in hyperparams['model_name'].lower():
-        pipeline_name = 'layoutlmv2_sl'
-    elif 'layoutxlm' in hyperparams['model_name'].lower():
-        pipeline_name = 'layoutxlm_sl'
-    else:
-        pipeline_name = 'layoutlm_sl'
-    if 'pipeline_name' in hyperparams:
-        pipeline_name = hyperparams['pipeline_name']
-    out_dict['pipeline_name'] = pipeline_name
-
-    out_dict['dataset_config_name'] = 'ibds'
-
-    out_dict['train_file'] = dataset_filename
     temp_dir = tempfile.TemporaryDirectory().name
-    out_dict['output_dir'] = temp_dir
-    out_dict['ib_save_path'] = save_path
+    out_dict = dict(
+        do_train=True,
+        do_eval=True,
+        do_predict=True,
+        log_level='warning',
+        report_to='none',
+        logging_strategy='epoch',
+        evaluation_strategy='epoch',
+        disable_tqdm=False,
+        logging_steps=10,
+        adafactor=False,
+        dataset_name_or_path='ibds',
+        dataset_config_name='ibds',
+        train_file=dataset_filename,
+        output_dir=temp_dir,
+        ib_save_path=save_path,
+        overwrite_output_dir=False,
+        return_entity_level_metrics=True,
+        username=username,
+        file_client=file_client,
+        job_status_client=job_status_client,
+        mount_details=mount_details,
+        model_name=model_name,
+    )
 
-    out_dict['overwrite_output_dir'] = False
-    out_dict['return_entity_level_metrics'] = True
+    if 'epochs' in hyperparams:
+        out_dict['num_train_epochs'] = hyperparams.pop('epochs')
+    if 'batch_size' in hyperparams:
+        out_dict['per_device_train_batch_size'] = int(hyperparams.pop('batch_size'))
+    if 'learning_rate' in hyperparams:
+        out_dict['learning_rate'] = hyperparams.pop('learning_rate')
+    if 'max_grad_norm' in hyperparams:
+        out_dict['max_grad_norm'] = hyperparams.pop('max_grad_norm')
+    if 'use_mixed_precision' in hyperparams:
+        out_dict['fp16'] = hyperparams.pop('use_mixed_precision')
+    if 'use_gpu' in hyperparams:
+        out_dict['no_cuda'] = not hyperparams.pop('use_gpu')
+    if 'warmup' in hyperparams:
+        out_dict['warmup_ratio'] = hyperparams.pop('warmup')
+    if 'weight_decay' in hyperparams:
+        out_dict['weight_decay'] = hyperparams.pop('weight_decay')
+    if 'chunk_size' in hyperparams:
+        out_dict['max_length'] = int(hyperparams.pop('chunk_size'))
+    if 'stride' in hyperparams:
+        out_dict['chunk_overlap'] = int(hyperparams.pop('stride'))
+    if 'upload' in hyperparams:
+        out_dict['upload'] = hyperparams.pop('upload')
 
-    out_dict['username'] = username
-    out_dict['file_client'] = file_client
-    out_dict['job_status_client'] = job_status_client
-    out_dict['mount_details'] = mount_details
-    out_dict['model_name'] = model_name
-    out_dict['upload'] = hyperparams['upload']
+    if 'scheduler_type' in hyperparams:
+        scheduler_type = hyperparams.pop('scheduler_type')
+        if scheduler_type == "constant_schedule_with_warmup":
+            out_dict['lr_scheduler_type'] = 'constant_with_warmup'
+        elif scheduler_type == 'linear_schedule_with_warmup':
+            out_dict['lr_scheduler_type'] = 'linear'
+        else:
+            out_dict['lr_scheduler_type'] = scheduler_type
+
+    pipeline_name = None
+    if 'pipeline_name' in hyperparams:
+        pipeline_name = hyperparams.pop('pipeline_name')
+    if 'model_name' in hyperparams:
+        model_name = hyperparams.pop('model_name')
+        out_dict['model_name_or_path'] = model_name
+        if not pipeline_name:
+            if 'layoutlmv2' in model_name.lower():
+                pipeline_name = 'layoutlmv2_sl'
+            elif 'layoutxlm' in model_name.lower():
+                pipeline_name = 'layoutxlm_sl'
+            else:
+                pipeline_name = 'layoutlm_sl'
+        out_dict['pipeline_name'] = pipeline_name
+
+    if hyperparams:
+        logging.info(
+            f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}"
+        )
 
     return out_dict
