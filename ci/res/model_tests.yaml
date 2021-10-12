@@ -2,7 +2,7 @@ NY Drivers Licenses:
   env: dogfood
   ibannotator: ib_annotation/data/fs/Prod Drive/datasets/DLs Clean/Drivers Licenses Clean.ibannotator
   time_limit: 1200 # 20 minutes
-  config:
+  config: &defaults
     adam_epsilon: 1.e-8
     batch_size: 2
     chunk_size: 510
@@ -39,23 +39,68 @@ Uber Eats Receipts:
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
   time_limit: 1200 # 20 minutes
   config:
-    adam_epsilon: 1.e-8
-    batch_size: 2
-    chunk_size: 510
+    <<: *defaults
     epochs: 10
-    learning_rate: 5.e-5
-    loss_agg_steps: 1
-    max_grad_norm: 1
-    optimizer_type: AdamW
-    scheduler_type: linear_schedule_with_warmup
-    stride: 64
-    use_mixed_precision: true
-    warmup: 0
-    weight_decay: 0
-    class_weights: false
-    upload: true
-    use_gpu: true
     model_name: microsoft/layoutlm-base-uncased
+  metrics:
+    precision:
+      date: 0.8
+      total: 0.95
+    recall:
+      date: 0.95
+      total: 0.95
+    f1:
+      date: 0.9
+      total: 0.95
+
+Uber Eats XLM:
+  env: doc-insights-sandbox
+  ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
+  time_limit: 1200 # 20 minutes
+  config:
+    <<: *defaults
+    epochs: 10
+    model_name: microsoft/layoutxlm-base
+  metrics:
+    precision:
+      date: 0.8
+      total: 0.95
+    recall:
+      date: 0.95
+      total: 0.95
+    f1:
+      date: 0.9
+      total: 0.95
+
+
+Uber Eats v2:
+  env: doc-insights-sandbox
+  ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
+  time_limit: 1200 # 20 minutes
+  config:
+    <<: *defaults
+    epochs: 10
+    model_name: layoutlmv2-base-uncased
+  metrics:
+    precision:
+      date: 0.8
+      total: 0.95
+    recall:
+      date: 0.95
+      total: 0.95
+    f1:
+      date: 0.9
+      total: 0.95
+
+Uber Eats BERT:
+  env: doc-insights-sandbox
+  ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
+  time_limit: 1200 # 20 minutes
+  config:
+    <<: *defaults
+    epochs: 10
+    model_name: bert-base-uncased
+    pipeline_name: plain_sl
   metrics:
     precision:
       date: 0.8
