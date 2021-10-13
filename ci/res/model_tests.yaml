@@ -17,15 +17,11 @@ NY Drivers Licenses:
     warmup: 0
     weight_decay: 0
     class_weights: false
-    upload: false
+    upload: true
     use_gpu: true
     model_name: microsoft/layoutlm-base-uncased
   metrics: # TODO stop assuming higher is better
     # TODO maybe transpose this?
-    exact_match:
-      DL Number: 0.9
-      Name: 0.3
-      Address: 0.9
     precision:
       DL Number: 0.9
       Name: 0.7
@@ -37,7 +33,7 @@ NY Drivers Licenses:
     f1:
       DL Number: 0.9
       Name: 0.6
-      Address: 0.9
+      Address: 0.8
 Uber Eats Receipts:
   env: doc-insights-sandbox
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
@@ -57,13 +53,10 @@ Uber Eats Receipts:
     warmup: 0
     weight_decay: 0
     class_weights: false
-    upload: false
+    upload: true
     use_gpu: true
     model_name: microsoft/layoutlm-base-uncased
   metrics:
-    exact_match:
-      date: 0.8
-      total: 0.95
     precision:
       date: 0.8
       total: 0.95

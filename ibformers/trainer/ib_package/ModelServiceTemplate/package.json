@@ -14,7 +14,8 @@
     ],
     "solution_type": "ibmodel",
     "packages": [
-        "src/py/{{model_package}}"
+        "src/py/{{model_package}}",
+        "src/py/ibformers"
     ],
     "classpath": "{{model_package}}.model.IbModel",
     "payload_type": "custom_request",

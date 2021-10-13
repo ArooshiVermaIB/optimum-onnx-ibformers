@@ -1,0 +1,77 @@
+{
+  "name": "ibformers",
+  "version": "0.0.2",
+  "keywords": "models, transformers",
+  "category": "model-training",
+  "short_description": "Training scripts for transformers",
+  "long_description": "Training scripts for transformers",
+  "authors": [
+    "Instabase"
+  ],
+  "beta": true,
+  "solution_type": "pypkg",
+  "model_training": {
+    "sources": [
+      "ibformers"
+    ],
+    "function": "ibformers.trainer.train.run_train",
+    "base_models": [
+      {
+        "name": "layout-base-2",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "chunk_size": 512,
+          "stride": 64,
+          "epochs": 5,
+          "learning_rate": 5e-05,
+          "warmup": 0.0,
+          "weight_decay": 0,
+          "class_weights": 3,
+          "model_name": "microsoft/layoutlm-base-uncased"
+        }
+      },
+      {
+        "name": "layout-multilingual-single-page (experimental)",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "chunk_size": 512,
+          "stride": 64,
+          "epochs": 5,
+          "learning_rate": 5e-05,
+          "warmup": 0.0,
+          "weight_decay": 0,
+          "class_weights": 3,
+          "model_name": "microsoft/layoutxlm-base"
+        }
+      },
+      {
+        "name": "layout-single-page (experimental)",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "chunk_size": 512,
+          "stride": 64,
+          "epochs": 5,
+          "learning_rate": 5e-05,
+          "warmup": 0.0,
+          "weight_decay": 0,
+          "class_weights": 3,
+          "model_name": "microsoft/layoutlmv2-base-uncased"
+        }
+      },
+      {
+        "name": "natural language (experimental)",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "chunk_size": 512,
+          "stride": 64,
+          "epochs": 5,
+          "learning_rate": 5e-05,
+          "warmup": 0.0,
+          "weight_decay": 0,
+          "class_weights": 3,
+          "model_name": "bert-base-uncased"
+        }
+      }
+    ]
+  }
+}

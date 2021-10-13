@@ -4,7 +4,8 @@ import asyncio
 import json
 import logging
 import os
-from typing import AnyStr, Dict, Any, List, Optional
+from pathlib import Path
+from typing import AnyStr, Dict, Any, List, Optional, Mapping
 
 import aiohttp
 from typing_extensions import TypedDict, Literal
@@ -21,6 +22,20 @@ class Instabase:
 
     def _make_headers(self):
         return dict(Authorization=f'Bearer {self._token}')
+
+    async def read_file(self, ib_path: str) -> str:
+        headers = {
+            **self._make_headers(),
+            'Instabase-API-Args': json.dumps(dict(type='file', get_content=True)),
+        }
+
+        url = os.path.join(self.drive_api_url, self._root_path, ib_path)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, ) as r:
+                resp = await r.text()
+
+        self.logger.debug(f'{self.name} read_file: IB API response: {resp}')
+        return resp
 
     async def write_file(self, ib_path: str, contents: AnyStr) -> Dict[str, Any]:
         headers = {
@@ -200,7 +215,7 @@ class Instabase:
         url = os.path.join(self.drive_api_url, root)
         logging.debug(f"Sending request to {url}")
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=self._make_headers()) as r:
+            async with session.get(url, headers=self._make_headers(), ) as r:
                 resp = await r.json()
         drives = resp.get('drives', [])
         if not drives:
@@ -220,16 +235,16 @@ class Instabase:
         return drives[0]['mount_details']
 
     async def start_model_training_task(
-        self,
-        *,
-        script_package,
-        script_function,
-        dataset_filename,
-        save_path: str,
-        mount_details,
-        model_name: str,
-        hyperparams: Dict[str, Any],
-        device_type: Optional[Literal['cpu', 'gpu']] = None,
+            self,
+            *,
+            script_package,
+            script_function,
+            dataset_filename,
+            save_path: str,
+            mount_details,
+            model_name: str,
+            hyperparams: Dict[str, Any],
+            device_type: Optional[Literal['cpu', 'gpu']] = None,
     ):
         url = os.path.join(self._host, 'api/v1/model-service/run_train')
         arguments = dict(
@@ -249,23 +264,92 @@ class Instabase:
         )
         self.logger.debug(f"Starting model training job: {data}")
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=self._make_headers(), data=json.dumps(data)) as r:
+            async with session.post(url, headers=self._make_headers(), data=json.dumps(data), ) as r:
                 resp = await r.json()
         if 'job_id' in resp:
             return resp['job_id']
         self.logger.error(f'{self.name}: Error while starting model training job: {resp}')
         exit(1)
 
-    async def get_model_training_job_status(self, job_id: str) -> Dict[str, Any]:
-        url = os.path.join(self._host, 'api/v1/jobs/status') + f'?job_id={job_id}&type=async'
+    async def create_refiner_for_model(
+            self,
+            *,
+            model_path: str,
+            refiner_path: str,
+            model_name: str,
+            save_path: str,
+            dev_input_folder
+    ):
+        url = os.path.join(self._host, 'api/v1/annotator/export_model')
 
-        self.logger.debug(f'{self.name}: Waiting for model training job with ID: {job_id}')
+        model_path = Path(self._root_path) / model_path
+
+        data = dict(
+            model_path=str(model_path) + "/",
+            dev_input_folder=dev_input_folder,
+            model_name=model_name,
+            extracted_fields=[],  # TODO Do we need these?
+            refiner_path=str(refiner_path) + "/",  # TODO: ?????
+            annotator_dir=str(Path(self._root_path) / save_path) + "/",
+        )
+
+        self.logger.debug(f"Creating Refiner")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=self._make_headers(), data=json.dumps(data), ) as r:
+                resp = await r.json()
+        if 'refiner_path' in resp:
+            return resp['refiner_path']
+        self.logger.error(f'{self.name}: Error while creating Refiner: {resp}')
+        exit(1)
+
+    async def run_refiner(self, program_path: str, input_record_keys: List[str], use_json: bool = True,
+                          use_file_cache=True, run_with_targets=False, refined_phrases: Mapping[str, Any] = None):
+        url = os.path.join(self._host, "api/v1/refiner-v5/run")
+
+        refined_phrases = refined_phrases or {}
+
+        program = await self.read_file(program_path)
+        path_parts = self._root_path.split("/")
+        repo_owner, repo_name = path_parts[0], path_parts[1]
+        data = dict(program=program,
+                    use_json=use_json,
+                    repo_name=repo_name,
+                    repo_owner=repo_owner,
+                    input_record_keys=input_record_keys,
+                    program_path=os.path.join(self._root_path, program_path),
+                    refined_phrases=refined_phrases,
+                    use_file_cache=use_file_cache,
+                    run_with_targets=run_with_targets)
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=self._make_headers()) as r:
+            async with session.post(url, headers=self._make_headers(), data=json.dumps(data), ) as r:
+                resp = await r.json()
+        return resp
+
+    async def unload_model(self, model_name: str):
+        url = os.path.join(self._host, "api/v1/model-service/unload_model")
+
+        self.logger.debug(f'{self.name}: Unloading model with name <{model_name}>')
+
+        data = dict(model_name=model_name)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=self._make_headers(), data=json.dumps(data), ) as r:
                 resp = await r.json()
 
-        self.logger.debug(f'{self.name}: Model training job with ID {job_id} returned with: {resp}')
+        if not resp.get('message') == "Model unloading initiated":
+            self.logger.error(f"Error occurred while unloading model: {resp}")
+        return resp
+
+    async def get_async_job_status(self, job_id: str) -> Dict[str, Any]:
+        url = os.path.join(self._host, 'api/v1/jobs/status') + f'?job_id={job_id}&type=async'
+
+        self.logger.debug(f'{self.name}: Waiting for async job with ID: {job_id}')
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=self._make_headers(), ) as r:
+                resp = await r.json()
+
+        self.logger.debug(f'{self.name}: async job with ID {job_id} returned with: {resp}')
         return resp
 
     async def get_model_training_logs(self, job_id: str) -> List[IClassifierLog]:

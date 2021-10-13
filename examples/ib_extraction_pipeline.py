@@ -5,7 +5,6 @@ from transformers import AutoTokenizer
 
 from ibformers.data.tokenize import tokenize
 
-
 # TODO: find out if we can get rid of InstabaseSDK for opening ibdocs
 from ibformers.data.transform import norm_bboxes_for_layoutlm
 
@@ -29,20 +28,23 @@ class InstabaseSDK:
 
 
 sdk = InstabaseSDK(None, "rpowalski")
-dataset = load_dataset(path='/Users/rafalpowalski/python/ibformers/ibformers/datasets/ibds', name='ibds',
-                       data_files=['/Users/rafalpowalski/python/annotation/uber/UberEats.ibannotator'],
-                       ibsdk=sdk)
+dataset = load_dataset(
+    path='/Users/rafalpowalski/python/ibformers/ibformers/datasets/ibds',
+    name='ibds',
+    data_files=['/Users/rafalpowalski/python/annotation/uber/UberEats.ibannotator'],
+    ibsdk=sdk,
+)
 
 tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-tokenized_dataset = dataset.map(tokenize, batched=True, batch_size=32, fn_kwargs={"tokenizer": tokenizer})
+tokenized_dataset = dataset.map(
+    tokenize, batched=True, batch_size=32, fn_kwargs={"tokenizer": tokenizer}
+)
 
-blah = tokenized_dataset.map(norm_bboxes_for_layoutlm, batched=True, batch_size=32, fn_kwargs={"tokenizer": tokenizer})
-
+blah = tokenized_dataset.map(
+    norm_bboxes_for_layoutlm, batched=True, batch_size=32, fn_kwargs={"tokenizer": tokenizer}
+)
 
 blah2 = blah.rename_column("token_label_ids", "labels")
-
-
-
 
 # TODO: prepare bboxes for layoutlm - normalize it to 1-1000 range
 
