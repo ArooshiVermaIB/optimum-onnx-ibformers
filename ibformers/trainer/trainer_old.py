@@ -9,7 +9,11 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import EvalPrediction, is_torch_tpu_available
 from transformers.trainer import Trainer
-from transformers.trainer_pt_utils import DistributedTensorGatherer, SequentialDistributedSampler, nested_concat
+from transformers.trainer_pt_utils import (
+    DistributedTensorGatherer,
+    SequentialDistributedSampler,
+    nested_concat,
+)
 from transformers.trainer_utils import PredictionOutput, denumpify_detensorize
 
 logger = logging.get_logger(__name__)
@@ -20,6 +24,7 @@ class IbTrainer(Trainer):
     Copied from transformers to include few modifications inside the training loop
     Old trainer will be changed once transformers will be updated on ib
     """
+
     def __init__(self, *args, post_process_function=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.post_process_function = post_process_function
@@ -40,7 +45,9 @@ class IbTrainer(Trainer):
         if not isinstance(dataloader.dataset, collections.abc.Sized):
             raise ValueError("dataset must implement __len__")
         prediction_loss_only = (
-            prediction_loss_only if prediction_loss_only is not None else self.args.prediction_loss_only
+            prediction_loss_only
+            if prediction_loss_only is not None
+            else self.args.prediction_loss_only
         )
 
         if self.args.deepspeed and not self.args.do_train:
@@ -66,20 +73,30 @@ class IbTrainer(Trainer):
 
         world_size = max(1, self.args.world_size)
 
-        eval_losses_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=batch_size)
+        eval_losses_gatherer = DistributedTensorGatherer(
+            world_size, num_examples, make_multiple_of=batch_size
+        )
         if not prediction_loss_only:
             # The actual number of eval_sample can be greater than num_examples in distributed settings (when we pass
             # a batch size to the sampler)
             make_multiple_of = None
-            if hasattr(dataloader, "sampler") and isinstance(dataloader.sampler, SequentialDistributedSampler):
+            if hasattr(dataloader, "sampler") and isinstance(
+                dataloader.sampler, SequentialDistributedSampler
+            ):
                 make_multiple_of = dataloader.sampler.batch_size
-            preds_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
-            labels_gatherer = DistributedTensorGatherer(world_size, num_examples, make_multiple_of=make_multiple_of)
+            preds_gatherer = DistributedTensorGatherer(
+                world_size, num_examples, make_multiple_of=make_multiple_of
+            )
+            labels_gatherer = DistributedTensorGatherer(
+                world_size, num_examples, make_multiple_of=make_multiple_of
+            )
 
         model.eval()
 
         if is_torch_tpu_available():
-            dataloader = pl.ParallelLoader(dataloader, [self.args.device]).per_device_loader(self.args.device)
+            dataloader = pl.ParallelLoader(dataloader, [self.args.device]).per_device_loader(
+                self.args.device
+            )
 
         if self.args.past_index >= 0:
             self._past = None
@@ -87,22 +104,43 @@ class IbTrainer(Trainer):
         self.callback_handler.eval_dataloader = dataloader
 
         for step, inputs in enumerate(dataloader):
-            loss, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+            loss, logits, labels = self.prediction_step(
+                model, inputs, prediction_loss_only, ignore_keys=ignore_keys
+            )
             if loss is not None:
                 losses = loss.repeat(batch_size)
-                losses_host = losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
+                losses_host = (
+                    losses if losses_host is None else torch.cat((losses_host, losses), dim=0)
+                )
             if logits is not None:
-                preds_host = logits if preds_host is None else nested_concat(preds_host, logits, padding_index=-100)
+                preds_host = (
+                    logits
+                    if preds_host is None
+                    else nested_concat(preds_host, logits, padding_index=-100)
+                )
             if labels is not None:
-                labels_host = labels if labels_host is None else nested_concat(labels_host, labels, padding_index=-100)
-            self.control = self.callback_handler.on_prediction_step(self.args, self.state, self.control)
+                labels_host = (
+                    labels
+                    if labels_host is None
+                    else nested_concat(labels_host, labels, padding_index=-100)
+                )
+            self.control = self.callback_handler.on_prediction_step(
+                self.args, self.state, self.control
+            )
 
             # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
-            if self.args.eval_accumulation_steps is not None and (step + 1) % self.args.eval_accumulation_steps == 0:
-                eval_losses_gatherer.add_arrays(self._gather_and_numpify(losses_host, "eval_losses"))
+            if (
+                self.args.eval_accumulation_steps is not None
+                and (step + 1) % self.args.eval_accumulation_steps == 0
+            ):
+                eval_losses_gatherer.add_arrays(
+                    self._gather_and_numpify(losses_host, "eval_losses")
+                )
                 if not prediction_loss_only:
                     preds_gatherer.add_arrays(self._gather_and_numpify(preds_host, "eval_preds"))
-                    labels_gatherer.add_arrays(self._gather_and_numpify(labels_host, "eval_label_ids"))
+                    labels_gatherer.add_arrays(
+                        self._gather_and_numpify(labels_host, "eval_label_ids")
+                    )
 
                 # Set back to None to begin a new accumulation
                 losses_host, preds_host, labels_host = None, None, None
@@ -122,8 +160,9 @@ class IbTrainer(Trainer):
         label_ids = labels_gatherer.finalize() if not prediction_loss_only else None
 
         if self.compute_metrics is not None and preds is not None and label_ids is not None:
-            metrics = self.compute_metrics(EvalPrediction(predictions=preds, label_ids=label_ids),
-                                           self.eval_dataset)
+            metrics = self.compute_metrics(
+                EvalPrediction(predictions=preds, label_ids=label_ids), self.eval_dataset
+            )
         else:
             metrics = {}
 
@@ -141,13 +180,20 @@ class IbTrainer(Trainer):
         return PredictionOutput(predictions=preds, label_ids=label_ids, metrics=metrics)
 
     def predict(
-        self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "eval"
+        self,
+        test_dataset: Dataset,
+        ignore_keys: Optional[List[str]] = None,
+        metric_key_prefix: str = "eval",
     ) -> PredictionOutput:
         """
-        run predict method from original trainer but call on_predict callback in the end
-=
+                run predict method from original trainer but call on_predict callback in the end
+        =
         """
         output = super().predict(test_dataset, ignore_keys, metric_key_prefix)
-        self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
+        self.control = self.callback_handler.on_evaluate(
+            self.args, self.state, self.control, output.metrics
+        )
 
-        return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
+        return PredictionOutput(
+            predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics
+        )

@@ -6,7 +6,12 @@ import datasets
 from datasets import BuilderConfig, Features, config
 from datasets.fingerprint import Hasher
 
-from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder, IBOCRRecord, IBOCRRecordLayout, ParsedIBOCR
+from instabase.ocr.client.libs.ibocr import (
+    ParsedIBOCRBuilder,
+    IBOCRRecord,
+    IBOCRRecordLayout,
+    ParsedIBOCR,
+)
 from instabase.ocr.client.libs.ocr_types import WordPolyDict
 from typing_extensions import TypedDict, Literal
 from more_itertools import consecutive_groups
@@ -53,7 +58,7 @@ class AnnotationPosition(TypedDict):
 
 class AnnotationWordMetadata(TypedDict):
     dataType: Literal["WordPoly"]
-    type: Literal['rect']
+    type: Literal["rect"]
     rawWord: str
     position: AnnotationPosition
 
@@ -108,10 +113,10 @@ class IbDsBuilderConfig(BuilderConfig):
         super(IbDsBuilderConfig, self).__init__(*args, **kwargs)
 
     def create_config_id(
-            self,
-            config_kwargs: dict,
-            custom_features: Optional[Features] = None,
-            use_auth_token: Optional[Union[bool, str]] = None,
+        self,
+        config_kwargs: dict,
+        custom_features: Optional[Features] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
     ) -> str:
         """
         The config id is used to build the cache directory.
@@ -132,23 +137,30 @@ class IbDsBuilderConfig(BuilderConfig):
         config_kwargs_to_add_to_suffix.pop("ibsdk", None)
         # data files are handled differently
         config_kwargs_to_add_to_suffix.pop("data_files", None)
-        if "data_dir" in config_kwargs_to_add_to_suffix and config_kwargs_to_add_to_suffix["data_dir"] is None:
+        if (
+            "data_dir" in config_kwargs_to_add_to_suffix
+            and config_kwargs_to_add_to_suffix["data_dir"] is None
+        ):
             del config_kwargs_to_add_to_suffix["data_dir"]
         if config_kwargs_to_add_to_suffix:
             # we don't care about the order of the kwargs
             config_kwargs_to_add_to_suffix = {
                 k: config_kwargs_to_add_to_suffix[k] for k in sorted(config_kwargs_to_add_to_suffix)
             }
-            if all(isinstance(v, (str, bool, int, float)) for v in config_kwargs_to_add_to_suffix.values()):
+            if all(
+                isinstance(v, (str, bool, int, float))
+                for v in config_kwargs_to_add_to_suffix.values()
+            ):
                 suffix = ",".join(
-                    str(k) + "=" + urllib.parse.quote_plus(str(v)) for k, v in config_kwargs_to_add_to_suffix.items()
+                    str(k) + "=" + urllib.parse.quote_plus(str(v))
+                    for k, v in config_kwargs_to_add_to_suffix.items()
                 )
                 if len(suffix) > 32:  # hash if too long
                     suffix = Hasher.hash(config_kwargs_to_add_to_suffix)
             else:
                 suffix = Hasher.hash(config_kwargs_to_add_to_suffix)
 
-        if 'train' in self.data_files:
+        if "train" in self.data_files:
             m = Hasher()
             if suffix:
                 m.update(suffix)
@@ -156,9 +168,11 @@ class IbDsBuilderConfig(BuilderConfig):
             # stat_fn = self.ibsdk.stat if self.ibsdk is not None else os.path.getmtime
             # stat = str(stat_fn(self.data_files["train"]))
             open_fn = get_open_fn(self.ibsdk)
-            with open_fn(self.data_files["train"], 'r') as annotation_file:
+            with open_fn(self.data_files["train"], "r") as annotation_file:
                 content = json.load(annotation_file)
-                fingerprint_content = {k: v for k, v in content.items() if k in ('files', 'labels', 'testFiles')}
+                fingerprint_content = {
+                    k: v for k, v in content.items() if k in ("files", "labels", "testFiles")
+                }
             m.update(self.data_files["train"])
             m.update(fingerprint_content)
             suffix = m.hexdigest()
@@ -179,9 +193,7 @@ class IbDsBuilderConfig(BuilderConfig):
             return self.name
 
 
-def _read_parsedibocr(
-        builder: ParsedIBOCR
-) -> Tuple[List[WordPolyDict], List[IBOCRRecordLayout]]:
+def _read_parsedibocr(builder: ParsedIBOCR) -> Tuple[List[WordPolyDict], List[IBOCRRecordLayout]]:
     """Open an ibdoc or ibocr using the ibfile and return the words and layout information for each page"""
     words = []
     layouts = []
@@ -194,17 +206,18 @@ def _read_parsedibocr(
         layouts.extend([i.get_layout() for i in l])
 
     assert all(
-        word['page'] in range(len(layouts)) for word in words
+        word["page"] in range(len(layouts)) for word in words
     ), "Something with the page numbers went wrong"
 
     return words, layouts
 
 
-def process_labels_from_annotation(words: List[WordPolyDict],
-                                   annotation_file: Optional[AnnotationFile] = None,
-                                   label2id: Optional[Dict[str, int]] = None,
-                                   ann_label_id2label: Optional[Dict[AnnotationLabelId, str]] = None
-                                   ) -> Tuple[List[LabelEntity], Sequence[int]]:
+def process_labels_from_annotation(
+    words: List[WordPolyDict],
+    annotation_file: Optional[AnnotationFile] = None,
+    label2id: Optional[Dict[str, int]] = None,
+    ann_label_id2label: Optional[Dict[AnnotationLabelId, str]] = None,
+) -> Tuple[List[LabelEntity], Sequence[int]]:
 
     token_label_ids = np.zeros((len(words)), dtype=np.int64)
     entities = []
@@ -212,7 +225,7 @@ def process_labels_from_annotation(words: List[WordPolyDict],
         label2ann_label_id = {v: k for k, v in ann_label_id2label.items()}
 
     key_to_words = {
-        _SearchKey(x['start_x'], x['start_y'], x['page'], x['raw_word']): i
+        _SearchKey(x["start_x"], x["start_y"], x["page"], x["raw_word"]): i
         for i, x in enumerate(words)
     }
     assert len(key_to_words) == len(
@@ -220,60 +233,79 @@ def process_labels_from_annotation(words: List[WordPolyDict],
     ), "Issue with assumption that _SearchKey(x, y, page, word) is unique"
     annotation: Annotation
     for label_name, lab_id in label2id.items():
-        if lab_id == 0 and label_name == 'O':
+        if lab_id == 0 and label_name == "O":
             continue
         if annotation_file is None:
             # get empty entities for inference mode
-            entity: LabelEntity = LabelEntity(name=label_name, order_id=0, text=annotation['value'], char_spans=[],
-                                              token_spans=[], token_label_id=lab_id)
+            entity: LabelEntity = LabelEntity(
+                name=label_name,
+                order_id=0,
+                text=annotation["value"],
+                char_spans=[],
+                token_spans=[],
+                token_label_id=lab_id,
+            )
 
         else:
             ann_label_id = label2ann_label_id[label_name]
-            annotation = annotation_file['annotations'].get(ann_label_id, {"value": "", "metadata": []})
+            annotation = annotation_file["annotations"].get(
+                ann_label_id, {"value": "", "metadata": []}
+            )
 
-            metadata = annotation['metadata']
+            metadata = annotation["metadata"]
             word_metadata: AnnotationWordMetadata
             label_words = []
             for word_metadata in metadata:
-                if word_metadata['dataType'] != 'WordPoly':
+                if word_metadata["dataType"] != "WordPoly":
                     raise ValueError("Unexpected (non-wordpoly) annotation. Skipping.")
 
-                pos = word_metadata['position']
-                rect: AnnotationRect = pos['rect']
-                key = _SearchKey(rect['x'], rect['y'], pos['page'], word_metadata['rawWord'])
+                pos = word_metadata["position"]
+                rect: AnnotationRect = pos["rect"]
+                key = _SearchKey(rect["x"], rect["y"], pos["page"], word_metadata["rawWord"])
                 if key not in key_to_words:
                     raise RuntimeError(
                         f"Couldn't find word {repr(key)} in document {annotation_file['ocrPath']}."
                     )
                 word_id_global = key_to_words[key]
 
-                word_text = word_metadata['rawWord']
-                assert word_text.strip() == words[word_id_global]['word'].strip(), \
-                    "Annotation does not match with document words"
+                word_text = word_metadata["rawWord"]
+                assert (
+                    word_text.strip() == words[word_id_global]["word"].strip()
+                ), "Annotation does not match with document words"
 
                 label_words.append(LabelWithId(id=word_id_global, text=word_text))
 
             # TODO: information about multi-item entity separation should be obtained during annotation
             # group consecutive words as the same entity occurrence
             label_words.sort(key=lambda x: x["id"])
-            label_groups = [list(group) for group in consecutive_groups(label_words, ordering=lambda x: x["id"])]
+            label_groups = [
+                list(group) for group in consecutive_groups(label_words, ordering=lambda x: x["id"])
+            ]
             # create spans for groups, span will be created by getting id for first and last word in the group
             label_token_spans = [[group[0]["id"], group[-1]["id"] + 1] for group in label_groups]
 
             for span in label_token_spans:
-                token_label_ids[span[0]:span[1]] = lab_id
+                token_label_ids[span[0] : span[1]] = lab_id
 
-            entity: LabelEntity = LabelEntity(name=label_name, order_id=0, text=annotation['value'], char_spans=[],
-                                              token_spans=label_token_spans, token_label_id=lab_id)
+            entity: LabelEntity = LabelEntity(
+                name=label_name,
+                order_id=0,
+                text=annotation["value"],
+                char_spans=[],
+                token_spans=label_token_spans,
+                token_label_id=lab_id,
+            )
         entities.append(entity)
 
     return entities, token_label_ids
 
 
-def get_images_from_layouts(layouts: List[IBOCRRecordLayout],
-                            image_processor: ImageProcessor,
-                            ocr_path: str,
-                            open_fn: Callable):
+def get_images_from_layouts(
+    layouts: List[IBOCRRecordLayout],
+    image_processor: ImageProcessor,
+    ocr_path: str,
+    open_fn: Callable,
+):
     """
     :param layouts: list of layouts (pages) objects
     :param image_processor: callable object used to process images
@@ -291,8 +323,8 @@ def get_images_from_layouts(layouts: List[IBOCRRecordLayout],
         except OSError:
             # try relative path - useful for debugging
             ocr_path = Path(ocr_path)
-            img_rel_path = ocr_path.parent.parent / 's1_process_files' / 'images' / img_path.name
-            with open_fn(str(img_rel_path), 'rb') as img_file:
+            img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
+            with open_fn(str(img_rel_path), "rb") as img_file:
                 img_arr = image_processor(img_file).astype(np.uint8)
 
         img_lst.append(img_arr)
@@ -300,14 +332,15 @@ def get_images_from_layouts(layouts: List[IBOCRRecordLayout],
     return img_arr
 
 
-def process_parsedibocr(parsedibocr: ParsedIBOCR,
-                        open_fn,
-                        use_image: bool,
-                        image_processor: ImageProcessor,
-                        doc_annotations: Optional[AnnotationFile] = None,
-                        label2id: Optional[Dict[str, int]] = None,
-                        ann_label_id2label: Optional[Dict[AnnotationLabelId, str]] = None,
-                        ):
+def process_parsedibocr(
+    parsedibocr: ParsedIBOCR,
+    open_fn,
+    use_image: bool,
+    image_processor: ImageProcessor,
+    doc_annotations: Optional[AnnotationFile] = None,
+    label2id: Optional[Dict[str, int]] = None,
+    ann_label_id2label: Optional[Dict[AnnotationLabelId, str]] = None,
+):
     """
     prepare examples based on annotations and ocr information
     :param image_processor:
@@ -319,15 +352,21 @@ def process_parsedibocr(parsedibocr: ParsedIBOCR,
     """
 
     words, layouts = _read_parsedibocr(parsedibocr)
-    doc_id = parsedibocr.get_document_path(0)[0] if doc_annotations is None else doc_annotations['ocrPath']
+    doc_id = (
+        parsedibocr.get_document_path(0)[0]
+        if doc_annotations is None
+        else doc_annotations["ocrPath"]
+    )
 
-    assert doc_id is not None and doc_id != '', 'An issue occured while obtaining a document path from an ibocr'
+    assert (
+        doc_id is not None and doc_id != ""
+    ), "An issue occured while obtaining a document path from an ibocr"
     record: IBOCRRecord
 
     # get content of the WordPolys
-    word_lst: List[str] = [w['word'] for w in words]
-    bbox_arr = np.array([[w['start_x'], w['start_y'], w['end_x'], w['end_y']] for w in words])
-    word_pages_arr = np.array([w['page'] for w in words])
+    word_lst: List[str] = [w["word"] for w in words]
+    bbox_arr = np.array([[w["start_x"], w["start_y"], w["end_x"], w["end_y"]] for w in words])
+    word_pages_arr = np.array([w["page"] for w in words])
 
     # get number of tokens for each page,
     # below is a bit overcomplicated because there might be empty pages
@@ -348,10 +387,12 @@ def process_parsedibocr(parsedibocr: ParsedIBOCR,
     norm_bboxes = bbox_arr * 1000 / width_per_token[:, None]
     norm_page_bboxes = page_bboxes * 1000 / page_bboxes[:, 2:3]
 
-    entities, token_label_ids = process_labels_from_annotation(annotation_file=doc_annotations,
-                                                               words=words,
-                                                               label2id=label2id,
-                                                               ann_label_id2label=ann_label_id2label)
+    entities, token_label_ids = process_labels_from_annotation(
+        annotation_file=doc_annotations,
+        words=words,
+        label2id=label2id,
+        ann_label_id2label=ann_label_id2label,
+    )
 
     features = {
         "id": doc_id,
@@ -361,14 +402,14 @@ def process_parsedibocr(parsedibocr: ParsedIBOCR,
         "word_page_nums": word_pages_arr,
         "page_bboxes": norm_page_bboxes,
         "page_spans": page_spans,
-        'token_label_ids': token_label_ids,
+        "token_label_ids": token_label_ids,
         "entities": entities,
     }
 
     if use_image:
         images = get_images_from_layouts(layouts, image_processor, doc_id, open_fn)
         # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
-        features['images'] = images
+        features["images"] = images
 
     return features
 
@@ -396,12 +437,16 @@ class IbDs(datasets.GeneratorBasedBuilder):
     """
 
     BUILDER_CONFIGS = [
-        IbDsConfig(name="ibds", version=datasets.Version("1.0.0"), description="Instabase Format Datasets"),
+        IbDsConfig(
+            name="ibds", version=datasets.Version("1.0.0"), description="Instabase Format Datasets"
+        ),
     ]
 
     def __init__(self, *args, **kwargs):
         super(IbDs, self).__init__(*args, **kwargs)
-        self.image_processor = ImageProcessor(do_resize=True, size=224) if self.config.use_image else None
+        self.image_processor = (
+            ImageProcessor(do_resize=True, size=224) if self.config.use_image else None
+        )
         self.ann_label_id2label = None
 
     def _info(self):
@@ -409,40 +454,50 @@ class IbDs(datasets.GeneratorBasedBuilder):
         # get schema of the the dataset
         # TODO(ibds): Check if schema can be saved in the separate file, so we don't load whole annotation file
         data_files = self.config.data_files
-        assert len(data_files) == 1, 'Only one annotation path should be provided'
+        assert len(data_files) == 1, "Only one annotation path should be provided"
         assert isinstance(data_files, dict), "data_files argument should be a dict for this dataset"
         if "train" in data_files:
-            annotation_path = data_files['train']
+            annotation_path = data_files["train"]
             open_fn = get_open_fn(self.config.ibsdk)
-            with open_fn(annotation_path, 'r') as annotation_file:
+            with open_fn(annotation_path, "r") as annotation_file:
                 labels = json.load(annotation_file)["labels"]
-            classes = ['O'] + [lab['name'] for lab in labels]
+            classes = ["O"] + [lab["name"] for lab in labels]
         elif "test" in data_files:
             # inference input is a list of parsedibocr files
-            assert self.config.id2label is not None, "Need to pass directly infromation about labels for the inference"
+            assert (
+                self.config.id2label is not None
+            ), "Need to pass directly infromation about labels for the inference"
             classes = [self.config.id2label[i] for i in range(len(self.config.id2label))]
         else:
             raise ValueError("data_file argument should be either in train or test mode")
 
         ds_features = {
-            'id': datasets.Value('string'),
-            'words': datasets.Sequence(datasets.Value('string')),
-            'bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=4)),
+            "id": datasets.Value("string"),
+            "words": datasets.Sequence(datasets.Value("string")),
+            "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
             # needed to generate prediction file, after evaluation
-            'word_original_bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('float32'), length=4)),
-            'word_page_nums': datasets.Sequence(datasets.Value('int32')),
-            'page_bboxes': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=4)),
-            'page_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
-            'token_label_ids': datasets.Sequence(datasets.features.ClassLabel(names=classes)),
+            "word_original_bboxes": datasets.Sequence(
+                datasets.Sequence(datasets.Value("float32"), length=4)
+            ),
+            "word_page_nums": datasets.Sequence(datasets.Value("int32")),
+            "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+            "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
+            "token_label_ids": datasets.Sequence(datasets.features.ClassLabel(names=classes)),
             # Do not output entities as this ds is used only by SL models by now
-            'entities': datasets.Sequence(
+            "entities": datasets.Sequence(
                 {
-                    'name': datasets.Value('string'),  # change to id?
-                    'order_id': datasets.Value('int64'),  # not supported yet, annotation app need to implement it
-                    'text': datasets.Value('string'),
-                    'char_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
-                    'token_spans': datasets.Sequence(datasets.Sequence(datasets.Value('int32'), length=2)),
-                    'token_label_id': datasets.Value('int64'),
+                    "name": datasets.Value("string"),  # change to id?
+                    "order_id": datasets.Value(
+                        "int64"
+                    ),  # not supported yet, annotation app need to implement it
+                    "text": datasets.Value("string"),
+                    "char_spans": datasets.Sequence(
+                        datasets.Sequence(datasets.Value("int32"), length=2)
+                    ),
+                    "token_spans": datasets.Sequence(
+                        datasets.Sequence(datasets.Value("int32"), length=2)
+                    ),
+                    "token_label_id": datasets.Value("int64"),
                 }
             ),
         }
@@ -454,7 +509,7 @@ class IbDs(datasets.GeneratorBasedBuilder):
             # ds_features['images'] = datasets.Sequence(datasets.Sequence(
             #     datasets.Sequence(datasets.Sequence(datasets.Value('uint8'), length=224), length=224), length=3))
             # for now support only 1-page documents
-            ds_features['images'] = datasets.Array3D(shape=(3, 224, 224), dtype="uint8")
+            ds_features["images"] = datasets.Array3D(shape=(3, 224, 224), dtype="uint8")
 
         return datasets.DatasetInfo(
             # This is the description that will appear on the datasets page.
@@ -467,61 +522,74 @@ class IbDs(datasets.GeneratorBasedBuilder):
         """We handle string, list and dicts in datafiles"""
         data_files = self.config.data_files
         if "train" in data_files:
-            annotation_path = data_files['train']
+            annotation_path = data_files["train"]
             open_fn = get_open_fn(self.config.ibsdk)
-            with open_fn(annotation_path, 'r') as annotation_file:
+            with open_fn(annotation_path, "r") as annotation_file:
                 annotations = json.load(annotation_file)
 
             self.ann_label_id2label = {lab["id"]: lab["name"] for lab in annotations["labels"]}
 
             # create generators for train and test
-            train_files = (file for file in annotations['files']
-                           if file['id'] not in annotations['testFiles'] and len(file['annotations']) > 0)
-            val_files = (file for file in annotations['files']
-                         if file['id'] in annotations['testFiles'] and len(file['annotations']) > 0)
+            train_files = (
+                file
+                for file in annotations["files"]
+                if file["id"] not in annotations["testFiles"] and len(file["annotations"]) > 0
+            )
+            val_files = (
+                file
+                for file in annotations["files"]
+                if file["id"] in annotations["testFiles"] and len(file["annotations"]) > 0
+            )
             # test set is the sum of unannotated documents and validation set
-            test_files = (file for file in annotations['files']
-                          if len(file['annotations']) == 0 or file['id'] in annotations['testFiles'])
+            test_files = (
+                file
+                for file in annotations["files"]
+                if len(file["annotations"]) == 0 or file["id"] in annotations["testFiles"]
+            )
 
             return [
-                datasets.SplitGenerator(name=datasets.Split.TRAIN,
-                                        gen_kwargs={'files': train_files, 'open_fn': open_fn}),
-                datasets.SplitGenerator(name=datasets.Split.VALIDATION,
-                                        gen_kwargs={'files': val_files, 'open_fn': open_fn}),
-                datasets.SplitGenerator(name=datasets.Split.TEST,
-                                        gen_kwargs={'files': test_files, 'open_fn': open_fn}),
+                datasets.SplitGenerator(
+                    name=datasets.Split.TRAIN, gen_kwargs={"files": train_files, "open_fn": open_fn}
+                ),
+                datasets.SplitGenerator(
+                    name=datasets.Split.VALIDATION,
+                    gen_kwargs={"files": val_files, "open_fn": open_fn},
+                ),
+                datasets.SplitGenerator(
+                    name=datasets.Split.TEST, gen_kwargs={"files": test_files, "open_fn": open_fn}
+                ),
             ]
 
         elif "test" in data_files:
             # inference input is a list of parsedibocr files
-            test_files = data_files['test']
+            test_files = data_files["test"]
 
             return [
-                datasets.SplitGenerator(name=datasets.Split.TEST,
-                                        gen_kwargs={'files': test_files, 'open_fn': None}),
+                datasets.SplitGenerator(
+                    name=datasets.Split.TEST, gen_kwargs={"files": test_files, "open_fn": None}
+                ),
             ]
         else:
             raise ValueError("data_file argument should be either in train or test mode")
 
-
     def _generate_examples(self, files, open_fn=None):
         """Yields examples."""
-        label2id = self.info.features['token_label_ids'].feature._str2int
+        label2id = self.info.features["token_label_ids"].feature._str2int
 
         for file in files:
             if isinstance(file, dict):
                 # open file based on the Path
-                ocr_path = file['ocrPath']
-                if not (ocr_path.endswith('.ibdoc') or ocr_path.endswith('.ibocr')):
+                ocr_path = file["ocrPath"]
+                if not (ocr_path.endswith(".ibdoc") or ocr_path.endswith(".ibocr")):
                     raise ValueError(f"Invaild document path: {ocr_path}")
 
-                with open_fn(ocr_path, 'rb') as f:
+                with open_fn(ocr_path, "rb") as f:
                     data = f.read()
                 builder: ParsedIBOCRBuilder
                 builder, err = ParsedIBOCRBuilder.load_from_str(ocr_path, data)
 
                 if err:
-                    raise IOError(u'Could not load file: {}'.format(ocr_path))
+                    raise IOError("Could not load file: {}".format(ocr_path))
                 ibocr = builder.as_parsed_ibocr()
                 annotations = file
 
@@ -531,7 +599,14 @@ class IbDs(datasets.GeneratorBasedBuilder):
             else:
                 raise RuntimeError("Encounter not supported file format")
 
-            doc_dict = process_parsedibocr(ibocr, open_fn, self.config.use_image, self.image_processor,
-                                           annotations, label2id, self.ann_label_id2label)
+            doc_dict = process_parsedibocr(
+                ibocr,
+                open_fn,
+                self.config.use_image,
+                self.image_processor,
+                annotations,
+                label2id,
+                self.ann_label_id2label,
+            )
 
-            yield doc_dict['id'], doc_dict
+            yield doc_dict["id"], doc_dict

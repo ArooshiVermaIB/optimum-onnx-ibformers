@@ -1,10 +1,10 @@
 import json
+import os
+from collections import defaultdict
 from typing import List, Tuple
 
 import datasets
-from datasets.tasks import QuestionAnsweringExtractive
 from pathlib import Path
-import cv2
 from dataclasses import dataclass
 
 _DESCRIPTION = """\
@@ -16,6 +16,13 @@ The answers to questions are short text spans taken verbatim from the document.
 This means that the answers comprise a set of contiguous text tokens present in the document.
 """
 
+
+_URL = "https://dataset-rpibdspub.s3.amazonaws.com/docvqa/"
+_URLS = {
+    # "train": _URL + "train.tar.gz",
+    "val": _URL
+    + "val.tar.gz",
+}
 
 BoundingBox = Tuple[float, float, float, float]
 Span = Tuple[int, int]
@@ -57,16 +64,16 @@ def load_msocr_file(ocr_path):
         prev_page_total_words = 0
 
         # Added boxes and context to the example
-        for obj in ocr_json['recognitionResults']:
+        for obj in ocr_json["recognitionResults"]:
             width, height = obj["width"], obj["height"]
-            lines = obj['lines']
+            lines = obj["lines"]
             idx = 0
             for line in lines:
-                lines_array.append(line['text'])
-                for word in line['words']:
-                    words.append(word['text'])
+                lines_array.append(line["text"])
+                for word in line["words"]:
+                    words.append(word["text"])
                     line_indices.append(idx)
-                    x1, y1, x2, y2, x3, y3, x4, y4 = word['boundingBox']
+                    x1, y1, x2, y2, x3, y3, x4, y4 = word["boundingBox"]
                     new_x1 = min([x1, x2, x3, x4])
                     new_x2 = max([x1, x2, x3, x4])
                     new_y1 = min([y1, y2, y3, y4])
@@ -87,7 +94,13 @@ def load_msocr_file(ocr_path):
 
         assert len(words) == len(bboxes_norm)
 
-    doc = OcrDoc(doc_id=str(ocr_path), words=words, bboxes=bboxes_norm, page_bboxes=page_bboxes, page_spans=page_spans)
+    doc = OcrDoc(
+        doc_id=str(ocr_path),
+        words=words,
+        bboxes=bboxes_norm,
+        page_bboxes=page_bboxes,
+        page_spans=page_spans,
+    )
 
     return doc
 
@@ -110,11 +123,12 @@ class Docvqa(datasets.GeneratorBasedBuilder):
     """TODO(docvqa): Short description of my dataset."""
 
     BUILDER_CONFIGS = [
-        DocvqaConfig(name="docvqa", version=datasets.Version("1.0.0"), description="DocVQA dataset"),
+        DocvqaConfig(
+            name="docvqa", version=datasets.Version("1.0.0"), description="DocVQA dataset"
+        ),
     ]
 
     def _info(self):
-        # TODO(squad_v2): Specifies the datasets.DatasetInfo object
         return datasets.DatasetInfo(
             # This is the description that will appear on the datasets page.
             description=_DESCRIPTION,
@@ -124,11 +138,17 @@ class Docvqa(datasets.GeneratorBasedBuilder):
                     "id": datasets.Value("string"),
                     "image_id": datasets.Value("string"),
                     "words": datasets.Sequence(datasets.Value("string")),
-                    "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
-                    "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
-                    "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
-                    "question": datasets.Value("string"),
-                    "answers": datasets.Value("string"),
+                    "bboxes": datasets.Sequence(
+                        datasets.Sequence(datasets.Value("int32"), length=4)
+                    ),
+                    "page_bboxes": datasets.Sequence(
+                        datasets.Sequence(datasets.Value("int32"), length=4)
+                    ),
+                    "page_spans": datasets.Sequence(
+                        datasets.Sequence(datasets.Value("int32"), length=2)
+                    ),
+                    "question": datasets.Sequence(datasets.Value("string")),
+                    "answers": datasets.Sequence(datasets.Value("string")),
                     # These are the features of your dataset like images, labels ...
                 }
             ),
@@ -142,46 +162,60 @@ class Docvqa(datasets.GeneratorBasedBuilder):
         """Returns SplitGenerators."""
         # TODO: set up a s3 bucket and upload the files there
         # download and extract URLs
-        # urls_to_download = _URLS
-        # downloaded_files = dl_manager.download_and_extract(urls_to_download)
-
-        # requirement for now is to have a dataset downloaded in below location
-        downloaded_files = {"train": "/Users/rafalpowalski/datasets/docvqa/train/train_v1.0.json",
-                            "val": "/Users/rafalpowalski/datasets/docvqa/val/val_v1.0.json"}
+        urls_to_download = _URLS
+        downloaded_files = dl_manager.download_and_extract(urls_to_download)
 
         return [
             # datasets.SplitGenerator(name=datasets.Split.TRAIN, gen_kwargs={"filepath": downloaded_files["train"]}),
-            datasets.SplitGenerator(name=datasets.Split.VALIDATION, gen_kwargs={"filepath": downloaded_files["val"]}),
+            datasets.SplitGenerator(
+                name=datasets.Split.VALIDATION,
+                gen_kwargs={"filepath": Path(downloaded_files["val"]) / "val" / "val_v1.0.json"},
+            ),
         ]
 
     def _generate_examples(self, filepath):
         """Yields examples."""
         ocr_path_dir = Path(filepath).parent / "ocr_results"
-        image_dir = Path(filepath).parent / "documents"
+        # image_dir = Path(filepath).parent / "documents"
         with open(filepath, encoding="utf-8") as f:
             ds = json.load(f)
 
-        # TODO: maybe it should be per document_id which will have multiple question answer pairs?
+        files = ds["data"]
+        files = sorted(files, key=lambda x: x["docId"])
 
-        for example in ds["data"]:
+        # create example per docid - there might be multiple questions for single doc
+        docs = defaultdict(list)
+        for example in files:
+            docid = example["docId"]
+            docs[docid].append(example)
 
-            image_id = example["image"].split('/')[-1].split('.')[0]
+        for docid, single_doc_questions in docs.items():
+
+            first = single_doc_questions[0]
+
+            image_id = first["image"].split("/")[-1].split(".")[0]
             ocr_path = ocr_path_dir / f"{image_id}.json"
-            # TODO: add image to the example
-            # image_path = image_dir / f"{image_id}.png"
-            # img = cv2.imread(str(image_path))
             doc = load_msocr_file(ocr_path)
-            qid = str(example["questionId"])
+
+            question_list = []
+            answer_list = []
+
+            for question_data in single_doc_questions:
+                qid = str(question_data["questionId"])
+                question_list.append(question_data["question"])
+                # get only one possible answer for this dataset
+                answer_list.append(question_data["answers"][0])
 
             # Features currently used are "context", "question", and "answers".
             # Others are extracted here for the ease of future expansions.
-            yield qid, {
-                "id": qid,
-                "image_id": image_id,
+
+            yield docid, {
+                "id": docid,
+                "doc_id": image_id,
                 "words": doc.words,
                 "bboxes": doc.bboxes,
                 "page_bboxes": doc.page_bboxes,
                 "page_spans": doc.page_spans,
-                "question": example["question"],
-                "answer": example["answers"][0],
+                "question": question_list,
+                "answer": answer_list,
             }

@@ -39,7 +39,8 @@ from transformers import (
     HfArgumentParser,
     PreTrainedTokenizerFast,
     TrainingArguments,
-    set_seed, )
+    set_seed,
+)
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
@@ -47,10 +48,19 @@ from ibformers.datasets import DATASETS_PATH
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.10.0.dev0")
-from ibformers.trainer.ib_utils import IbCallback, IbArguments, InstabaseSDK, prepare_ib_params, HF_TOKEN
+from ibformers.trainer.ib_utils import (
+    IbCallback,
+    IbArguments,
+    InstabaseSDK,
+    prepare_ib_params,
+    HF_TOKEN,
+)
 from ibformers.trainer.trainer import IbTrainer
 
-require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/token-classification/requirements.txt")
+require_version(
+    "datasets>=1.8.0",
+    "To fix: pip install -r examples/pytorch/token-classification/requirements.txt",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,18 +75,24 @@ class ModelArguments:
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
     config_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
+        default=None,
+        metadata={"help": "Pretrained config name or path if not the same as model_name"},
     )
     tokenizer_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
+        default=None,
+        metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"},
     )
     cache_dir: Optional[str] = field(
         default=None,
-        metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
+        metadata={
+            "help": "Where do you want to store the pretrained models downloaded from huggingface.co"
+        },
     )
     model_revision: str = field(
         default="main",
-        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
+        metadata={
+            "help": "The specific model version to use (can be a branch name, tag name or commit id)."
+        },
     )
     use_auth_token: bool = field(
         default=False,
@@ -93,19 +109,27 @@ class DataAndPipelineArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
 
-    task_name: Optional[str] = field(default="ner", metadata={"help": "The name of the task (ner, pos...)."})
+    task_name: Optional[str] = field(
+        default="ner", metadata={"help": "The name of the task (ner, pos...)."}
+    )
     dataset_name_or_path: Optional[str] = field(
-        default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
+        default=None,
+        metadata={"help": "The name of the dataset to use (via the datasets library)."},
     )
     dataset_config_name: Optional[str] = field(
-        default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
+        default=None,
+        metadata={
+            "help": "The configuration name of the dataset to use (via the datasets library)."
+        },
     )
     train_file: Optional[str] = field(
         default=None, metadata={"help": "The input training data file (a csv or JSON file)."}
     )
     validation_file: Optional[str] = field(
         default=None,
-        metadata={"help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."},
+        metadata={
+            "help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."
+        },
     )
     test_file: Optional[str] = field(
         default=None,
@@ -127,9 +151,7 @@ class DataAndPipelineArguments:
     )
     chunk_overlap: int = field(
         default=None,
-        metadata={
-            "help": "Overlap needed for producing multiple chunks"
-        },
+        metadata={"help": "Overlap needed for producing multiple chunks"},
     )
     pad_to_max_length: bool = field(
         default=False,
@@ -162,16 +184,24 @@ class DataAndPipelineArguments:
     )
     return_entity_level_metrics: bool = field(
         default=False,
-        metadata={"help": "Whether to return all the entity levels during evaluation or just the overall ones."},
+        metadata={
+            "help": "Whether to return all the entity levels during evaluation or just the overall ones."
+        },
     )
     pipeline_name: str = field(
         default=None,
-        metadata={"help": "pipeline which is defining a training process. "
-                          "Default is None which is trying to infer it from model name"},
+        metadata={
+            "help": "pipeline which is defining a training process. "
+            "Default is None which is trying to infer it from model name"
+        },
     )
 
     def __post_init__(self):
-        if self.dataset_name_or_path is None and self.train_file is None and self.validation_file is None:
+        if (
+            self.dataset_name_or_path is None
+            and self.train_file is None
+            and self.validation_file is None
+        ):
             raise ValueError("Need either a dataset name or a training/validation file.")
         else:
             if self.train_file is not None:
@@ -182,7 +212,7 @@ class DataAndPipelineArguments:
                 # assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         self.task_name = self.task_name.lower()
 
-    def save(self, save_path, filename='pipeline.json'):
+    def save(self, save_path, filename="pipeline.json"):
         save_dict = asdict(self)
         with open(os.path.join(save_path, filename), "w", encoding="utf-8") as writer:
             json.dump(save_dict, writer, indent=2, sort_keys=True)
@@ -194,9 +224,9 @@ def run_train(
     save_path: Optional[str] = None,
     file_client: Optional[Any] = None,
     username: Optional[str] = None,
-    job_status_client: Optional['JobStatusClient'] = None,
+    job_status_client: Optional["JobStatusClient"] = None,
     mount_details: Optional[Dict] = None,
-    model_name: Optional[str] = 'CustomModel',
+    model_name: Optional[str] = "CustomModel",
     **kwargs: Any,
 ):
 
@@ -208,15 +238,27 @@ def run_train(
         assert username is not None
         assert job_status_client is not None
 
-    parser = HfArgumentParser((ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
+    )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, ib_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, ib_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1])
+        )
     elif hyperparams is not None:
         # support running from model-training-tasks
-        hparams_dict = prepare_ib_params(hyperparams, dataset_filename, save_path, file_client,
-                                         username, job_status_client, mount_details, model_name)
+        hparams_dict = prepare_ib_params(
+            hyperparams,
+            dataset_filename,
+            save_path,
+            file_client,
+            username,
+            job_status_client,
+            mount_details,
+            model_name,
+        )
         model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
     else:
         model_args, data_args, training_args, ib_args = parser.parse_args_into_dataclasses()
@@ -248,7 +290,11 @@ def run_train(
 
     # Detecting last checkpoint.
     last_checkpoint = None
-    if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
+    if (
+        os.path.isdir(training_args.output_dir)
+        and training_args.do_train
+        and not training_args.overwrite_output_dir
+    ):
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
         if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
             raise ValueError(
@@ -267,9 +313,9 @@ def run_train(
     # load pipeline
     pipeline = PIPELINES[data_args.pipeline_name]
     collate_fn = pipeline["collate"]
-    compute_metrics = pipeline['compute_metrics']
+    compute_metrics = pipeline["compute_metrics"]
     load_kwargs = pipeline["dataset_load_kwargs"]
-    model_class = pipeline['model_class']
+    model_class = pipeline["model_class"]
 
     data_files = {}
     if data_args.train_file is not None:
@@ -303,17 +349,19 @@ def run_train(
             name=data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
             data_files=data_files,
-            **load_kwargs
+            **load_kwargs,
         )
 
-    tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
+    tokenizer_name_or_path = (
+        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=True,
         revision=model_args.model_revision,
-        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith('instabase/') else None,
+        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
     )
 
     # Tokenizer check: this script requires a fast tokenizer.
@@ -327,15 +375,17 @@ def run_train(
     # Preprocessing the dataset
     # Padding strategy
 
-    fn_kwargs = {'tokenizer': tokenizer,
-                 'padding': 'max_length' if data_args.pad_to_max_length else False,
-                 'max_length': data_args.max_length,
-                 'chunk_overlap': data_args.chunk_overlap,
-                 }
-    map_kwargs = {'num_proc': data_args.preprocessing_num_workers,
-                  'load_from_cache_file': not data_args.overwrite_cache,
-                  'fn_kwargs': fn_kwargs
-                  }
+    fn_kwargs = {
+        "tokenizer": tokenizer,
+        "padding": "max_length" if data_args.pad_to_max_length else False,
+        "max_length": data_args.max_length,
+        "chunk_overlap": data_args.chunk_overlap,
+    }
+    map_kwargs = {
+        "num_proc": data_args.preprocessing_num_workers,
+        "load_from_cache_file": not data_args.overwrite_cache,
+        "fn_kwargs": fn_kwargs,
+    }
 
     if training_args.do_train:
         if "train" not in raw_datasets:
@@ -379,10 +429,10 @@ def run_train(
         label_list.sort()
         return label_list
 
-    if isinstance(features['labels'].feature, ClassLabel):
-        label_list = features['labels'].feature.names
+    if isinstance(features["labels"].feature, ClassLabel):
+        label_list = features["labels"].feature.names
     else:
-        label_list = get_label_list(train_dataset['labels'])
+        label_list = get_label_list(train_dataset["labels"])
 
     num_labels = len(label_list)
     label_to_id = {l: i for i, l in enumerate(label_list)}
@@ -394,7 +444,7 @@ def run_train(
         id2label={i: l for l, i in label_to_id.items()},
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith('instabase/') else None,
+        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
     )
 
     model = model_class.from_pretrained(
@@ -403,22 +453,27 @@ def run_train(
         config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith('instabase/') else None,
+        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
     )
 
     callbacks = []
     if ibtrain:
-        callbacks.append(IbCallback(job_status_client=ib_args.job_status_client,
-                                    ibsdk=ibsdk,
-                                    username=ib_args.username,
-                                    mount_details=ib_args.mount_details,
-                                    model_name=ib_args.model_name,
-                                    ib_save_path=ib_args.ib_save_path,
-                                    upload=ib_args.upload,
-                                    ))
+        callbacks.append(
+            IbCallback(
+                job_status_client=ib_args.job_status_client,
+                ibsdk=ibsdk,
+                username=ib_args.username,
+                mount_details=ib_args.mount_details,
+                model_name=ib_args.model_name,
+                ib_save_path=ib_args.ib_save_path,
+                upload=ib_args.upload,
+            )
+        )
 
     # Data collator
-    data_collator = collate_fn(tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None, model=model)
+    data_collator = collate_fn(
+        tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None, model=model
+    )
 
     # Initialize our Trainer
     trainer = IbTrainer(
@@ -430,7 +485,7 @@ def run_train(
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         callbacks=callbacks,
-        post_process_function=None
+        post_process_function=None,
     )
 
     # Training
@@ -442,11 +497,13 @@ def run_train(
             checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
-        model_save_path = os.path.join(training_args.output_dir, 'model')
+        model_save_path = os.path.join(training_args.output_dir, "model")
         trainer.save_model(model_save_path)  # Saves the tokenizer too for easy upload
         data_args.save(model_save_path)  # Saves the pipeline & data arguments
         max_train_samples = (
-            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
+            data_args.max_train_samples
+            if data_args.max_train_samples is not None
+            else len(train_dataset)
         )
         metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
@@ -460,7 +517,11 @@ def run_train(
 
         metrics = trainer.evaluate()
 
-        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
+        max_eval_samples = (
+            data_args.max_eval_samples
+            if data_args.max_eval_samples is not None
+            else len(eval_dataset)
+        )
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
         # trainer.log_metrics("eval", metrics)
@@ -505,7 +566,7 @@ class InstabaseSDKDummy:
         self.file_client = file_client
         self.username = username
 
-    def ibopen(self, path: str, mode: str = 'r') -> Any:
+    def ibopen(self, path: str, mode: str = "r") -> Any:
         return open(path, mode)
 
     def read_file(self, file_path: str) -> str:
@@ -513,7 +574,7 @@ class InstabaseSDKDummy:
             return f.read()
 
     def write_file(self, file_path: str, content: str):
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             f.write(content)
 
 
@@ -528,26 +589,29 @@ if __name__ == "__main__":
 
     hyperparams = {
         "adam_epsilon": 1e-8,
-        "batch_size": 2,
+        "batch_size": 8,
         "chunk_size": 512,
-        "epochs": 3,
-        "learning_rate": 5e-05,
-        "loss_agg_steps": 2,
+        "epochs": 1000,
+        "learning_rate": 3e-05,
+        "loss_agg_steps": 4,
         "max_grad_norm": 1.0,
         "optimizer_type": "AdamW",
         "scheduler_type": "constant_schedule_with_warmup",
         "stride": 64,
         "use_gpu": True,
         "use_mixed_precision": False,
-        "warmup": 0.0,
+        "warmup": 0.1,
         "weight_decay": 0,
-        "model_name": "instabase/laymqa-base",
-        "pipeline_name": "layout_mqa",
+        "model_name": "/home/ib/models/layoutv1-base-ttmqa",
+        "pipeline_name": "from_docvqa_to_mqa",
         "upload": False,
+        "dataset": "docvqa",
     }
     example_dir = Path(__file__).parent.parent / "example"
-    # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'
+    dataset_filename = "/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator"
     dataset_filename = os.path.join(example_dir, "UberEats.ibannotator")
-    save_path = os.path.join(example_dir, "saved_model")
+    # dataset_filename = '/home/ib/receipts/Receipts.ibannotator'
+    save_path = tempfile.TemporaryDirectory().name
     sdk = InstabaseSDKDummy(None, "user")
-    run_train(hyperparams, dataset_filename, save_path, sdk, 'user', DummyJobStatus())
+    # run_train(hyperparams, dataset_filename, save_path, sdk, 'user', DummyJobStatus())
+    run_train(hyperparams, dataset_filename, save_path, sdk, "user", DummyJobStatus())

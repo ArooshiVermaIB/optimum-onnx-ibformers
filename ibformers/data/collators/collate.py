@@ -3,7 +3,11 @@ from dataclasses import dataclass
 from typing import Union, Optional
 
 import torch
-from transformers import PreTrainedTokenizerBase, PreTrainedModel, DataCollatorForTokenClassification
+from transformers import (
+    PreTrainedTokenizerBase,
+    PreTrainedModel,
+    DataCollatorForTokenClassification,
+)
 from transformers.file_utils import PaddingStrategy
 
 
@@ -45,10 +49,14 @@ class DataCollatorWithBBoxesForTokenClassification:
 
     def __call__(self, features):
         feature_keys = list(features[0].keys())
-        assert "bboxes" in feature_keys or "bbox" in feature_keys, "Bbox column not found in the inputs"
+        assert (
+            "bboxes" in feature_keys or "bbox" in feature_keys
+        ), "Bbox column not found in the inputs"
         bbox_name = "bbox" if "bbox" in feature_keys else "bboxes"
         label_name = "label" if "label" in feature_keys else "labels"
-        labels = [feature[label_name] for feature in features] if label_name in feature_keys else None
+        labels = (
+            [feature[label_name] for feature in features] if label_name in feature_keys else None
+        )
         bboxes = [feature[bbox_name] for feature in features]
         batch = self.tokenizer.pad(
             features,
@@ -65,10 +73,20 @@ class DataCollatorWithBBoxesForTokenClassification:
         sequence_length = torch.tensor(batch["input_ids"]).shape[1]
         padding_side = self.tokenizer.padding_side
         if padding_side == "right":
-            batch[bbox_name] = [bbox + [[0, 0, 0, 0]] * (sequence_length - len(bbox)) for bbox in bboxes]
-            batch["labels"] = [label + [self.label_pad_token_id] * (sequence_length - len(label)) for label in labels]
+            batch[bbox_name] = [
+                bbox + [[0, 0, 0, 0]] * (sequence_length - len(bbox)) for bbox in bboxes
+            ]
+            batch["labels"] = [
+                label + [self.label_pad_token_id] * (sequence_length - len(label))
+                for label in labels
+            ]
+            if "mqa_ids" in feature_keys:
+                mqa_ids = [feature["mqa_ids"] for feature in features]
+                batch["mqa_ids"] = [
+                    mqa_id + [1] * (sequence_length - len(mqa_id)) for mqa_id in mqa_ids
+                ]
         else:
-            raise ValueError('Only right padding is supported')
+            raise ValueError("Only right padding is supported")
 
         batch = {k: torch.tensor(v, dtype=torch.int64) for k, v in batch.items()}
 
@@ -79,18 +97,22 @@ class DataCollatorWithBBoxesForTokenClassification:
 
 
 @dataclass
-class DataCollatorWithBBoxesAugmentedForTokenClassification(DataCollatorWithBBoxesForTokenClassification):
+class DataCollatorWithBBoxesAugmentedForTokenClassification(
+    DataCollatorWithBBoxesForTokenClassification
+):
     """
     Data collator that will dynamically pad the inputs received, as well as the labels.
 
     """
 
     def __call__(self, features):
-        batch = super(DataCollatorWithBBoxesAugmentedForTokenClassification, self).__call__(features)
+        batch = super(DataCollatorWithBBoxesAugmentedForTokenClassification, self).__call__(
+            features
+        )
 
         if self.model.training:
             # do bbox augmentation
-            bbox = batch['bbox']
+            bbox = batch["bbox"]
             non_zeros_idx = (bbox[:, :, 0] != 0).to(bbox.dtype)
 
             x_offset = random.randrange(-20, 20)
@@ -98,14 +120,18 @@ class DataCollatorWithBBoxesAugmentedForTokenClassification(DataCollatorWithBBox
             x_scale = random.uniform(0.95, 1.05)
             y_scale = random.uniform(0.95, 1.05)
 
-            bbox[:, :, [0, 2]] = (bbox[:, :, [0, 2]] * x_scale + x_offset).clamp(1, 999).to(dtype=bbox.dtype)
-            bbox[:, :, [1, 3]] = (bbox[:, :, [1, 3]] * y_scale + y_offset).clamp(1, 999).to(dtype=bbox.dtype)
+            bbox[:, :, [0, 2]] = (
+                (bbox[:, :, [0, 2]] * x_scale + x_offset).clamp(1, 999).to(dtype=bbox.dtype)
+            )
+            bbox[:, :, [1, 3]] = (
+                (bbox[:, :, [1, 3]] * y_scale + y_offset).clamp(1, 999).to(dtype=bbox.dtype)
+            )
             bbox = bbox * non_zeros_idx[:, :, None]
-            batch['bbox'] = bbox
+            batch["bbox"] = bbox
 
         return batch
 
 
 def DataCollatorFor1DTokenClassification(*args, **kwargs):
-    kwargs.pop('model')  # TODO: Make this more generic
+    kwargs.pop("model")  # TODO: Make this more generic
     return DataCollatorForTokenClassification(*args, **kwargs)
