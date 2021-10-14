@@ -43,6 +43,9 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
+
+from instabase.model_training_tasks.jobs import JobMetadataClient
+
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 
@@ -224,7 +227,7 @@ def run_train(
     save_path: Optional[str] = None,
     file_client: Optional[Any] = None,
     username: Optional[str] = None,
-    job_status_client: Optional["JobStatusClient"] = None,
+    job_metadata_client: Optional["JobMetadataClient"] = None,
     mount_details: Optional[Dict] = None,
     model_name: Optional[str] = "CustomModel",
     **kwargs: Any,
@@ -236,7 +239,7 @@ def run_train(
         assert save_path is not None
         # assert file_client is not None
         assert username is not None
-        assert job_status_client is not None
+        assert job_metadata_client is not None
 
     parser = HfArgumentParser(
         (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
@@ -255,7 +258,7 @@ def run_train(
             save_path,
             file_client,
             username,
-            job_status_client,
+            job_metadata_client,
             mount_details,
             model_name,
         )
@@ -460,7 +463,7 @@ def run_train(
     if ibtrain:
         callbacks.append(
             IbCallback(
-                job_status_client=ib_args.job_status_client,
+                job_metadata_client=ib_args.job_metadata_client,
                 ibsdk=ibsdk,
                 username=ib_args.username,
                 mount_details=ib_args.mount_details,
@@ -580,40 +583,36 @@ class InstabaseSDKDummy:
 
 if __name__ == "__main__":
 
-    class DummyJobStatus:
+    class DummyJobStatus(JobMetadataClient):
         def __init__(self):
             pass
 
-        def update_job_status(self, task_name=None, task_data=None, task_state=None):
+        def update_message(self, message: Optional[str]) -> None:
+            pass
+
+        def update_metadata(self, metadata: Optional[Dict[str, Any]]) -> None:
             pass
 
     hyperparams = {
         "adam_epsilon": 1e-8,
         "batch_size": 8,
         "chunk_size": 512,
-        "epochs": 100,
-        "learning_rate": 3e-05,
-        "loss_agg_steps": 4,
+        "epochs": 3,
+        "learning_rate": 5e-05,
+        "loss_agg_steps": 2,
         "max_grad_norm": 1.0,
         "optimizer_type": "AdamW",
         "scheduler_type": "constant_schedule_with_warmup",
         "stride": 64,
         "use_gpu": True,
-        "use_mixed_precision": True,
-        "warmup": 0.1,
+        "use_mixed_precision": False,
+        "warmup": 0.0,
         "weight_decay": 0,
-        "model_name": "/home/ib/models/layoutv1-base-ttmqa/docvqa",
-        "pipeline_name": "layoutv1_mqa_emb",
-        "upload": False,
-        "dataset": "ibds",
+        "model_name": "microsoft/layoutxlm-base",
     }
     example_dir = Path(__file__).parent.parent / "example"
-    dataset_filename = "/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator"
+    # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'
     dataset_filename = os.path.join(example_dir, "UberEats.ibannotator")
-    # dataset_filename = '/home/ib/receipts/Receipts.ibannotator'
-    save_path = tempfile.TemporaryDirectory().name
+    save_path = os.path.join(example_dir, "saved_model")
     sdk = InstabaseSDKDummy(None, "user")
-    run_train(hyperparams, dataset_filename, save_path, sdk, "user", DummyJobStatus())
-
-    # run_train()
-
+    run_train(hyperparams, dataset_filename, save_path, sdk, 'user', DummyJobStatus())

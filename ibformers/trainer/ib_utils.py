@@ -55,14 +55,14 @@ class InstabaseSDK:
 class IbCallback(TrainerCallback):
     """
     A :class:`~transformers.TrainerCallback` that displays the progress of training or evaluation.
-    it pass status of training to job_status_client and save required files to the IB location via ibsdk
+    it pass status of training to job_metadata_client and save required files to the IB location via ibsdk
     """
 
     ibformers_do_not_copy = []
 
     def __init__(
         self,
-        job_status_client: "JobStatusClient",
+        job_metadata_client: "JobMetadataClient",
         ibsdk: InstabaseSDK,
         username: str,
         mount_details: Dict,
@@ -75,7 +75,7 @@ class IbCallback(TrainerCallback):
         self.model_name = model_name
         self.mount_details = mount_details
         self.username = username
-        self.job_status_client = job_status_client
+        self.job_metadata_client = job_metadata_client
         self.evaluation_results = None
         self.prediction_results = None
         self.ibsdk = ibsdk
@@ -150,7 +150,7 @@ class IbCallback(TrainerCallback):
 
     def set_status(self, new_status: Dict):
         self.job_status.update(new_status)
-        self.job_status_client.update_job_status(task_data=self.job_status)
+        self.job_metadata_client.update_metadata(self.job_status)
 
     def on_step_end(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
@@ -193,16 +193,15 @@ class IbArguments:
     """
 
     username: Optional[str] = field(
-        default=None,
-        metadata={"help": "Username of person who is running the model training"}
+        default=None, metadata={"help": "Username of person who is running the model training"}
     )
     file_client: Optional[Any] = field(
         default=None, metadata={"help": "File client object which support different file systems"}
     )
-    job_status_client: Optional['JobStatusClient'] = field(
+    job_metadata_client: Optional['JobMetadataClient'] = field(
         default=None,
         metadata={
-            "help": "Job status client. Used for collecting information of training progress"
+            "help": "Job metadata client. Used for collecting information of training progress"
         },
     )
     mount_details: Optional[Dict] = field(
@@ -211,15 +210,16 @@ class IbArguments:
     )
     model_name: Optional[str] = field(
         default="CustomModel",
-        metadata={"help": "The model name which will be appear in the model management dashboard ??"},
+        metadata={
+            "help": "The model name which will be appear in the model management dashboard ??"
+        },
     )
     ib_save_path: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to save ib_package on the IB space"},
     )
     upload: Optional[bool] = field(
-        default=None,
-        metadata={"help": "Whether to upload model files to ib_save_path"}
+        default=None, metadata={"help": "Whether to upload model files to ib_save_path"}
     )
 
 
@@ -247,7 +247,6 @@ def prepare_package_json(path: str, model_name: str, model_class_name: str, pack
 
     with open(path, 'w+') as f_write:
         f_write.write(content)
-
 
 
 def upload_dir(
@@ -316,7 +315,7 @@ def prepare_ib_params(
     save_path: str,
     file_client: Any,
     username: str,
-    job_status_client: 'JobStatusClient',
+    job_metadata_client: 'JobMetadataClient',
     mount_details: Optional[Dict] = None,
     model_name: str = 'CustomModel',
 ) -> Dict:
@@ -327,7 +326,7 @@ def prepare_ib_params(
     :param save_path:
     :param file_client:
     :param username:
-    :param job_status_client:
+    :param job_metadata_client:
     :param mount_details:
     :param model_name:
     :return:
@@ -356,7 +355,7 @@ def prepare_ib_params(
         return_entity_level_metrics=True,
         username=username,
         file_client=file_client,
-        job_status_client=job_status_client,
+        job_metadata_client=job_metadata_client,
         mount_details=mount_details,
         model_name=model_name,
     )
