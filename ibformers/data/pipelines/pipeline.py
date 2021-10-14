@@ -10,7 +10,7 @@ from ibformers.data.collators.collate import (
 from ibformers.data.metrics import (
     compute_metrics_for_sl,
     compute_legacy_metrics_for_sl,
-    compute_legacy_metrics_for_mqa,
+    compute_legacy_metrics_for_mqa, compute_metrics_for_qa_task,
 )
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.chunk import produce_chunks
@@ -21,9 +21,8 @@ from ibformers.data.transform import (
     build_prefix_with_mqa_ids,
     fuzzy_tag_in_document,
 )
-from ibformers.models.laymqa import LayMQAForSentinelClassification
-from ibformers.models.layv1mqa import Layv1MQAForSentinelClassification
-from ibformers.models.layv1ttmqa import LayMQAForTokenClassification
+from ibformers.models.layv2noimg import LayMQAForSentinelClassification
+from ibformers.models.layv1mqa import LayMQAForTokenClassification
 
 
 def chain(example_batch, fn_lst, **kwargs):
@@ -164,12 +163,27 @@ from_docvqa_to_mqa = {
         tokenize,
         norm_bboxes_for_layoutlm,
         produce_chunks,
-        stack_pages,
     ],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
     "collate": DataCollatorWithBBoxesForTokenClassification,
     "model_class": LayMQAForTokenClassification,
-    "compute_metrics": compute_legacy_metrics_for_mqa,
+    "compute_metrics": compute_metrics_for_qa_task,
+}
+
+
+from_docvqa_to_sentinel_mqa = {
+    "dataset_load_kwargs": {"use_image": False},
+    "preprocess": [
+        fuzzy_tag_in_document,
+        build_prefix_with_special_tokens,
+        tokenize,
+        norm_bboxes_for_layoutlm,
+        produce_chunks,
+    ],
+    "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
+    "collate": DataCollatorWithBBoxesForTokenClassification,
+    "model_class": Layv1MQAForSentinelClassification,
+    "compute_metrics": compute_metrics_for_qa_task,
 }
 
 plain_sl = {
@@ -191,5 +205,6 @@ PIPELINES = {
     "layoutv1_mqa": layoutv1_mqa,
     "layoutv1_mqa_emb": layoutv1_mqa_emb,
     "from_docvqa_to_mqa": from_docvqa_to_mqa,
+    "from_docvqa_to_sentinel_mqa": from_docvqa_to_sentinel_mqa,
     "plain_sl": plain_sl,
 }

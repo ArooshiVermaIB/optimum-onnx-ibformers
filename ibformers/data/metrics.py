@@ -65,10 +65,11 @@ def join_chunks(
     return doc_arr_mean.astype(first_chunk.dtype)
 
 
-def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
+def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None):
     features = dataset.features
     assert "id" in features, "dataset need to contain ids of documents"
-    label_list = features["labels"].feature.names
+    if label_list is None:
+        label_list = features["labels"].feature.names
     preds, labels = predictions
     ids = dataset["id"]
     chunk_ranges = dataset["chunk_ranges"]
@@ -109,8 +110,14 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
             class_idx = doc_class_index[idx]
             conf = doc_conf[idx]
             tag_name = label_list[class_idx]
-            org_bbox = doc["word_original_bboxes"][idx]
-            page = doc["word_page_nums"][idx]
+            if "word_original_bboxes" in doc:
+                org_bbox = doc["word_original_bboxes"][idx]
+            else:
+                org_bbox = [0, 0, 0, 0]
+            if "word_page_nums" in doc:
+                page = doc["word_page_nums"][idx]
+            else:
+                page = 0
             word = dict(
                 raw_word=doc["words"][idx],
                 start_x=org_bbox[0],
@@ -131,8 +138,14 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
         for idx in non_zero_golden_class:
             class_idx = doc_labels[idx]
             tag_name = label_list[class_idx]
-            org_bbox = doc["word_original_bboxes"][idx]
-            page = doc["word_page_nums"][idx]
+            if "word_original_bboxes" in doc:
+                org_bbox = doc["word_original_bboxes"][idx]
+            else:
+                org_bbox = [0, 0, 0, 0]
+            if "word_page_nums" in doc:
+                page = doc["word_page_nums"][idx]
+            else:
+                page = 0
             word = dict(
                 raw_word=doc["words"][idx],
                 start_x=org_bbox[0],
@@ -167,15 +180,16 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset):
     return pred_dict
 
 
-def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset):
+def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None):
 
-    all_tags = dataset.features["labels"].feature.names
+    if label_list is None:
+        label_list = dataset.features["labels"].feature.names
     # get prediction dict and print mismatches
-    pred_dict = get_predictions_for_sl(predictions, dataset)
+    pred_dict = get_predictions_for_sl(predictions, dataset, label_list)
 
     print("MISMATCH EXAMPLES")
     max_examples = 2
-    for lab in all_tags[1:]:
+    for lab in label_list[1:]:
         mismatches = [
             "\tpred:\t'" + v[lab]["text"] + "'\n\tgold:\t'" + v[lab]["gold_text"] + "'\n"
             for k, v in pred_dict.items()
@@ -197,14 +211,14 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset):
 
     token_level: Mapping[str, Mapping[str, int]] = {
         k: {"true_positives": 0, "total_positives": 0, "total_true": 0}
-        for k in all_tags
+        for k in label_list
         if k != "O"
     }
 
     doc_level_results: List[Mapping[str, int]] = []
     for y_true, y_pred in zip(ground_truths, pred_words):
         # Throw away the confidence number
-        for t in all_tags:
+        for t in label_list:
             if t == "O":
                 continue
             a = set(y_pred.get(t, []))
@@ -265,6 +279,19 @@ def compute_legacy_metrics_for_mqa(predictions: Tuple, dataset: Dataset):
     new_predictions = (np.stack(new_preds), np.stack(new_labels))
 
     return compute_legacy_metrics_for_sl(new_predictions, dataset)
+
+
+def compute_metrics_for_qa_task(predictions: Tuple, dataset: Dataset):
+    """
+    Function will create dummy label list to compute metrics for token classification task
+    :param predictions:
+    :param dataset:
+    :return:
+    """
+    num_labels = predictions[0].shape[-1]
+    dummy_label_list = [f'class_{i}' for i in range(num_labels)]
+
+    return compute_legacy_metrics_for_sl(predictions, dataset, dummy_label_list)
 
 
 def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):

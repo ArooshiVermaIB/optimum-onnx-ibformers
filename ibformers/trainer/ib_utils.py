@@ -193,6 +193,7 @@ class IbArguments:
     """
 
     username: Optional[str] = field(
+        default=None,
         metadata={"help": "Username of person who is running the model training"}
     )
     file_client: Optional[Any] = field(
@@ -342,6 +343,7 @@ def prepare_ib_params(
         report_to='none',
         logging_strategy='epoch',
         evaluation_strategy='epoch',
+        save_strategy='no',
         disable_tqdm=False,
         logging_steps=10,
         adafactor=False,
@@ -359,6 +361,12 @@ def prepare_ib_params(
         model_name=model_name,
     )
 
+    if "dataset" in hyperparams:
+        out_dict["dataset_name_or_path"] = hyperparams["dataset"]
+        out_dict["dataset_config_name"] = hyperparams["dataset"]
+    else:
+        out_dict["dataset_name_or_path"] = "ibds"
+        out_dict["dataset_config_name"] = "ibds"
     if 'epochs' in hyperparams:
         out_dict['num_train_epochs'] = hyperparams.pop('epochs')
     if 'batch_size' in hyperparams:

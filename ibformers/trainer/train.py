@@ -591,7 +591,7 @@ if __name__ == "__main__":
         "adam_epsilon": 1e-8,
         "batch_size": 8,
         "chunk_size": 512,
-        "epochs": 1000,
+        "epochs": 100,
         "learning_rate": 3e-05,
         "loss_agg_steps": 4,
         "max_grad_norm": 1.0,
@@ -599,13 +599,13 @@ if __name__ == "__main__":
         "scheduler_type": "constant_schedule_with_warmup",
         "stride": 64,
         "use_gpu": True,
-        "use_mixed_precision": False,
+        "use_mixed_precision": True,
         "warmup": 0.1,
         "weight_decay": 0,
-        "model_name": "/home/ib/models/layoutv1-base-ttmqa",
-        "pipeline_name": "from_docvqa_to_mqa",
+        "model_name": "/home/ib/models/layoutv1-base-ttmqa/docvqa",
+        "pipeline_name": "layoutv1_mqa_emb",
         "upload": False,
-        "dataset": "docvqa",
+        "dataset": "ibds",
     }
     example_dir = Path(__file__).parent.parent / "example"
     dataset_filename = "/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator"
@@ -613,5 +613,7 @@ if __name__ == "__main__":
     # dataset_filename = '/home/ib/receipts/Receipts.ibannotator'
     save_path = tempfile.TemporaryDirectory().name
     sdk = InstabaseSDKDummy(None, "user")
-    # run_train(hyperparams, dataset_filename, save_path, sdk, 'user', DummyJobStatus())
     run_train(hyperparams, dataset_filename, save_path, sdk, "user", DummyJobStatus())
+
+    # run_train()
+

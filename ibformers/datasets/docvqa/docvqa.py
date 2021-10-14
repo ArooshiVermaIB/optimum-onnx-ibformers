@@ -19,7 +19,7 @@ This means that the answers comprise a set of contiguous text tokens present in 
 
 _URL = "https://dataset-rpibdspub.s3.amazonaws.com/docvqa/"
 _URLS = {
-    # "train": _URL + "train.tar.gz",
+    "train": _URL + "train.tar.gz",
     "val": _URL
     + "val.tar.gz",
 }
@@ -136,7 +136,7 @@ class Docvqa(datasets.GeneratorBasedBuilder):
             features=datasets.Features(
                 {
                     "id": datasets.Value("string"),
-                    "image_id": datasets.Value("string"),
+                    "doc_id": datasets.Value("string"),
                     "words": datasets.Sequence(datasets.Value("string")),
                     "bboxes": datasets.Sequence(
                         datasets.Sequence(datasets.Value("int32"), length=4)
@@ -148,7 +148,7 @@ class Docvqa(datasets.GeneratorBasedBuilder):
                         datasets.Sequence(datasets.Value("int32"), length=2)
                     ),
                     "question": datasets.Sequence(datasets.Value("string")),
-                    "answers": datasets.Sequence(datasets.Value("string")),
+                    "answer": datasets.Sequence(datasets.Value("string")),
                     # These are the features of your dataset like images, labels ...
                 }
             ),
@@ -166,7 +166,10 @@ class Docvqa(datasets.GeneratorBasedBuilder):
         downloaded_files = dl_manager.download_and_extract(urls_to_download)
 
         return [
-            # datasets.SplitGenerator(name=datasets.Split.TRAIN, gen_kwargs={"filepath": downloaded_files["train"]}),
+            datasets.SplitGenerator(
+                name=datasets.Split.TRAIN,
+                gen_kwargs={"filepath": Path(downloaded_files["train"]) / "train" / "train_v1.0.json"}
+            ),
             datasets.SplitGenerator(
                 name=datasets.Split.VALIDATION,
                 gen_kwargs={"filepath": Path(downloaded_files["val"]) / "val" / "val_v1.0.json"},
@@ -209,8 +212,8 @@ class Docvqa(datasets.GeneratorBasedBuilder):
             # Features currently used are "context", "question", and "answers".
             # Others are extracted here for the ease of future expansions.
 
-            yield docid, {
-                "id": docid,
+            yield str(docid), {
+                "id": str(docid),
                 "doc_id": image_id,
                 "words": doc.words,
                 "bboxes": doc.bboxes,

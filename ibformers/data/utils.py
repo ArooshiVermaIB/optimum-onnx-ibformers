@@ -46,7 +46,7 @@ def feed_single_example(fn):
             if out is None:
                 continue
             outs.append(out)
-        out_keys = [] if len(out) == 0 else list(outs[0].keys())
+        out_keys = [] if len(outs) == 0 else list(outs[0].keys())
         dict_of_lists = convert_to_dict_of_lists(outs, out_keys)
         batch.update(dict_of_lists)
         return batch
@@ -75,7 +75,7 @@ def feed_single_example_and_flatten(
             if not out:
                 continue
             outs.extend(out)
-        out_keys = [] if len(out) == 0 else list(outs[0].keys())
+        out_keys = [] if len(outs) == 0 else list(outs[0].keys())
         dict_of_lists = convert_to_dict_of_lists(outs, out_keys)
         batch.update(dict_of_lists)
         return batch
@@ -151,13 +151,11 @@ def tag_answer_in_doc(words, answer):
     # which are incorrect, better to skip such examples
     if len(answer.strip()) < 3:
         return []
-    words_len = list(map(len, words))
-    # compute offsets, add 1 to include space delimiter
-    word_offsets = np.cumsum(np.array([-1] + words_len[:-1]) + 1)
     text = " ".join(words)
     matches = find_matches_in_text(text, answer)
     # TODO: maybe add word spans, if it will be useful
-    # token_spans = get_tokens_spans(matches, word_offsets)
+
+
 
     return matches
 

@@ -3,7 +3,7 @@ from typing import List, TypeVar, Tuple
 import numpy as np
 from typing_extensions import TypedDict
 
-from ibformers.data.utils import convert_to_dict_of_lists, tag_answer_in_doc, feed_single_example
+from ibformers.data.utils import convert_to_dict_of_lists, tag_answer_in_doc, feed_single_example, get_tokens_spans
 from random import shuffle
 
 
@@ -11,11 +11,30 @@ from random import shuffle
 def fuzzy_tag_in_document(example, **kwargs):
     # try to find an answer inside the text of the document
     # example will be skipped in case of no spans found
-    answers = tag_answer_in_doc(words=example["words"], answer=example["answer"])
-    if len(answers) == 0:
+    words, answers, questions = example["words"], example["answer"], example["question"]
+    words_len = list(map(len, words))
+    word_offsets = np.cumsum(np.array([-1] + words_len[:-1]) + 1)
+    # iterate over multiple questions
+    entities = []
+    dummy_tok_lab_id = 1
+    for answer, question in zip(answers, questions):
+        detected_answer = tag_answer_in_doc(words=words, answer=answer)
+        if len(detected_answer) == 0:
+            continue
+        token_spans = get_tokens_spans([[m['start'], m['end']] for m in detected_answer], word_offsets)
+        entity = {"name": question,
+                  "text": detected_answer[0]['text'],
+                  "token_spans": token_spans,
+                  "token_label_id": dummy_tok_lab_id}
+        dummy_tok_lab_id += 1
+        entities.append(entity)
+    # TODO: change it to < 1, temporary change due to work over mqa
+    if len(entities) < 2:
         return None
     else:
-        return {"detected_answers": answers}
+        dict_entities = convert_to_dict_of_lists(entities, list(entity.keys()))
+        example.update({"entities": dict_entities})
+        return example
 
 
 @feed_single_example
@@ -92,7 +111,7 @@ def build_prefix_with_special_tokens(example, tokenizer, shuffle_extra_tokens=Tr
     special_token_to_extra_id = {tok: idx for idx, tok in enumerate(all_extra_tokens)}
 
     # <extra_0> token will be reserved for O class
-    available_extra_tokens = all_extra_tokens[1:10]
+    available_extra_tokens = all_extra_tokens[1:50]
 
     if shuffle_extra_tokens:
         shuffle(available_extra_tokens)
@@ -130,58 +149,9 @@ def build_prefix_with_special_tokens(example, tokenizer, shuffle_extra_tokens=Tr
 
 
 @feed_single_example
-def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=True, **kwargs):
+def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=False, **kwargs):
     entities = example["entities"]
-    mqa_size = 10
-    pad_mqa_id = 1
-
-    # all_extra_tokens = tokenizer.additional_special_tokens
-    # special_token_to_extra_id = {tok: idx for idx, tok in enumerate(all_extra_tokens)}
-
-    # 0 idx is reserved for O class, 1 idx is reserved for padding
-    available_mqa_ids = list(range(2, mqa_size))
-
-    if shuffle_mqa_ids:
-        shuffle(available_mqa_ids)
-
-    used_mqa_ids = []
-    # get mapping of extra token to each entity
-    for ent_id in entities["token_label_id"]:
-        assert ent_id != 0, "Something wrong. 0 should be reserved for O class"
-        mqa_id = available_mqa_ids[ent_id]
-        used_mqa_ids.append(mqa_id)
-
-    prefix = entities["name"]
-    # if shuffle_mqa_ids:
-    #     shuffle(prefix)
-    prefix = prefix + [tokenizer.sep_token]
-    mqa_ids = used_mqa_ids + [1]
-
-    # check if for each entity we chose unique token
-    assert len(used_mqa_ids) == len(
-        set(used_mqa_ids)
-    ), "mqa_id was re-used for more than one entity class"
-
-    entities["used_label_id"] = used_mqa_ids
-
-    # build token_label_ids
-    token_label_ids = np.zeros((len(example["words"])), dtype=np.int64)
-    for spans, mqa_id in zip(entities["token_spans"], used_mqa_ids):
-        for span in spans:
-            token_label_ids[span[0] : span[1]] = mqa_id
-
-    return {
-        "entities": entities,
-        "token_label_ids": token_label_ids,
-        "prefix_words": prefix,
-        "prefix_mqa_ids": mqa_ids,
-    }
-
-
-@feed_single_example
-def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=True, **kwargs):
-    entities = example["entities"]
-    mqa_size = 10
+    mqa_size = 20
     pad_mqa_id = 1
 
     # all_extra_tokens = tokenizer.additional_special_tokens
