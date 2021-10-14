@@ -51,14 +51,14 @@ class InstabaseSDK:
 class IbCallback(TrainerCallback):
     """
     A :class:`~transformers.TrainerCallback` that displays the progress of training or evaluation.
-    it pass status of training to job_status_client and save required files to the IB location via ibsdk
+    it pass status of training to job_metadata_client and save required files to the IB location via ibsdk
     """
 
     ibformers_do_not_copy = []
 
     def __init__(
         self,
-        job_status_client: 'JobStatusClient',
+        job_metadata_client: 'JobMetadataClient',
         ibsdk: InstabaseSDK,
         username: str,
         mount_details: Dict,
@@ -71,7 +71,7 @@ class IbCallback(TrainerCallback):
         self.model_name = model_name
         self.mount_details = mount_details
         self.username = username
-        self.job_status_client = job_status_client
+        self.job_metadata_client= job_metadata_client
         self.evaluation_results = None
         self.prediction_results = None
         self.ibsdk = ibsdk
@@ -146,7 +146,7 @@ class IbCallback(TrainerCallback):
 
     def set_status(self, new_status: Dict):
         self.job_status.update(new_status)
-        self.job_status_client.update_job_status(task_data=self.job_status)
+        self.job_metadata_client.update_metadata(self.job_status)
 
     def on_step_end(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
@@ -194,10 +194,10 @@ class IbArguments:
     file_client: Optional[Any] = field(
         default=None, metadata={"help": "File client object which support different file systems"}
     )
-    job_status_client: Optional['JobStatusClient'] = field(
+    job_metadata_client: Optional['JobMetadataClient'] = field(
         default=None,
         metadata={
-            "help": "Job status client. Used for collecting information of training progress"
+            "help": "Job metadata client. Used for collecting information of training progress"
         },
     )
     mount_details: Optional[Dict] = field(
@@ -311,7 +311,7 @@ def prepare_ib_params(
     save_path: str,
     file_client: Any,
     username: str,
-    job_status_client: 'JobStatusClient',
+    job_metadata_client: 'JobMetadataClient',
     mount_details: Optional[Dict] = None,
     model_name: str = 'CustomModel',
 ) -> Dict:
@@ -322,7 +322,7 @@ def prepare_ib_params(
     :param save_path:
     :param file_client:
     :param username:
-    :param job_status_client:
+    :param job_metadata_client:
     :param mount_details:
     :param model_name:
     :return:
@@ -350,7 +350,7 @@ def prepare_ib_params(
         return_entity_level_metrics=True,
         username=username,
         file_client=file_client,
-        job_status_client=job_status_client,
+        job_metadata_client=job_metadata_client,
         mount_details=mount_details,
         model_name=model_name,
     )

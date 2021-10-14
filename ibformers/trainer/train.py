@@ -43,6 +43,9 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
+
+from instabase.model_training_tasks.jobs import JobMetadataClient
+
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 
@@ -218,7 +221,7 @@ def run_train(
     save_path: Optional[str] = None,
     file_client: Optional[Any] = None,
     username: Optional[str] = None,
-    job_status_client: Optional['JobStatusClient'] = None,
+    job_metadata_client: Optional[JobMetadataClient] = None,
     mount_details: Optional[Dict] = None,
     model_name: Optional[str] = 'CustomModel',
     **kwargs: Any,
@@ -229,7 +232,7 @@ def run_train(
         assert save_path is not None
         # assert file_client is not None
         assert username is not None
-        assert job_status_client is not None
+        assert job_metadata_client is not None
 
     parser = HfArgumentParser(
         (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
@@ -248,7 +251,7 @@ def run_train(
             save_path,
             file_client,
             username,
-            job_status_client,
+            job_metadata_client,
             mount_details,
             model_name,
         )
@@ -453,7 +456,7 @@ def run_train(
     if ibtrain:
         callbacks.append(
             IbCallback(
-                job_status_client=ib_args.job_status_client,
+                job_metadata_client=ib_args.job_metadata_client,
                 ibsdk=ibsdk,
                 username=ib_args.username,
                 mount_details=ib_args.mount_details,
@@ -573,11 +576,14 @@ class InstabaseSDKDummy:
 
 if __name__ == "__main__":
 
-    class DummyJobStatus:
+    class DummyJobStatus(JobMetadataClient):
         def __init__(self):
             pass
 
-        def update_job_status(self, task_name=None, task_data=None, task_state=None):
+        def update_message(self, message: Optional[str]) -> None:
+            pass
+
+        def update_metadata(self, metadata: Optional[Dict[str, Any]]) -> None:
             pass
 
     hyperparams = {
