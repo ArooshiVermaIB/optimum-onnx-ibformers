@@ -3,7 +3,12 @@ from typing import List, TypeVar, Tuple
 import numpy as np
 from typing_extensions import TypedDict
 
-from ibformers.data.utils import convert_to_dict_of_lists, tag_answer_in_doc, feed_single_example, get_tokens_spans
+from ibformers.data.utils import (
+    convert_to_dict_of_lists,
+    tag_answer_in_doc,
+    feed_single_example,
+    get_tokens_spans,
+)
 from random import shuffle
 
 
@@ -21,11 +26,15 @@ def fuzzy_tag_in_document(example, **kwargs):
         detected_answer = tag_answer_in_doc(words=words, answer=answer)
         if len(detected_answer) == 0:
             continue
-        token_spans = get_tokens_spans([[m['start'], m['end']] for m in detected_answer], word_offsets)
-        entity = {"name": question,
-                  "text": detected_answer[0]['text'],
-                  "token_spans": token_spans,
-                  "token_label_id": dummy_tok_lab_id}
+        token_spans = get_tokens_spans(
+            [[m['start'], m['end']] for m in detected_answer], word_offsets
+        )
+        entity = {
+            "name": question,
+            "text": detected_answer[0]['text'],
+            "token_spans": token_spans,
+            "token_label_id": dummy_tok_lab_id,
+        }
         dummy_tok_lab_id += 1
         entities.append(entity)
     # TODO: change it to < 1, temporary change due to work over mqa
@@ -102,50 +111,6 @@ def stack_pages(example, **kwargs):
     bboxes[content_mask, 3] = y_coord_norm[:, 1]
 
     return {"bboxes": bboxes}
-
-
-@feed_single_example
-def build_prefix_with_special_tokens(example, tokenizer, shuffle_extra_tokens=True, **kwargs):
-    entities = example["entities"]
-    all_extra_tokens = tokenizer.additional_special_tokens
-    special_token_to_extra_id = {tok: idx for idx, tok in enumerate(all_extra_tokens)}
-
-    # <extra_0> token will be reserved for O class
-    available_extra_tokens = all_extra_tokens[1:50]
-
-    if shuffle_extra_tokens:
-        shuffle(available_extra_tokens)
-
-    used_extra_tokens = []
-    used_special_ids = []
-    # get mapping of extra token to each entity
-    for ent_id in entities["token_label_id"]:
-        assert ent_id != 0, "Something wrong. 0 should be reserved for O class"
-        extra_token = available_extra_tokens[ent_id]
-        used_extra_tokens.append(extra_token)
-        used_special_ids.append(special_token_to_extra_id[extra_token])
-
-    prefix = [f"{tok} {name} {tok}" for name, tok in zip(entities["name"], used_extra_tokens)]
-    if shuffle_extra_tokens:
-        shuffle(prefix)
-    prefix = prefix + [tokenizer.sep_token]
-
-    # check if for each entity we chose unique token
-    assert len(used_extra_tokens) == len(
-        set(used_extra_tokens)
-    ), "An extra token was re-used for more than one entity class"
-
-    entities["extra_tokens"] = used_extra_tokens
-    entities["used_label_id"] = used_special_ids
-
-    # build token_label_ids
-    token_label_ids = np.zeros((len(example["words"])), dtype=np.int64)
-    for spans, tok in zip(entities["token_spans"], used_extra_tokens):
-        extra_id = special_token_to_extra_id[tok]
-        for span in spans:
-            token_label_ids[span[0] : span[1]] = extra_id
-
-    return {"entities": entities, "token_label_ids": token_label_ids, "prefix_words": prefix}
 
 
 @feed_single_example

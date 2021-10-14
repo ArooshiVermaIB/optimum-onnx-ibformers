@@ -10,18 +10,17 @@ from ibformers.data.collators.collate import (
 from ibformers.data.metrics import (
     compute_metrics_for_sl,
     compute_legacy_metrics_for_sl,
-    compute_legacy_metrics_for_mqa, compute_metrics_for_qa_task,
+    compute_legacy_metrics_for_mqa,
+    compute_metrics_for_qa_task,
 )
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.chunk import produce_chunks
 from ibformers.data.transform import (
     norm_bboxes_for_layoutlm,
     stack_pages,
-    build_prefix_with_special_tokens,
     build_prefix_with_mqa_ids,
     fuzzy_tag_in_document,
 )
-from ibformers.models.layv2noimg import LayMQAForSentinelClassification
 from ibformers.models.layv1mqa import LayMQAForTokenClassification
 
 
@@ -108,38 +107,7 @@ layoutlmv2_sl = {
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
 
-layout_mqa = {
-    "dataset_load_kwargs": {"use_image": False},
-    "preprocess": [
-        build_prefix_with_special_tokens,
-        tokenize_layoutlmv2,
-        norm_bboxes_for_layoutlm,
-        produce_chunks,
-        stack_pages,
-    ],
-    "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": DataCollatorWithBBoxesForTokenClassification,
-    "model_class": LayMQAForSentinelClassification,
-    "compute_metrics": compute_legacy_metrics_for_mqa,
-}
-
 layoutv1_mqa = {
-    "dataset_load_kwargs": {"use_image": False},
-    "preprocess": [
-        build_prefix_with_special_tokens,
-        tokenize,
-        norm_bboxes_for_layoutlm,
-        produce_chunks,
-        stack_pages,
-    ],
-    "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": DataCollatorWithBBoxesForTokenClassification,
-    "model_class": Layv1MQAForSentinelClassification,
-    "compute_metrics": compute_legacy_metrics_for_mqa,
-}
-
-
-layoutv1_mqa_emb = {
     "dataset_load_kwargs": {"use_image": False},
     "preprocess": [
         build_prefix_with_mqa_ids,
@@ -170,22 +138,6 @@ from_docvqa_to_mqa = {
     "compute_metrics": compute_metrics_for_qa_task,
 }
 
-
-from_docvqa_to_sentinel_mqa = {
-    "dataset_load_kwargs": {"use_image": False},
-    "preprocess": [
-        fuzzy_tag_in_document,
-        build_prefix_with_special_tokens,
-        tokenize,
-        norm_bboxes_for_layoutlm,
-        produce_chunks,
-    ],
-    "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": DataCollatorWithBBoxesForTokenClassification,
-    "model_class": Layv1MQAForSentinelClassification,
-    "compute_metrics": compute_metrics_for_qa_task,
-}
-
 plain_sl = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, produce_chunks],
@@ -195,16 +147,11 @@ plain_sl = {
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
 
-# TODO: add AutoModel type to pipeline dict
-
 PIPELINES = {
     "layoutlm_sl": layoutlm_sl,
     "layoutlmv2_sl": layoutlmv2_sl,
     "layoutxlm_sl": layoutxlm_sl,
-    "layout_mqa": layout_mqa,
     "layoutv1_mqa": layoutv1_mqa,
-    "layoutv1_mqa_emb": layoutv1_mqa_emb,
     "from_docvqa_to_mqa": from_docvqa_to_mqa,
-    "from_docvqa_to_sentinel_mqa": from_docvqa_to_sentinel_mqa,
     "plain_sl": plain_sl,
 }
