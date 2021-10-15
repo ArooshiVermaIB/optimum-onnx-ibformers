@@ -17,3 +17,8 @@ gs-sandbox:
   host: https://gs.aws.sandbox.instabase.com/
   path: daniel.halpern/my-repo/fs/Instabase Drive/publishing-space
   token: BFJGz5BCnmvDXvwrPyoMbsi1as0vuv
+
+solution-eng:
+  host: https://solution-eng.aws.sandbox.instabase.com/
+  path: daniel.cahn/my-repo/fs/Instabase Drive/automation
+  token: vDatMjJ3J294G701cv7TMabwBfx3Td
