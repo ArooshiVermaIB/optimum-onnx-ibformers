@@ -20,8 +20,7 @@ This means that the answers comprise a set of contiguous text tokens present in 
 _URL = "https://dataset-rpibdspub.s3.amazonaws.com/docvqa/"
 _URLS = {
     "train": _URL + "train.tar.gz",
-    "val": _URL
-    + "val.tar.gz",
+    "val": _URL + "val.tar.gz",
 }
 
 BoundingBox = Tuple[float, float, float, float]
@@ -168,7 +167,9 @@ class Docvqa(datasets.GeneratorBasedBuilder):
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
-                gen_kwargs={"filepath": Path(downloaded_files["train"]) / "train" / "train_v1.0.json"}
+                gen_kwargs={
+                    "filepath": Path(downloaded_files["train"]) / "train" / "train_v1.0.json"
+                },
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.VALIDATION,
