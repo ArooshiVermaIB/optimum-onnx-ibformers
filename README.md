@@ -1,6 +1,13 @@
 # ibformers
 DL models and data processing pipelines. Facilitate prototyping new solutions and ideas.
 
+### Setup
+
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pre-commit install
+```
 
 ### Main assumtions
 - uses hf/datasets library for storing and preprocessing data
