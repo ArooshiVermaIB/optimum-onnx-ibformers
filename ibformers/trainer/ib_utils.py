@@ -15,6 +15,10 @@ from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase
 
+
+HF_TOKEN = "api_AYGJoxZMBtWlYODoAQgLKAuNVRXaGfQtjX"
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +27,7 @@ class InstabaseSDK:
         self.file_client = file_client
         self.username = username
 
-    def ibopen(self, path: str, mode: str = 'r', **kwargs) -> IBFileBase:
+    def ibopen(self, path: str, mode: str = "r", **kwargs) -> IBFileBase:
         result = ibfile.ibopen(path, mode, file_client=self.file_client, username=self.username)
         return result
 
@@ -58,7 +62,7 @@ class IbCallback(TrainerCallback):
 
     def __init__(
         self,
-        job_metadata_client: 'JobMetadataClient',
+        job_metadata_client: "JobMetadataClient",
         ibsdk: InstabaseSDK,
         username: str,
         mount_details: Dict,
@@ -71,7 +75,7 @@ class IbCallback(TrainerCallback):
         self.model_name = model_name
         self.mount_details = mount_details
         self.username = username
-        self.job_metadata_client= job_metadata_client
+        self.job_metadata_client = job_metadata_client
         self.evaluation_results = None
         self.prediction_results = None
         self.ibsdk = ibsdk
@@ -189,7 +193,7 @@ class IbArguments:
     """
 
     username: Optional[str] = field(
-        metadata={"help": "Username of person who is running the model training"}
+        default=None, metadata={"help": "Username of person who is running the model training"}
     )
     file_client: Optional[Any] = field(
         default=None, metadata={"help": "File client object which support different file systems"}
@@ -338,6 +342,7 @@ def prepare_ib_params(
         report_to='none',
         logging_strategy='epoch',
         evaluation_strategy='epoch',
+        save_strategy='no',
         disable_tqdm=False,
         logging_steps=10,
         adafactor=False,
@@ -355,6 +360,12 @@ def prepare_ib_params(
         model_name=model_name,
     )
 
+    if "dataset" in hyperparams:
+        out_dict["dataset_name_or_path"] = hyperparams["dataset"]
+        out_dict["dataset_config_name"] = hyperparams["dataset"]
+    else:
+        out_dict["dataset_name_or_path"] = "ibds"
+        out_dict["dataset_config_name"] = "ibds"
     if 'epochs' in hyperparams:
         out_dict['num_train_epochs'] = hyperparams.pop('epochs')
     if 'batch_size' in hyperparams:

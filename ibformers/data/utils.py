@@ -46,7 +46,7 @@ def feed_single_example(fn):
             if out is None:
                 continue
             outs.append(out)
-        out_keys = [] if len(out) == 0 else list(outs[0].keys())
+        out_keys = [] if len(outs) == 0 else list(outs[0].keys())
         dict_of_lists = convert_to_dict_of_lists(outs, out_keys)
         batch.update(dict_of_lists)
         return batch
@@ -75,7 +75,7 @@ def feed_single_example_and_flatten(
             if not out:
                 continue
             outs.extend(out)
-        out_keys = [] if len(out) == 0 else list(outs[0].keys())
+        out_keys = [] if len(outs) == 0 else list(outs[0].keys())
         dict_of_lists = convert_to_dict_of_lists(outs, out_keys)
         batch.update(dict_of_lists)
         return batch
@@ -117,8 +117,8 @@ def get_tokens_spans(char_spans, token_offsets):
     token_spans = []
     for span in char_spans:
         # look for indexes of the words which contain start and end of matched text
-        start_idx = np.searchsorted(token_offsets, span[0] + 1, 'left') - 1
-        end_idx = np.searchsorted(token_offsets, span[1], 'left')
+        start_idx = np.searchsorted(token_offsets, span[0] + 1, "left") - 1
+        end_idx = np.searchsorted(token_offsets, span[1], "left")
         token_spans.append((start_idx, end_idx))
 
     return token_spans
@@ -140,7 +140,7 @@ def find_matches_in_text(text, answer, only_best=True):
     # convert to list of dicts
     # correct text with original casing
     matches_dict = [
-        {'text': text[m.start : m.end], 'start': m.start, 'end': m.end} for m in selected
+        {"text": text[m.start : m.end], "start": m.start, "end": m.end} for m in selected
     ]
 
     return matches_dict
@@ -151,13 +151,11 @@ def tag_answer_in_doc(words, answer):
     # which are incorrect, better to skip such examples
     if len(answer.strip()) < 3:
         return []
-    words_len = list(map(len, words))
-    # compute offsets, add 1 to include space delimiter
-    word_offsets = np.cumsum(np.array([-1] + words_len[:-1]) + 1)
-    text = ' '.join(words)
+    text = " ".join(words)
     matches = find_matches_in_text(text, answer)
     # TODO: maybe add word spans, if it will be useful
-    # token_spans = get_tokens_spans(matches, word_offsets)
+
+
 
     return matches
 
@@ -191,7 +189,7 @@ def recalculate_spans(orig_spans_batch, word_map_batch):
     for span_idx, span in enumerate(orig_spans_batch):
         span = np.array(span)
         word_map = word_map_batch[0] if len(word_map_batch) == 1 else word_map_batch[span_idx]
-        recalculated_span = np.searchsorted(word_map, span, 'left')
+        recalculated_span = np.searchsorted(word_map, span, "left")
         recalculated_spans_batch.append(recalculated_span)
 
     return recalculated_spans_batch

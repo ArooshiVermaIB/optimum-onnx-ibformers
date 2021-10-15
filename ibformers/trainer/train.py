@@ -51,7 +51,13 @@ from ibformers.datasets import DATASETS_PATH
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.10.0.dev0")
-from ibformers.trainer.ib_utils import IbCallback, IbArguments, InstabaseSDK, prepare_ib_params
+from ibformers.trainer.ib_utils import (
+    IbCallback,
+    IbArguments,
+    InstabaseSDK,
+    prepare_ib_params,
+    HF_TOKEN,
+)
 from ibformers.trainer.trainer import IbTrainer
 
 require_version(
@@ -209,7 +215,7 @@ class DataAndPipelineArguments:
                 # assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         self.task_name = self.task_name.lower()
 
-    def save(self, save_path, filename='pipeline.json'):
+    def save(self, save_path, filename="pipeline.json"):
         save_dict = asdict(self)
         with open(os.path.join(save_path, filename), "w", encoding="utf-8") as writer:
             json.dump(save_dict, writer, indent=2, sort_keys=True)
@@ -221,11 +227,12 @@ def run_train(
     save_path: Optional[str] = None,
     file_client: Optional[Any] = None,
     username: Optional[str] = None,
-    job_metadata_client: Optional[JobMetadataClient] = None,
+    job_metadata_client: Optional["JobMetadataClient"] = None,
     mount_details: Optional[Dict] = None,
-    model_name: Optional[str] = 'CustomModel',
+    model_name: Optional[str] = "CustomModel",
     **kwargs: Any,
 ):
+
     # scripts will support both running from model-training-tasks and running from shell
     if hyperparams is not None:
         assert dataset_filename is not None
@@ -309,9 +316,9 @@ def run_train(
     # load pipeline
     pipeline = PIPELINES[data_args.pipeline_name]
     collate_fn = pipeline["collate"]
-    compute_metrics = pipeline['compute_metrics']
+    compute_metrics = pipeline["compute_metrics"]
     load_kwargs = pipeline["dataset_load_kwargs"]
-    model_class = pipeline['model_class']
+    model_class = pipeline["model_class"]
 
     data_files = {}
     if data_args.train_file is not None:
@@ -357,7 +364,7 @@ def run_train(
         cache_dir=model_args.cache_dir,
         use_fast=True,
         revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
+        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
     )
 
     # Tokenizer check: this script requires a fast tokenizer.
@@ -372,15 +379,15 @@ def run_train(
     # Padding strategy
 
     fn_kwargs = {
-        'tokenizer': tokenizer,
-        'padding': 'max_length' if data_args.pad_to_max_length else False,
-        'max_length': data_args.max_length,
-        'chunk_overlap': data_args.chunk_overlap,
+        "tokenizer": tokenizer,
+        "padding": "max_length" if data_args.pad_to_max_length else False,
+        "max_length": data_args.max_length,
+        "chunk_overlap": data_args.chunk_overlap,
     }
     map_kwargs = {
-        'num_proc': data_args.preprocessing_num_workers,
-        'load_from_cache_file': not data_args.overwrite_cache,
-        'fn_kwargs': fn_kwargs,
+        "num_proc": data_args.preprocessing_num_workers,
+        "load_from_cache_file": not data_args.overwrite_cache,
+        "fn_kwargs": fn_kwargs,
     }
 
     if training_args.do_train:
@@ -425,10 +432,10 @@ def run_train(
         label_list.sort()
         return label_list
 
-    if isinstance(features['labels'].feature, ClassLabel):
-        label_list = features['labels'].feature.names
+    if isinstance(features["labels"].feature, ClassLabel):
+        label_list = features["labels"].feature.names
     else:
-        label_list = get_label_list(train_dataset['labels'])
+        label_list = get_label_list(train_dataset["labels"])
 
     num_labels = len(label_list)
     label_to_id = {l: i for i, l in enumerate(label_list)}
@@ -440,7 +447,7 @@ def run_train(
         id2label={i: l for l, i in label_to_id.items()},
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
+        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
     )
 
     model = model_class.from_pretrained(
@@ -449,7 +456,7 @@ def run_train(
         config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
+        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
     )
 
     callbacks = []
@@ -493,7 +500,7 @@ def run_train(
             checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
-        model_save_path = os.path.join(training_args.output_dir, 'model')
+        model_save_path = os.path.join(training_args.output_dir, "model")
         trainer.save_model(model_save_path)  # Saves the tokenizer too for easy upload
         data_args.save(model_save_path)  # Saves the pipeline & data arguments
         max_train_samples = (
@@ -562,7 +569,7 @@ class InstabaseSDKDummy:
         self.file_client = file_client
         self.username = username
 
-    def ibopen(self, path: str, mode: str = 'r') -> Any:
+    def ibopen(self, path: str, mode: str = "r") -> Any:
         return open(path, mode)
 
     def read_file(self, file_path: str) -> str:
@@ -570,7 +577,7 @@ class InstabaseSDKDummy:
             return f.read()
 
     def write_file(self, file_path: str, content: str):
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             f.write(content)
 
 
@@ -588,7 +595,7 @@ if __name__ == "__main__":
 
     hyperparams = {
         "adam_epsilon": 1e-8,
-        "batch_size": 2,
+        "batch_size": 8,
         "chunk_size": 512,
         "epochs": 3,
         "learning_rate": 5e-05,

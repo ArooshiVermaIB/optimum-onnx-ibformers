@@ -31,6 +31,7 @@ logger = logging.get_logger(__name__)
 _is_torch_generator_available = False
 _is_native_amp_available = False
 
+
 if is_in_notebook():
     from .utils.notebook import NotebookProgressCallback
 
@@ -46,6 +47,7 @@ if is_torch_tpu_available():
     import torch_xla.core.xla_model as xm
     import torch_xla.debug.metrics as met
     import torch_xla.distributed.parallel_loader as pl
+
 
 if is_training_run_on_sagemaker():
     logging.add_handler(StreamHandler(sys.stdout))
@@ -63,10 +65,13 @@ class IbTrainer(Trainer):
         self.test_dataset = None
 
     def create_optimizer(self) -> torch.optim.Optimizer:
-        config = {'lr': self.args.learning_rate, 'eps': self.args.adam_epsilon}
+        config = {"lr": self.args.learning_rate, "eps": self.args.adam_epsilon}
         self.optimizer = AdamW(
             self.model.parameters(), **{i: j for i, j in config.items() if j is not None}
         )
+
+    def log(self, *args):
+        pass
 
     def evaluation_loop(
         self,
@@ -90,6 +95,7 @@ class IbTrainer(Trainer):
 
         # if eval is called w/o train init deepspeed here
         if self.args.deepspeed and not self.deepspeed:
+
             # XXX: eval doesn't have `resume_from_checkpoint` arg but we should be able to do eval
             # from the checkpoint eventually
             deepspeed_engine, _, _ = deepspeed_init(
@@ -265,7 +271,7 @@ class IbTrainer(Trainer):
             # MODIFICATION - pass eval_dataset to metric computing in order to get document level predictions
             metrics = self.compute_metrics(
                 EvalPrediction(predictions=all_preds, label_ids=all_labels),
-                self.eval_dataset if metric_key_prefix == 'eval' else self.test_dataset,
+                self.eval_dataset if metric_key_prefix == "eval" else self.test_dataset,
             )
         else:
             metrics = {}
