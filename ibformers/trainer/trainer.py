@@ -70,9 +70,6 @@ class IbTrainer(Trainer):
             self.model.parameters(), **{i: j for i, j in config.items() if j is not None}
         )
 
-    def log(self, *args):
-        pass
-
     def evaluation_loop(
         self,
         dataloader: DataLoader,

@@ -18,7 +18,7 @@ from transformers.models.layoutlm.modeling_layoutlm import (
 
 
 class LayMQAEmbeddings(nn.Module):
-    """Construct the embeddings from word, position and token_type embeddings."""
+    """Copied embedding from LayoutLmv1. It's enhanced with additional mqa embeddings"""
 
     def __init__(self, config):
         super(LayMQAEmbeddings, self).__init__()
@@ -123,6 +123,7 @@ class LayMQAModel(LayoutLMPreTrainedModel):
 
 
     """
+
     def __init__(self, config):
         super(LayMQAModel, self).__init__(config)
         self.config = config
@@ -279,6 +280,7 @@ class LayMQAForTokenClassification(LayoutLMPreTrainedModel):
     Classifier weights are tied with the MQA embeddings, so that the same embeddings which were used to encode
     the meaning of entity name (or question) are used for classifying tokens which contains the entity value (or answer)
     """
+
     def __init__(self, config):
         super().__init__(config)
         self.layoutlm = LayMQAModel(config)
