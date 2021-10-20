@@ -69,6 +69,7 @@
           "warmup": 0.0,
           "weight_decay": 0,
           "class_weights": 3,
+          "pipeline_name": "plain_sl",
           "model_name": "bert-base-uncased"
         }
       }
