@@ -155,8 +155,6 @@ def tag_answer_in_doc(words, answer):
     matches = find_matches_in_text(text, answer)
     # TODO: maybe add word spans, if it will be useful
 
-
-
     return matches
 
 
@@ -190,6 +188,6 @@ def recalculate_spans(orig_spans_batch, word_map_batch):
         span = np.array(span)
         word_map = word_map_batch[0] if len(word_map_batch) == 1 else word_map_batch[span_idx]
         recalculated_span = np.searchsorted(word_map, span, "left")
-        recalculated_spans_batch.append(recalculated_span)
+        recalculated_spans_batch.append(recalculated_span.tolist())
 
     return recalculated_spans_batch

@@ -5,7 +5,7 @@ import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Any, Iterable, Tuple
+from typing import Dict, Optional, Any, Iterable, Tuple, List
 from typing_extensions import TypedDict
 import boto3
 import shutil
@@ -50,6 +50,24 @@ class InstabaseSDK:
         if error:
             raise IOError(error)
         return result
+
+
+class InstabaseSDKDummy:
+    def __init__(self, file_client: Any, username: str):
+        # these will be ignored
+        self.file_client = file_client
+        self.username = username
+
+    def ibopen(self, path: str, mode: str = "r") -> Any:
+        return open(path, mode)
+
+    def read_file(self, file_path: str) -> str:
+        with open(file_path) as f:
+            return f.read()
+
+    def write_file(self, file_path: str, content: str):
+        with open(file_path, "w") as f:
+            f.write(content)
 
 
 class IbCallback(TrainerCallback):
@@ -311,7 +329,7 @@ def _abspath(relpath: str) -> str:
 
 def prepare_ib_params(
     hyperparams: Dict,
-    dataset_filename: str,
+    dataset_filename: Optional[str],
     save_path: str,
     file_client: Any,
     username: str,
@@ -360,12 +378,6 @@ def prepare_ib_params(
         model_name=model_name,
     )
 
-    if "dataset" in hyperparams:
-        out_dict["dataset_name_or_path"] = hyperparams["dataset"]
-        out_dict["dataset_config_name"] = hyperparams["dataset"]
-    else:
-        out_dict["dataset_name_or_path"] = "ibds"
-        out_dict["dataset_config_name"] = "ibds"
     if 'epochs' in hyperparams:
         out_dict['num_train_epochs'] = hyperparams.pop('epochs')
     if 'batch_size' in hyperparams:
@@ -417,5 +429,36 @@ def prepare_ib_params(
         logging.info(
             f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}"
         )
+
+    return out_dict
+
+
+def prepare_docpro_params(
+    hyperparams: Dict,
+    dataset_paths: List[str],
+    save_path: str,
+    extraction_class_name: str,
+    file_client: Any,
+    username: str,
+    job_metadata_client: Any,
+    mount_details: Optional[MountDetails] = None,
+    model_name: str = 'CustomModel',
+):
+
+    out_dict = prepare_ib_params(
+        hyperparams,
+        None,
+        save_path,
+        file_client,
+        username,
+        job_metadata_client,
+        mount_details,
+        model_name,
+    )
+
+    out_dict["dataset_name_or_path"] = "docpro_ds"
+    out_dict["dataset_config_name"] = "docpro_ds"
+    out_dict["train_file"] = dataset_paths
+    out_dict["extraction_class_name"] = extraction_class_name
 
     return out_dict

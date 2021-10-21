@@ -236,11 +236,11 @@ def process_labels_from_annotation(
         if lab_id == 0 and label_name == "O":
             continue
         if annotation_file is None:
-            # get empty entities for inference mode
+            # add empty entities if there is no annotations
             entity: LabelEntity = LabelEntity(
                 name=label_name,
                 order_id=0,
-                text=annotation["value"],
+                text="",
                 char_spans=[],
                 token_spans=[],
                 token_label_id=lab_id,

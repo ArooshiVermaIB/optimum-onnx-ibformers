@@ -24,7 +24,7 @@ import os
 import sys
 import tempfile
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 import datasets
@@ -57,7 +57,11 @@ from ibformers.trainer.ib_utils import (
     InstabaseSDK,
     prepare_ib_params,
     HF_TOKEN,
+    InstabaseSDKDummy,
+    MountDetails,
+    prepare_docpro_params,
 )
+from ibformers.trainer.train_utils import split_train_with_column
 from ibformers.trainer.trainer import IbTrainer
 
 require_version(
@@ -198,6 +202,13 @@ class DataAndPipelineArguments:
             "Default is None which is trying to infer it from model name"
         },
     )
+    extraction_class_name: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Extraction class used to filter records from dataset. "
+            "Only one can be used to train extraction model"
+        },
+    )
 
     def __post_init__(self):
         if (
@@ -206,14 +217,6 @@ class DataAndPipelineArguments:
             and self.validation_file is None
         ):
             raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                # assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                # assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
-        self.task_name = self.task_name.lower()
 
     def save(self, save_path, filename="pipeline.json"):
         save_dict = asdict(self)
@@ -221,26 +224,123 @@ class DataAndPipelineArguments:
             json.dump(save_dict, writer, indent=2, sort_keys=True)
 
 
-def run_train(
-    hyperparams: Optional[Dict] = None,
-    dataset_filename: Optional[str] = None,
-    save_path: Optional[str] = None,
-    file_client: Optional[Any] = None,
-    username: Optional[str] = None,
+def run_train_doc_pro(
+    hyperparams: Dict,
+    dataset_paths: List[str],
+    save_path: str,
+    extraction_class_name: str,
+    file_client: Any,
+    username: str,
+    job_metadata_client: Any,
+    mount_details: Optional[MountDetails] = None,
+    model_name: str = 'CustomModel',
+    **kwargs: Any,
+):
+    logging.info('Starting Doc Pro Extraction Model Training ----------')
+    logging.info('Arguments to this training session:')
+    logging.info(f'Hyperparameters: {hyperparams}')
+    logging.info(f'Dataset Paths: {dataset_paths}')
+    logging.info(f'Model Name: {model_name}')
+    logging.info(f'Save Path: {save_path}')
+    logging.info(f'Extraction Class Name: {extraction_class_name}')
+
+    assert hyperparams is not None
+    parser = HfArgumentParser(
+        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
+    )
+
+    hparams_dict = prepare_docpro_params(
+        hyperparams,
+        dataset_paths,
+        save_path,
+        extraction_class_name,
+        file_client,
+        username,
+        job_metadata_client,
+        mount_details,
+        model_name,
+    )
+    model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
+
+    if isinstance(ib_args.file_client, InstabaseSDKDummy):
+        ibsdk = ib_args.file_client
+    else:
+        ibsdk = InstabaseSDK(ib_args.file_client, ib_args.username)
+
+    callback = IbCallback(
+        job_metadata_client=ib_args.job_metadata_client,
+        ibsdk=ibsdk,
+        username=ib_args.username,
+        mount_details=ib_args.mount_details,
+        model_name=ib_args.model_name,
+        ib_save_path=ib_args.ib_save_path,
+        upload=ib_args.upload,
+    )
+
+    run_train(
+        model_args,
+        data_args,
+        training_args,
+        ib_args,
+        extra_callbacks=[callback],
+        extra_load_kwargs={"ibsdk": ibsdk, "extraction_class_name": extraction_class_name},
+    )
+
+
+def run_train_annotator(
+    hyperparams: Dict,
+    dataset_filename: str,
+    save_path: str,
+    file_client: Any,
+    username: Optional[str] = 'user',
     job_metadata_client: Optional["JobMetadataClient"] = None,
     mount_details: Optional[Dict] = None,
     model_name: Optional[str] = "CustomModel",
     **kwargs: Any,
 ):
+    assert hyperparams is not None
+    parser = HfArgumentParser(
+        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
+    )
 
-    # scripts will support both running from model-training-tasks and running from shell
-    if hyperparams is not None:
-        assert dataset_filename is not None
-        assert save_path is not None
-        # assert file_client is not None
-        assert username is not None
-        assert job_metadata_client is not None
+    hparams_dict = prepare_ib_params(
+        hyperparams,
+        dataset_filename,
+        save_path,
+        file_client,
+        username,
+        job_metadata_client,
+        mount_details,
+        model_name,
+    )
+    model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
 
+    if isinstance(ib_args.file_client, InstabaseSDKDummy):
+        ibsdk = ib_args.file_client
+    else:
+        ibsdk = InstabaseSDK(ib_args.file_client, ib_args.username)
+
+    callback = IbCallback(
+        job_metadata_client=ib_args.job_metadata_client,
+        ibsdk=ibsdk,
+        username=ib_args.username,
+        mount_details=ib_args.mount_details,
+        model_name=ib_args.model_name,
+        ib_save_path=ib_args.ib_save_path,
+        upload=ib_args.upload,
+    )
+
+    run_train(
+        model_args,
+        data_args,
+        training_args,
+        ib_args,
+        extra_callbacks=[callback],
+        extra_load_kwargs={"ibsdk": ibsdk},
+    )
+
+
+def run_cmdline_train():
     parser = HfArgumentParser(
         (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
     )
@@ -250,25 +350,15 @@ def run_train(
         model_args, data_args, training_args, ib_args = parser.parse_json_file(
             json_file=os.path.abspath(sys.argv[1])
         )
-    elif hyperparams is not None:
-        # support running from model-training-tasks
-        hparams_dict = prepare_ib_params(
-            hyperparams,
-            dataset_filename,
-            save_path,
-            file_client,
-            username,
-            job_metadata_client,
-            mount_details,
-            model_name,
-        )
-        model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
     else:
         model_args, data_args, training_args, ib_args = parser.parse_args_into_dataclasses()
 
-    # create variable which indicate whether this is run by IB model service
-    ibtrain = ib_args.file_client is not None
+    run_train(model_args, data_args, training_args, ib_args)
 
+
+def run_train(
+    model_args, data_args, training_args, ib_args, extra_callbacks=None, extra_load_kwargs=None
+):
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -276,8 +366,7 @@ def run_train(
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    # log_level = training_args.get_process_log_level()
-    log_level = logging.INFO
+    log_level = training_args.get_process_log_level()
     logger.setLevel(log_level)
     datasets.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.set_verbosity(log_level)
@@ -332,28 +421,19 @@ def run_train(
     ds_path = Path(DATASETS_PATH) / data_args.dataset_name_or_path
     name_to_use = str(ds_path) if ds_path.is_dir() else data_args.dataset_name_or_path
 
-    if ibtrain:
-        # for debugging
-        if isinstance(ib_args.file_client, InstabaseSDKDummy):
-            ibsdk = ib_args.file_client
-        else:
-            ibsdk = InstabaseSDK(ib_args.file_client, ib_args.username)
-        raw_datasets = load_dataset(
-            path=name_to_use,
-            name=data_args.dataset_config_name,
-            cache_dir=model_args.cache_dir,
-            data_files=data_files,
-            ibsdk=ibsdk,
-            **load_kwargs,
-        )
-    else:
-        raw_datasets = load_dataset(
-            path=name_to_use,
-            name=data_args.dataset_config_name,
-            cache_dir=model_args.cache_dir,
-            data_files=data_files,
-            **load_kwargs,
-        )
+    if extra_load_kwargs is not None:
+        load_kwargs.update(extra_load_kwargs)
+
+    raw_datasets = load_dataset(
+        path=name_to_use,
+        name=data_args.dataset_config_name,
+        cache_dir=model_args.cache_dir,
+        data_files=data_files,
+        **load_kwargs,
+    )
+
+    if 'split' in next(iter(raw_datasets.column_names.values())):
+        raw_datasets = split_train_with_column(raw_datasets)
 
     tokenizer_name_or_path = (
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
@@ -460,18 +540,8 @@ def run_train(
     )
 
     callbacks = []
-    if ibtrain:
-        callbacks.append(
-            IbCallback(
-                job_metadata_client=ib_args.job_metadata_client,
-                ibsdk=ibsdk,
-                username=ib_args.username,
-                mount_details=ib_args.mount_details,
-                model_name=ib_args.model_name,
-                ib_save_path=ib_args.ib_save_path,
-                upload=ib_args.upload,
-            )
-        )
+    if extra_callbacks is not None:
+        callbacks.extend(extra_callbacks)
 
     # Data collator
     data_collator = collate_fn(
@@ -558,61 +628,8 @@ def run_train(
 
 def _mp_fn(index):
     # For xla_spawn (TPUs)
-    run_train()
-
-
-# below is for debugging with running locally
-# this code is not reached via model service as it is directly calling run_train fn
-class InstabaseSDKDummy:
-    def __init__(self, file_client: Any, username: str):
-        # these will be ignored
-        self.file_client = file_client
-        self.username = username
-
-    def ibopen(self, path: str, mode: str = "r") -> Any:
-        return open(path, mode)
-
-    def read_file(self, file_path: str) -> str:
-        with open(file_path) as f:
-            return f.read()
-
-    def write_file(self, file_path: str, content: str):
-        with open(file_path, "w") as f:
-            f.write(content)
+    run_cmdline_train()
 
 
 if __name__ == "__main__":
-
-    class DummyJobStatus(JobMetadataClient):
-        def __init__(self):
-            pass
-
-        def update_message(self, message: Optional[str]) -> None:
-            pass
-
-        def update_metadata(self, metadata: Optional[Dict[str, Any]]) -> None:
-            pass
-
-    hyperparams = {
-        "adam_epsilon": 1e-8,
-        "batch_size": 8,
-        "chunk_size": 512,
-        "epochs": 3,
-        "learning_rate": 5e-05,
-        "loss_agg_steps": 2,
-        "max_grad_norm": 1.0,
-        "optimizer_type": "AdamW",
-        "scheduler_type": "constant_schedule_with_warmup",
-        "stride": 64,
-        "use_gpu": True,
-        "use_mixed_precision": False,
-        "warmup": 0.0,
-        "weight_decay": 0,
-        "model_name": "microsoft/layoutxlm-base",
-    }
-    example_dir = Path(__file__).parent.parent / "example"
-    # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'
-    dataset_filename = os.path.join(example_dir, "UberEats.ibannotator")
-    save_path = os.path.join(example_dir, "saved_model")
-    sdk = InstabaseSDKDummy(None, "user")
-    run_train(hyperparams, dataset_filename, save_path, sdk, 'user', DummyJobStatus())
+    run_cmdline_train()
