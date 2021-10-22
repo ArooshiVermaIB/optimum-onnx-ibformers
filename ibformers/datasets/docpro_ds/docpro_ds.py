@@ -1,27 +1,23 @@
-import json
+import logging
 import logging
 import os
+import traceback
 import urllib
-from collections import defaultdict
 from pathlib import Path
-from typing import Tuple, List, Dict, Any, Union, NamedTuple, Optional, Callable, Sequence
+from typing import Tuple, List, Dict, Union, Optional, Callable, Sequence
+
 import datasets
+import numpy as np
 from datasets import BuilderConfig, Features, config
 from datasets.fingerprint import Hasher
-import traceback
-
 from instabase.dataset_utils.sdk import RemoteDatasetSDK, LocalDatasetSDK, AnnotationItem
-
 from instabase.ocr.client.libs.ibocr import (
-    ParsedIBOCRBuilder,
-    IBOCRRecord,
     IBOCRRecordLayout,
-    ParsedIBOCR,
 )
 from instabase.ocr.client.libs.ocr_types import WordPolyDict
-from typing_extensions import TypedDict, Literal
 from more_itertools import consecutive_groups
-import numpy as np
+from typing_extensions import TypedDict
+
 from ibformers.data.utils import ImageProcessor
 
 _DESCRIPTION = """\
@@ -150,7 +146,90 @@ def get_images_from_layouts(
     return img_arr
 
 
-class DocProConfig(BuilderConfig):
+class DocProBuilderConfig(BuilderConfig):
+    """Base class for :class:`DatasetBuilder` data configuration.
+    Copied from BuilderConfig class
+    Contains modifications which crete custom config_id (fingerprint) based on the dataset.json content
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(DocProBuilderConfig, self).__init__(*args, **kwargs)
+
+    def create_config_id(
+        self,
+        config_kwargs: dict,
+        custom_features: Optional[Features] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+    ) -> str:
+
+        # Possibly add a suffix to the name to handle custom features/data_files/config_kwargs
+        suffix: Optional[str] = None
+        config_kwargs_to_add_to_suffix = config_kwargs.copy()
+        # name and version are already used to build the cache directory
+        config_kwargs_to_add_to_suffix.pop("name", None)
+        config_kwargs_to_add_to_suffix.pop("version", None)
+        config_kwargs_to_add_to_suffix.pop("ibsdk", None)
+        # data files are handled differently
+        config_kwargs_to_add_to_suffix.pop("data_files", None)
+        if (
+            "data_dir" in config_kwargs_to_add_to_suffix
+            and config_kwargs_to_add_to_suffix["data_dir"] is None
+        ):
+            del config_kwargs_to_add_to_suffix["data_dir"]
+        if config_kwargs_to_add_to_suffix:
+            # we don't care about the order of the kwargs
+            config_kwargs_to_add_to_suffix = {
+                k: config_kwargs_to_add_to_suffix[k] for k in sorted(config_kwargs_to_add_to_suffix)
+            }
+            if all(
+                isinstance(v, (str, bool, int, float))
+                for v in config_kwargs_to_add_to_suffix.values()
+            ):
+                suffix = ",".join(
+                    str(k) + "=" + urllib.parse.quote_plus(str(v))
+                    for k, v in config_kwargs_to_add_to_suffix.items()
+                )
+                if len(suffix) > 32:  # hash if too long
+                    suffix = Hasher.hash(config_kwargs_to_add_to_suffix)
+            else:
+                suffix = Hasher.hash(config_kwargs_to_add_to_suffix)
+
+        if "train" in self.data_files:
+            m = Hasher()
+            if suffix:
+                m.update(suffix)
+
+            dataset_list = load_datasets(self.data_files["train"], self.ibsdk)
+            # build fingerprint based on chosen metadata items, changing any of below fields would cause dataset to be rebuild
+            fingerprint_content = sorted(
+                [
+                    str(v)
+                    for ds in dataset_list
+                    for k, v in ds.metadata.items()
+                    if k in ("id", "last_edited", "last_editor")
+                ]
+            )
+            m.update(self.data_files["train"])
+            m.update(fingerprint_content)
+            suffix = m.hexdigest()
+
+        if custom_features is not None:
+            m = Hasher()
+            if suffix:
+                m.update(suffix)
+            m.update(custom_features)
+            suffix = m.hexdigest()
+
+        if suffix:
+            config_id = self.name + "-" + suffix
+            if len(config_id) > config.MAX_DATASET_CONFIG_ID_READABLE_LENGTH:
+                config_id = self.name + "-" + Hasher.hash(suffix)
+            return config_id
+        else:
+            return self.name
+
+
+class DocProConfig(DocProBuilderConfig):
     """
     Config for Instabase Format Datasets
     """
@@ -178,6 +257,28 @@ def get_docpro_ds_split(anno: Optional[Dict]):
         return "val+test"
     else:
         return "train"
+
+
+def load_datasets(dataset_paths, ibsdk):
+    assert isinstance(dataset_paths, list)
+
+    file_client = ibsdk.file_client
+    username = ibsdk.username
+    try:
+        # load from doc pro
+        if file_client is None:
+            datasets_list = [LocalDatasetSDK(dataset_path) for dataset_path in dataset_paths]
+        else:
+            datasets_list = [
+                RemoteDatasetSDK(dataset_path, file_client, username)
+                for dataset_path in dataset_paths
+            ]
+
+    except Exception as e:
+        logging.error(traceback.format_exc())
+        raise RuntimeError(f"Error while compiling the datasets: {e}") from e
+
+    return datasets_list
 
 
 class DocProDs(datasets.GeneratorBasedBuilder):
@@ -210,29 +311,6 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             raise ValueError('extraction_class_name not found in dataset')
         return matching_class_ids[0]
 
-    def load_datasets(self, dataset_paths):
-        assert isinstance(dataset_paths, list)
-        open_fn = get_open_fn(self.config.ibsdk)
-
-        logging.debug("Converting from Doc Pro Datasets")
-        file_client = self.config.ibsdk.file_client
-        username = self.config.ibsdk.username
-        try:
-            # load from doc pro
-            if file_client is None:
-                datasets_list = [LocalDatasetSDK(dataset_path) for dataset_path in dataset_paths]
-            else:
-                datasets_list = [
-                    RemoteDatasetSDK(dataset_path, file_client, username)
-                    for dataset_path in dataset_paths
-                ]
-
-        except Exception as e:
-            logging.error(traceback.format_exc())
-            raise RuntimeError(f"Error while compiling the datasets: {e}") from e
-
-        return datasets_list
-
     def _info(self):
 
         # get schema of the the dataset
@@ -242,7 +320,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         assert isinstance(data_files, dict), "data_files argument should be a dict for this dataset"
         if "train" in data_files:
             dataset_paths = data_files["train"]
-            datasets_list = self.load_datasets(dataset_paths)
+            datasets_list = load_datasets(dataset_paths, self.config.ibsdk)
             dataset_classes = datasets_list[0].metadata['classes_spec']['classes']
             class_id = self.get_class_id(dataset_classes)
             schema = dataset_classes[class_id]['schema']
@@ -429,6 +507,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         }
 
         if self.config.use_image:
+            open_fn = get_open_fn(self.config.ibsdk)
             images = get_images_from_layouts(layouts, self.config.image_processor, doc_id, open_fn)
             # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
             features["images"] = images
@@ -440,7 +519,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         data_files = self.config.data_files
         if "train" in data_files:
             dataset_paths = data_files["train"]
-            datasets_list = self.load_datasets(dataset_paths)
+            datasets_list = load_datasets(dataset_paths, self.config.ibsdk)
             annotation_items = self._get_annotation_generator(datasets_list)
 
             # self.ann_label_id2label = {lab["id"]: lab["name"] for lab in annotations["labels"]}

@@ -432,6 +432,8 @@ def run_train(
         **load_kwargs,
     )
 
+    # workaround currently only for docpro dataset which require loading into single dataset as information about split
+    # could be obtained after loading a record
     if 'split' in next(iter(raw_datasets.column_names.values())):
         raw_datasets = split_train_with_column(raw_datasets)
 
