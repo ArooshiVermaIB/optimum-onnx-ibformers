@@ -9,7 +9,23 @@ pip install -r requirements-dev.txt
 pre-commit install
 ```
 
-### Main assumtions
+You'll need `instabase`'s `model-training-tasks` as well. In `instabase` repo execute:
+
+```bash
+cd distributed-tasks/celery/model-training-tasks/service-cpu
+make clean build
+```
+
+From there, either add `distributed-tasks/celery/model-training-tasks/service-cpu/build/py` to PYTHONPATH.
+
+
+#### Pycharm setup
+
+For imports to properly show up in PyCharm, try the following:
+1. Add `instabase` project as another Content Root (Preferences -> Project: ibformers -> Project Structure -> Add Content Root)
+2. In the same panel, mark `distributed-tasks/celery/model-training-tasks/service-cpu/build/py` as Sources Root. 
+
+### Main assumptions
 - uses hf/datasets library for storing and preprocessing data
     - data manipulation process is defined as a pipeline of 
       functions which are applied on the dataset with the `map` method
