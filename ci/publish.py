@@ -72,7 +72,7 @@ async def publish(package: str):
     envs = await load_environments()
 
     package_location = abspath(f'../../{package}')
-    package_json_location = Path(package_location).parent / "metadata" / 'package.json'
+    package_json_location = Path(package_location).parent / 'package.json'
     logging.debug(f"Loading package.json from '{package_json_location}'")
     with open(package_json_location) as f:
         package_json = json.load(f)

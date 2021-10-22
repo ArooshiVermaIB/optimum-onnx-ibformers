@@ -199,7 +199,7 @@ class DocProBuilderConfig(BuilderConfig):
             if suffix:
                 m.update(suffix)
 
-            dataset_list = load_datasets(self.data_files["train"], self.ibsdk)
+            dataset_list = self.data_files["train"]
             # build fingerprint based on chosen metadata items, changing any of below fields would cause dataset to be rebuild
             fingerprint_content = sorted(
                 [
@@ -209,7 +209,6 @@ class DocProBuilderConfig(BuilderConfig):
                     if k in ("id", "last_edited", "last_editor")
                 ]
             )
-            m.update(self.data_files["train"])
             m.update(fingerprint_content)
             suffix = m.hexdigest()
 
@@ -259,28 +258,6 @@ def get_docpro_ds_split(anno: Optional[Dict]):
         return "train"
 
 
-def load_datasets(dataset_paths, ibsdk):
-    assert isinstance(dataset_paths, list)
-
-    file_client = ibsdk.file_client
-    username = ibsdk.username
-    try:
-        # load from doc pro
-        if file_client is None:
-            datasets_list = [LocalDatasetSDK(dataset_path) for dataset_path in dataset_paths]
-        else:
-            datasets_list = [
-                RemoteDatasetSDK(dataset_path, file_client, username)
-                for dataset_path in dataset_paths
-            ]
-
-    except Exception as e:
-        logging.error(traceback.format_exc())
-        raise RuntimeError(f"Error while compiling the datasets: {e}") from e
-
-    return datasets_list
-
-
 class DocProDs(datasets.GeneratorBasedBuilder):
     """
     Instabase internal dataset format, creation of dataset can be done by list of datasets
@@ -319,8 +296,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         assert len(data_files) == 1, "Only one annotation path should be provided"
         assert isinstance(data_files, dict), "data_files argument should be a dict for this dataset"
         if "train" in data_files:
-            dataset_paths = data_files["train"]
-            datasets_list = load_datasets(dataset_paths, self.config.ibsdk)
+            datasets_list = data_files["train"]
             dataset_classes = datasets_list[0].metadata['classes_spec']['classes']
             class_id = self.get_class_id(dataset_classes)
             schema = dataset_classes[class_id]['schema']
@@ -518,8 +494,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         """We handle string, list and dicts in datafiles"""
         data_files = self.config.data_files
         if "train" in data_files:
-            dataset_paths = data_files["train"]
-            datasets_list = load_datasets(dataset_paths, self.config.ibsdk)
+            datasets_list = data_files["train"]
             annotation_items = self._get_annotation_generator(datasets_list)
 
             # self.ann_label_id2label = {lab["id"]: lab["name"] for lab in annotations["labels"]}

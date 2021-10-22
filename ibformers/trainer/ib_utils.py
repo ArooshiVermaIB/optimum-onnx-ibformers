@@ -3,21 +3,19 @@ import logging
 import os
 import tempfile
 import uuid
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Any, Iterable, Tuple, List
+from typing import Dict, Optional, Any, Iterable, Tuple
 from typing_extensions import TypedDict
 import boto3
 import shutil
 
-from transformers import TrainerCallback
+from transformers import TrainerCallback, HfArgumentParser, TrainingArguments
+
+from ibformers.trainer.train import run_train
+from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments
 from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase
-
-
-HF_TOKEN = "api_AYGJoxZMBtWlYODoAQgLKAuNVRXaGfQtjX"
-
 
 logger = logging.getLogger(__name__)
 
@@ -50,24 +48,6 @@ class InstabaseSDK:
         if error:
             raise IOError(error)
         return result
-
-
-class InstabaseSDKDummy:
-    def __init__(self, file_client: Any, username: str):
-        # these will be ignored
-        self.file_client = file_client
-        self.username = username
-
-    def ibopen(self, path: str, mode: str = "r") -> Any:
-        return open(path, mode)
-
-    def read_file(self, file_path: str) -> str:
-        with open(file_path) as f:
-            return f.read()
-
-    def write_file(self, file_path: str, content: str):
-        with open(file_path, "w") as f:
-            f.write(content)
 
 
 class IbCallback(TrainerCallback):
@@ -202,50 +182,6 @@ class IbCallback(TrainerCallback):
 
         # This is a hacky way to let the frontend know that there are new preds available
         self.set_status({'predictions_uuid': uuid.uuid4().hex})
-
-
-@dataclass
-class IbArguments:
-    """
-    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-    """
-
-    username: Optional[str] = field(
-        default=None, metadata={"help": "Username of person who is running the model training"}
-    )
-    file_client: Optional[Any] = field(
-        default=None, metadata={"help": "File client object which support different file systems"}
-    )
-    job_metadata_client: Optional['JobMetadataClient'] = field(
-        default=None,
-        metadata={
-            "help": "Job metadata client. Used for collecting information of training progress"
-        },
-    )
-    mount_details: Optional[Dict] = field(
-        default=None,
-        metadata={"help": "Store information about S3 details"},
-    )
-    model_name: Optional[str] = field(
-        default="CustomModel",
-        metadata={
-            "help": "The model name which will be appear in the model management dashboard ??"
-        },
-    )
-    ib_save_path: Optional[str] = field(
-        default=None,
-        metadata={"help": "Where do you want to save ib_package on the IB space"},
-    )
-    upload: Optional[bool] = field(
-        default=None, metadata={"help": "Whether to upload model files to ib_save_path"}
-    )
-
-
-def generate_randomness() -> str:
-    """
-    Get random five ascii letters
-    """
-    return ''.join(random.choice(string.ascii_letters) for _ in range(5))
 
 
 class MountDetails(TypedDict):
@@ -433,21 +369,25 @@ def prepare_ib_params(
     return out_dict
 
 
-def prepare_docpro_params(
+def run_train_annotator(
     hyperparams: Dict,
-    dataset_paths: List[str],
+    dataset_filename: str,
     save_path: str,
-    extraction_class_name: str,
     file_client: Any,
-    username: str,
-    job_metadata_client: Any,
-    mount_details: Optional[MountDetails] = None,
-    model_name: str = 'CustomModel',
+    username: Optional[str] = 'user',
+    job_metadata_client: Optional["JobMetadataClient"] = None,
+    mount_details: Optional[Dict] = None,
+    model_name: Optional[str] = "CustomModel",
+    **kwargs: Any,
 ):
+    assert hyperparams is not None
+    parser = HfArgumentParser(
+        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
+    )
 
-    out_dict = prepare_ib_params(
+    hparams_dict = prepare_ib_params(
         hyperparams,
-        None,
+        dataset_filename,
         save_path,
         file_client,
         username,
@@ -455,10 +395,28 @@ def prepare_docpro_params(
         mount_details,
         model_name,
     )
+    model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
 
-    out_dict["dataset_name_or_path"] = "docpro_ds"
-    out_dict["dataset_config_name"] = "docpro_ds"
-    out_dict["train_file"] = dataset_paths
-    out_dict["extraction_class_name"] = extraction_class_name
+    if isinstance(ib_args.file_client, InstabaseSDKDummy):
+        ibsdk = ib_args.file_client
+    else:
+        ibsdk = InstabaseSDK(ib_args.file_client, ib_args.username)
 
-    return out_dict
+    callback = IbCallback(
+        job_metadata_client=ib_args.job_metadata_client,
+        ibsdk=ibsdk,
+        username=ib_args.username,
+        mount_details=ib_args.mount_details,
+        model_name=ib_args.model_name,
+        ib_save_path=ib_args.ib_save_path,
+        upload=ib_args.upload,
+    )
+
+    run_train(
+        model_args,
+        data_args,
+        training_args,
+        ib_args,
+        extra_callbacks=[callback],
+        extra_load_kwargs={"ibsdk": ibsdk},
+    )

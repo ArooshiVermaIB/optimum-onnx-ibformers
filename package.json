@@ -14,7 +14,8 @@
     "sources": [
       "ibformers"
     ],
-    "function": "ibformers.trainer.train.run_train",
+    "function": "ibformers.trainer.docpro_utils.run_train_doc_pro",
+    "function_annotator": "ibformers.trainer.ib_utils.run_train_annotator",
     "base_models": [
       {
         "name": "layout-base-2",

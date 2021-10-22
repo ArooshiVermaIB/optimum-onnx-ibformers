@@ -18,23 +18,17 @@ Fine-tuning the library models for token classification.
 """
 # You can also adapt this script on your own token classification task and datasets. Pointers for this are left as
 # comments.
-import json
 import logging
 import os
 import sys
-import tempfile
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 import datasets
-import numpy as np
-from datasets import ClassLabel, load_dataset, concatenate_datasets
+from datasets import ClassLabel, load_dataset
 
 import transformers
 from transformers import (
     AutoConfig,
-    AutoModelForTokenClassification,
     AutoTokenizer,
     HfArgumentParser,
     PreTrainedTokenizerFast,
@@ -44,24 +38,18 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
 
-from instabase.model_training_tasks.jobs import JobMetadataClient
-
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.10.0.dev0")
-from ibformers.trainer.ib_utils import (
-    IbCallback,
-    IbArguments,
-    InstabaseSDK,
-    prepare_ib_params,
+from ibformers.trainer.train_utils import (
+    split_train_with_column,
+    ModelArguments,
+    DataAndPipelineArguments,
     HF_TOKEN,
-    InstabaseSDKDummy,
-    MountDetails,
-    prepare_docpro_params,
+    IbArguments,
 )
-from ibformers.trainer.train_utils import split_train_with_column
 from ibformers.trainer.trainer import IbTrainer
 
 require_version(
@@ -70,274 +58,6 @@ require_version(
 )
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ModelArguments:
-    """
-    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-    """
-
-    model_name_or_path: str = field(
-        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
-    )
-    config_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "Pretrained config name or path if not the same as model_name"},
-    )
-    tokenizer_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"},
-    )
-    cache_dir: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Where do you want to store the pretrained models downloaded from huggingface.co"
-        },
-    )
-    model_revision: str = field(
-        default="main",
-        metadata={
-            "help": "The specific model version to use (can be a branch name, tag name or commit id)."
-        },
-    )
-    use_auth_token: bool = field(
-        default=False,
-        metadata={
-            "help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
-            "with private models)."
-        },
-    )
-
-
-@dataclass
-class DataAndPipelineArguments:
-    """
-    Arguments pertaining to what data we are going to input our model for training and eval.
-    """
-
-    task_name: Optional[str] = field(
-        default="ner", metadata={"help": "The name of the task (ner, pos...)."}
-    )
-    dataset_name_or_path: Optional[str] = field(
-        default=None,
-        metadata={"help": "The name of the dataset to use (via the datasets library)."},
-    )
-    dataset_config_name: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "The configuration name of the dataset to use (via the datasets library)."
-        },
-    )
-    train_file: Optional[str] = field(
-        default=None, metadata={"help": "The input training data file (a csv or JSON file)."}
-    )
-    validation_file: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."
-        },
-    )
-    test_file: Optional[str] = field(
-        default=None,
-        metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
-    )
-    overwrite_cache: bool = field(
-        default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
-    )
-    preprocessing_num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "The number of processes to use for the preprocessing."},
-    )
-    max_length: int = field(
-        default=None,
-        metadata={
-            "help": "The maximum total input sequence length after tokenization. If set, sequences longer "
-            "than this will be truncated, sequences shorter will be padded."
-        },
-    )
-    chunk_overlap: int = field(
-        default=None,
-        metadata={"help": "Overlap needed for producing multiple chunks"},
-    )
-    pad_to_max_length: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to pad all samples to model maximum sentence length. "
-            "If False, will pad the samples dynamically when batching to the maximum length in the batch. More "
-            "efficient on GPU but very bad for TPU."
-        },
-    )
-    max_train_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of training examples to this "
-            "value if set."
-        },
-    )
-    max_eval_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
-            "value if set."
-        },
-    )
-    max_predict_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of prediction examples to this "
-            "value if set."
-        },
-    )
-    return_entity_level_metrics: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to return all the entity levels during evaluation or just the overall ones."
-        },
-    )
-    pipeline_name: str = field(
-        default=None,
-        metadata={
-            "help": "pipeline which is defining a training process. "
-            "Default is None which is trying to infer it from model name"
-        },
-    )
-    extraction_class_name: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Extraction class used to filter records from dataset. "
-            "Only one can be used to train extraction model"
-        },
-    )
-
-    def __post_init__(self):
-        if (
-            self.dataset_name_or_path is None
-            and self.train_file is None
-            and self.validation_file is None
-        ):
-            raise ValueError("Need either a dataset name or a training/validation file.")
-
-    def save(self, save_path, filename="pipeline.json"):
-        save_dict = asdict(self)
-        with open(os.path.join(save_path, filename), "w", encoding="utf-8") as writer:
-            json.dump(save_dict, writer, indent=2, sort_keys=True)
-
-
-def run_train_doc_pro(
-    hyperparams: Dict,
-    dataset_paths: List[str],
-    save_path: str,
-    extraction_class_name: str,
-    file_client: Any,
-    username: str,
-    job_metadata_client: Any,
-    mount_details: Optional[MountDetails] = None,
-    model_name: str = 'CustomModel',
-    **kwargs: Any,
-):
-    logging.info('Starting Doc Pro Extraction Model Training ----------')
-    logging.info('Arguments to this training session:')
-    logging.info(f'Hyperparameters: {hyperparams}')
-    logging.info(f'Dataset Paths: {dataset_paths}')
-    logging.info(f'Model Name: {model_name}')
-    logging.info(f'Save Path: {save_path}')
-    logging.info(f'Extraction Class Name: {extraction_class_name}')
-
-    assert hyperparams is not None
-    parser = HfArgumentParser(
-        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
-    )
-
-    hparams_dict = prepare_docpro_params(
-        hyperparams,
-        dataset_paths,
-        save_path,
-        extraction_class_name,
-        file_client,
-        username,
-        job_metadata_client,
-        mount_details,
-        model_name,
-    )
-    model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
-
-    if isinstance(ib_args.file_client, InstabaseSDKDummy):
-        ibsdk = ib_args.file_client
-    else:
-        ibsdk = InstabaseSDK(ib_args.file_client, ib_args.username)
-
-    callback = IbCallback(
-        job_metadata_client=ib_args.job_metadata_client,
-        ibsdk=ibsdk,
-        username=ib_args.username,
-        mount_details=ib_args.mount_details,
-        model_name=ib_args.model_name,
-        ib_save_path=ib_args.ib_save_path,
-        upload=ib_args.upload,
-    )
-
-    run_train(
-        model_args,
-        data_args,
-        training_args,
-        ib_args,
-        extra_callbacks=[callback],
-        extra_load_kwargs={"ibsdk": ibsdk, "extraction_class_name": extraction_class_name},
-    )
-
-
-def run_train_annotator(
-    hyperparams: Dict,
-    dataset_filename: str,
-    save_path: str,
-    file_client: Any,
-    username: Optional[str] = 'user',
-    job_metadata_client: Optional["JobMetadataClient"] = None,
-    mount_details: Optional[Dict] = None,
-    model_name: Optional[str] = "CustomModel",
-    **kwargs: Any,
-):
-    assert hyperparams is not None
-    parser = HfArgumentParser(
-        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
-    )
-
-    hparams_dict = prepare_ib_params(
-        hyperparams,
-        dataset_filename,
-        save_path,
-        file_client,
-        username,
-        job_metadata_client,
-        mount_details,
-        model_name,
-    )
-    model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
-
-    if isinstance(ib_args.file_client, InstabaseSDKDummy):
-        ibsdk = ib_args.file_client
-    else:
-        ibsdk = InstabaseSDK(ib_args.file_client, ib_args.username)
-
-    callback = IbCallback(
-        job_metadata_client=ib_args.job_metadata_client,
-        ibsdk=ibsdk,
-        username=ib_args.username,
-        mount_details=ib_args.mount_details,
-        model_name=ib_args.model_name,
-        ib_save_path=ib_args.ib_save_path,
-        upload=ib_args.upload,
-    )
-
-    run_train(
-        model_args,
-        data_args,
-        training_args,
-        ib_args,
-        extra_callbacks=[callback],
-        extra_load_kwargs={"ibsdk": ibsdk},
-    )
 
 
 def run_cmdline_train():

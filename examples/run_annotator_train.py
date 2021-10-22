@@ -1,8 +1,7 @@
 import os
 from typing import Optional, Dict, Any
 
-from ibformers.trainer.ib_utils import InstabaseSDKDummy
-from ibformers.trainer.train import run_train_annotator
+from ibformers.trainer.ib_utils import run_train_annotator
 from instabase.model_training_tasks.jobs import JobMetadataClient
 
 
@@ -10,13 +9,31 @@ from instabase.model_training_tasks.jobs import JobMetadataClient
 # this code is not reached via model service as it is directly calling run_train fn
 class DummyJobStatus:
     def __init__(self):
-        pass
+        self.job_id = 1
 
     def update_message(self, message: Optional[str]) -> None:
         pass
 
     def update_metadata(self, metadata: Optional[Dict[str, Any]]) -> None:
         pass
+
+
+class InstabaseSDKDummy:
+    def __init__(self, file_client: Any, username: str):
+        # these will be ignored
+        self.file_client = file_client
+        self.username = username
+
+    def ibopen(self, path: str, mode: str = "r") -> Any:
+        return open(path, mode)
+
+    def read_file(self, file_path: str) -> str:
+        with open(file_path) as f:
+            return f.read()
+
+    def write_file(self, file_path: str, content: str):
+        with open(file_path, "w") as f:
+            f.write(content)
 
 
 if __name__ == "__main__":
