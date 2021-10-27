@@ -227,3 +227,9 @@ class IbArguments:
     upload: Optional[bool] = field(
         default=None, metadata={"help": "Whether to upload model files to ib_save_path"}
     )
+    final_model_dir: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Where do you want to save final model, it can be different location than checkpoint files"
+        },
+    )

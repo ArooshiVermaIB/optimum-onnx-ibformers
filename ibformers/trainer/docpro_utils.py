@@ -12,7 +12,6 @@ from transformers import HfArgumentParser, TrainingArguments, TrainerCallback
 from ibformers.trainer.ib_utils import (
     MountDetails,
     prepare_ib_params,
-    IbCallback,
     InstabaseSDK,
     _abspath,
     upload_dir,
@@ -41,6 +40,7 @@ def prepare_docpro_params(
     hyperparams: Dict,
     dataset_list: List,
     save_path: str,
+    final_model_dir: str,
     extraction_class_name: str,
     file_client: Any,
     username: str,
@@ -64,6 +64,7 @@ def prepare_docpro_params(
     out_dict["dataset_config_name"] = "docpro_ds"
     out_dict["train_file"] = dataset_list
     out_dict["extraction_class_name"] = extraction_class_name
+    out_dict["final_model_dir"] = final_model_dir
 
     return out_dict
 
@@ -96,6 +97,7 @@ class DocProCallback(TrainerCallback):
     it pass status of training to job_metadata_client and save required files to the IB location via ibsdk
     """
 
+    # list of directories which will not be copied into the package
     ibformers_do_not_copy = []
 
     def __init__(
@@ -130,63 +132,30 @@ class DocProCallback(TrainerCallback):
         self.save_model_dir = os.path.join(
             artifacts_context.artifact_path, f'src/py/{model_name}/model_data'
         )
+        self.id_to_dataset = {dataset.metadata['id']: dataset for dataset in dataset_list}
 
-    def save_on_ib_storage(self, obj, filename):
-        pass
-
-    def build_local_package_directory(self, output_dir):
-
-        package_name = self.model_name
-        model_name = self.model_name
-        model_class_name = self.model_name
-
-        out_dir = Path(output_dir)
-        # get ib_package location
-        template_dir_path = _abspath('ib_package/ModelServiceTemplate')
-        ibformers_path = Path(_abspath('')).parent
-        dir_to_be_copied = out_dir / 'package'
-        save_model_dir = dir_to_be_copied / 'saved_model'
-        shutil.copytree(template_dir_path, save_model_dir)
-        package_dir = save_model_dir / 'src' / 'py' / package_name
-        shutil.move(str(package_dir.parent / 'package_name'), str(package_dir))
-        prepare_package_json(
-            save_model_dir / "package.json",
-            model_name=model_name,
-            model_class_name=model_class_name,
-            package_name=package_name,
-        )
-
+    def copy_library_src_to_package(self):
         # copy ibformers lib into the package
-        # TODO will this have an issue without mkdir?
+
+        ibformers_path = Path(_abspath('')).parent
+        assert (
+            ibformers_path.name == 'ibformers'
+        ), f'ibformers_path is wrong. Path: {ibformers_path}'
+        # TODO(rafal): once ibformers is converted to relative imports copy ibformers into py/package_name/ibformers dir
+        # py directory location
+        py_directory = Path(self.artifacts_context.artifact_path) / 'src' / 'py'
         shutil.copytree(
             ibformers_path,
-            package_dir.parent / 'ibformers' / 'ibformers',
+            py_directory / 'ibformers',
             ignore=lambda x, y: self.ibformers_do_not_copy,
         )
 
-        # copy model files
-        model_src_path = out_dir / 'model'
-        assert model_src_path.is_dir(), 'Missing model files in output directory'
-        model_dest_path = package_dir / 'model_data'
-        if self.upload:
-            for fl_path in model_src_path.iterdir():
-                shutil.move(str(fl_path), str(model_dest_path))
-
-        # save evaluation results
-        if self.evaluation_results is not None:
-            eval_path = dir_to_be_copied / 'evaluation.json'
-            with open(eval_path, 'w') as f:
-                json.dump(self.evaluation_results, f)
-
-        # save prediction results
-        if self.prediction_results is not None:
-            pred_path = dir_to_be_copied / 'predictions.json'
-            with open(pred_path, 'w') as f:
-                json.dump(self.prediction_results, f)
-
-        return dir_to_be_copied
-
     def move_data_to_ib(self, output_dir):
+        self.copy_library_src_to_package()
+
+        logging.info("Final state of the Model Artifact folder structure:")
+        _print_dir(self.save_folder)
+
         logging.info("Uploading")
         self.job_metadata_client.update_message('UPLOADING MODEL')
         upload_dir(
@@ -305,7 +274,6 @@ class DocProCallback(TrainerCallback):
                         tag_type='INFO',
                     )
                 )
-
         except Exception as e:
             logging.error(traceback.format_exc())
 
@@ -319,19 +287,17 @@ class DocProCallback(TrainerCallback):
         # Set the overall accuracy of the model
         self.set_status({'accuracy': overall_accuracy})
 
-    def write_predictions(self, predictions):
+    def write_predictions(self, predictions_dict):
         # Now write the predictions
         prediction_writer = self.prediction_writer
 
         logging.info("Writing prediction results to IB")
-        predictions_dict = json.loads(predictions)
         try:
-
-            for record_name in predictions_dict:
+            for record_name, record_value in predictions_dict.items():
                 # TODO(VONTELL) - rn we are using the field name directly.
                 # Using the vars below, we could get the actual ids...
                 dataset_id = record_name[:36]
-                dataset = id_to_dataset[dataset_id]
+                dataset = self.id_to_dataset[dataset_id]
                 # This is because the first 37 chars [0]-[36] are reserved for the UUID (36), and a dash (-)
                 ibdoc_filename = record_name[37 : record_name.index('.ibdoc') + len('.ibdoc')]
                 # This grabs the record index at the end of the file name
@@ -343,19 +309,20 @@ class DocProCallback(TrainerCallback):
                 # Currently, our models only outputs a single entity
                 # Predictions, however, can support multiple
                 fields = []
-                for field_name in predictions_dict[record_name]:
-                    field = predictions_dict[record_name][field_name]
+                is_test_file = record_value['is_test_file']
+                record_entities = record_value['entities']
+                for field_name, field_value in record_entities.items():
                     indexed_words = [
                         IndexedWordDict(line_index=w['line_index'], word_index=w['word_index'])
-                        for w in field['words']
+                        for w in field_value['words']
                     ]
                     fields.append(
                         PredictionFieldDict(
                             field_name=field_name,
                             annotations=[
                                 PredictionInstanceDict(
-                                    avg_confidence=field['avg_confidence'],
-                                    value=field['text'],
+                                    avg_confidence=field_value['avg_confidence'],
+                                    value=field_value['text'],
                                     words=indexed_words,
                                 )
                             ],
@@ -368,57 +335,45 @@ class DocProCallback(TrainerCallback):
                     PredictionResultDict(
                         annotated_class_name=self.extraction_class_name, fields=fields
                     ),
-                    record_name_to_test_file[record_name],
+                    is_test_file,
                 )
         except Exception as e:
             logging.error(traceback.format_exc())
-
         try:
             logging.info("Writing predictions for this training run...")
             prediction_writer.write()
         except Exception as e:
             logging.error("Could not write prediction")
             logging.error(traceback.format_exc())
-
         self.set_status({'predictions_uuid': uuid.uuid4().hex})
 
-    def generate_refiner(self):
-        # --- START REFINER GENERATION CODE -------
-
+    def generate_refiner(self, label_names):
         logging.info("Generating the Refiner module for this model...")
 
         try:
-            # We can get all the tags from the models `all_tags.json` file
-            # TODO: Use the model config to get these labels
-            with open(os.path.join(save_model_dir, 'all_tags.json'), 'r') as f:
-                labels = json.loads(f.read())
-                labels.remove("O")
-            ib_model_path = os.path.join(save_path, 'artifact')
-            dev_path = os.path.join(datasets[0].dataset_path, datasets[0].metadata['docs_path'])
+            ib_model_path = os.path.join(self.ib_save_path, 'artifact')
+            dev_path = os.path.join(
+                self.dataset_list[0].dataset_path, self.dataset_list[0].metadata['docs_path']
+            )
             write_refiner_program(
-                self.artifacts_context, ib_model_path, labels, model_name, dev_path
+                self.artifacts_context, ib_model_path, label_names, self.model_name, dev_path
             )
             logging.info("Finished generating the Refiner module")
         except Exception as e:
             logging.error(traceback.format_exc())
             logging.error(f"Skipped Refiner module generation due to an error: {e}")
 
-        # --- END REFINER GENERATION CODE ---------
-
     def on_predict(self, args, state, control, **kwargs):
+        # called after the training finish
         predictions = kwargs["metrics"]['predict_predictions']
+        # FINALIZE STEPS
         self.write_metrics()
         self.write_predictions(predictions)
 
-        self.generate_refiner()
-
-        logging.info("Final state of the Model Artifact folder structure:")
-        _print_dir(self.save_folder)
-        # self.prediction_results = predictions
-        # as prediction is the last step of the training - use this event to save the predictions to ib
+        label_names_ = {k: None for _, doc in predictions.items() for k, v in doc.items()}
+        label_names = list(label_names_.keys())
+        self.generate_refiner(label_names)
         self.move_data_to_ib(args.output_dir)
-
-        # This is a hacky way to let the frontend know that there are new preds available
 
 
 def _print_dir(path):
@@ -454,7 +409,10 @@ def run_train_doc_pro(
 
     # Generate local folder to save in
     logging.info("Creating Model Service Model template...")
-    template_path = _abspath('res/ModelServiceTemplate')
+    template_path = _abspath('ib_package/ModelServiceTemplate')
+    if not Path(template_path).is_dir():
+        logging.error(f"Directory with template files ({template_path}) does not exist")
+
     context = ModelArtifactTemplateGenerator(
         file_client,
         username,
@@ -478,6 +436,7 @@ def run_train_doc_pro(
     )
 
     if hasattr(file_client, "file_client") and file_client.file_client is None:
+        # support for InstabaseSDKDummy - debugging only
         ibsdk = file_client
     else:
         ibsdk = InstabaseSDK(file_client, username)
@@ -488,6 +447,7 @@ def run_train_doc_pro(
         hyperparams,
         dataset_list,
         save_path,
+        save_model_dir,
         extraction_class_name,
         file_client,
         username,

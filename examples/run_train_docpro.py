@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from ibformers.trainer.docpro_utils import run_train_doc_pro
@@ -9,7 +10,7 @@ from instabase.model_training_tasks.jobs import JobMetadataClient
 # this code is not reached via model service as it is directly calling run_train fn
 class DummyJobStatus:
     def __init__(self):
-        self.job_id = 1
+        self.job_id = "999"
 
     def update_message(self, message: Optional[str]) -> None:
         pass
@@ -28,11 +29,13 @@ class InstabaseSDKDummy:
         return open(path, mode)
 
     def read_file(self, file_path: str) -> str:
-        with open(file_path) as f:
+        with open(file_path, 'r') as f:
             return f.read()
 
     def write_file(self, file_path: str, content: str):
-        with open(file_path, "w") as f:
+        # mkdir
+        Path(file_path).parent.mkdir(exist_ok=True, parents=True)
+        with open(file_path, "wb") as f:
             f.write(content)
 
 

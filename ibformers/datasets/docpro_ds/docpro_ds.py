@@ -230,7 +230,7 @@ class DocProBuilderConfig(BuilderConfig):
 
 class DocProConfig(DocProBuilderConfig):
     """
-    Config for Instabase Format Datasets
+    Config for Instabase Datasets which contain additional attributes related to Doc Pro dataset
     """
 
     def __init__(
@@ -248,14 +248,18 @@ class DocProConfig(DocProBuilderConfig):
 
 
 def get_docpro_ds_split(anno: Optional[Dict]):
+    """
+    :param anno: annotation dictionary
+    :return: Tuple of boolean indictating whether file is marked as test file and split information
+    """
     if anno is None:
-        return "test"
+        return False, "test"
     elif anno['is_test_file']:
         # instabase doesn't support yet separation of val and test sets.
         # TODO: we need to change that to have separate labeled sets for val and test
-        return "val+test"
+        return True, "val+test"
     else:
-        return "train"
+        return False, "train"
 
 
 class DocProDs(datasets.GeneratorBasedBuilder):
@@ -310,6 +314,8 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         ds_features = {
             "id": datasets.Value("string"),
             "split": datasets.Value("string"),
+            # to distiguish test files marked in the doc pro app from all files for which predictions are needed
+            "is_test_file": datasets.Value("bool"),
             # TODO: remove this column once Dataset SDK will allow for test files iterators
             "words": datasets.Sequence(datasets.Value("string")),
             "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
@@ -399,7 +405,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         logging.info(full_path)
         logging.info(record_index)
 
-        split = get_docpro_ds_split(anno)
+        is_test_file, split = get_docpro_ds_split(anno)
         if anno is None:
             anno = {}
         anno_fields = anno.get('fields', [])
@@ -470,6 +476,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         features = {
             "id": doc_id,
             "split": split,
+            "is_test_file": is_test_file,
             "words": word_lst,
             "bboxes": norm_bboxes,
             "word_original_bboxes": bbox_arr,
@@ -499,7 +506,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
             # self.ann_label_id2label = {lab["id"]: lab["name"] for lab in annotations["labels"]}
 
-            # Get only Train split for now
+            # Get only Train split
             # Dataset will be enriched with additional split column which will be used later to split this dataset into
             # train/val/test
             # We do it this way because current Dataset SDK require us to download the whole record

@@ -292,9 +292,13 @@ def run_train(
             checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
-        model_save_path = os.path.join(training_args.output_dir, "model")
-        trainer.save_model(model_save_path)  # Saves the tokenizer too for easy upload
-        data_args.save(model_save_path)  # Saves the pipeline & data arguments
+        final_model_dir = (
+            ib_args.final_model_dir
+            if ib_args.final_model_dir is not None
+            else training_args.output_dir
+        )
+        trainer.save_model(final_model_dir)  # Saves the tokenizer too for easy upload
+        data_args.save(final_model_dir)  # Saves the pipeline & data arguments
         max_train_samples = (
             data_args.max_train_samples
             if data_args.max_train_samples is not None
@@ -326,8 +330,7 @@ def run_train(
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict")
-
+        _ = trainer.predict(predict_dataset, metric_key_prefix="predict")
         # Callback is saving predictions, therefore below code is not needed
 
         # predictions = np.argmax(predictions, axis=2)

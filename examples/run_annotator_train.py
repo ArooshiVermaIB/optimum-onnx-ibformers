@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from ibformers.trainer.ib_utils import run_train_annotator
@@ -28,11 +29,13 @@ class InstabaseSDKDummy:
         return open(path, mode)
 
     def read_file(self, file_path: str) -> str:
-        with open(file_path) as f:
+        with open(file_path, 'r') as f:
             return f.read()
 
     def write_file(self, file_path: str, content: str):
-        with open(file_path, "w") as f:
+        # mkdir
+        Path(file_path).parent.mkdir(exist_ok=True, parents=True)
+        with open(file_path, "wb") as f:
             f.write(content)
 
 

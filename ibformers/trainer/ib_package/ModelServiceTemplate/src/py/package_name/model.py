@@ -3,6 +3,8 @@ import os
 import sys
 
 # TODO: remove once packages paths defined in package.json will be added to PYTHONPATH
+from ibformers.trainer.ib_utils import InstabaseSDK
+
 pth, _ = os.path.split(__file__)
 if pth not in sys.path:
     sys.path.append(pth)
@@ -18,6 +20,7 @@ from instabase.model_service.input_utils import resolve_parsed_ibocr_from_reques
 from instabase.model_service.model_cache import Model
 from instabase.ocr.client.libs.algorithms import WordPolyInputColMapper
 from instabase.protos.model_service import model_service_pb2
+from instabase.model_service.file_utils import get_file_client
 from transformers import AutoTokenizer, PreTrainedTokenizerFast, PreTrainedModel, TrainingArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
@@ -39,8 +42,16 @@ class IbModel(Model):
         self.device: Optional[str] = None
         self.pipeline_config = self.load_pipeline_config(self.model_data_path)
         self.pipeline = PIPELINES[self.pipeline_config["pipeline_name"]]
+        # add file client in case we would need to donwload images from instabase file system
+        self.ibsdk = self.get_ibsdk()
 
-    def load_pipeline_config(self, path):
+    @staticmethod
+    def get_ibsdk():
+        file_client = get_file_client()
+        return InstabaseSDK(file_client=file_client, username="")
+
+    @staticmethod
+    def load_pipeline_config(path):
         with open(os.path.join(path, "pipeline.json"), "r") as f:
             config = json.load(f)
         return config
@@ -97,7 +108,6 @@ class IbModel(Model):
             self.tokenizer is not None and self.model is not None
         ), "Trying to run a model that has not yet been loaded"
         parsed_ibocr = resolve_parsed_ibocr_from_request(request)
-
         mapper, word_polys = self.prepare_mapper_and_word_pollys(parsed_ibocr)
 
         # pass single document and create in memory dataset
@@ -106,6 +116,8 @@ class IbModel(Model):
             str(ds_path) if ds_path.is_dir() else self.pipeline_config["dataset_name_or_path"]
         )
         load_kwargs = self.pipeline["dataset_load_kwargs"]
+        load_kwargs['ibsdk'] = self.ibsdk
+
         if hasattr(self.model.config, "id2label"):
             load_kwargs["id2label"] = self.model.config.id2label
 
