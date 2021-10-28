@@ -13,8 +13,6 @@ config.mqa_size = size
 config.pad_mqa_id = 1
 
 tokenizer = LayoutLMTokenizer.from_pretrained('microsoft/layoutlm-base-uncased')
-tokenizer.mqa_size = size
-tokenizer.pad_mqa_id = 1
 class_model = LayMQAForTokenClassification.from_pretrained('microsoft/layoutlm-base-uncased', config=config)
 
 save_path = Path('/home/ib/models/layoutv1-base-ttmqa')

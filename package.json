@@ -66,6 +66,7 @@
           "learning_rate": 5e-05,
           "warmup": 0.0,
           "weight_decay": 0,
+          "pipeline_name": "plain_sl",
           "model_name": "bert-base-uncased"
         }
       }
