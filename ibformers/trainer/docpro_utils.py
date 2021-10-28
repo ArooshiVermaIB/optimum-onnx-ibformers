@@ -19,7 +19,7 @@ from ibformers.trainer.ib_utils import (
 from ibformers.trainer.refiner_module_generator import write_refiner_program
 from ibformers.trainer.train import run_train
 from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments
-from instabase.dataset_utils.sdk import LocalDatasetSDK, RemoteDatasetSDK
+from instabase.dataset_utils.sdk import LocalDatasetSDK, RemoteDatasetSDK, DatasetSDK
 from instabase.dataset_utils.shared_types import (
     PredictionResultDict,
     PredictionInstanceDict,
@@ -48,6 +48,20 @@ def prepare_docpro_params(
     mount_details: Optional[MountDetails] = None,
     model_name: str = 'CustomModel',
 ):
+    """
+    Handles defaults for doc-pro and set up special parameters
+    :param hyperparams: dictionary of hyperparams passed from the frontend
+    :param dataset_list: list of paths, can be either local or remote
+    :param save_path: ib location of the training job output
+    :param final_model_dir: where to save model files on the local fs
+    :param extraction_class_name: name of the extracted class
+    :param file_client: file_client used to open remote files
+    :param username: username who run the training job
+    :param job_metadata_client: client used by callback to log progress/status of the training
+    :param mount_details: optional details of s3 mount
+    :param model_name: name of the model used in front end
+    :return:
+    """
 
     out_dict = prepare_ib_params(
         hyperparams,
@@ -93,8 +107,7 @@ def load_datasets(dataset_paths, ibsdk):
 
 class DocProCallback(TrainerCallback):
     """
-    A :class:`~transformers.TrainerCallback` that displays the progress of training or evaluation.
-    it pass status of training to job_metadata_client and save required files to the IB location via ibsdk
+    Handles events specific to doc pro
     """
 
     # list of directories which will not be copied into the package
@@ -102,7 +115,7 @@ class DocProCallback(TrainerCallback):
 
     def __init__(
         self,
-        dataset_list: List,
+        dataset_list: List[DatasetSDK],
         artifacts_context: ModelArtifactContext,
         extraction_class_name: str,
         job_metadata_client: "JobMetadataClient",
@@ -111,12 +124,22 @@ class DocProCallback(TrainerCallback):
         mount_details: Dict,
         model_name: str,
         ib_save_path: str,
-        upload: bool,
     ):
+        """
+        :param dataset_list: List of dataset sdk objects
+        :param artifacts_context: ModelArtifactContext which handles creation of model artifacts
+        :param extraction_class_name: name of the extracted class
+        :param job_metadata_client: client used by callback to log progress/status of the training
+        :param ibsdk: sdk used to transfer files to IB fs
+        :param username: username of user who run the training job
+        :param mount_details: optional details of s3 mount
+        :param model_name: name of the model used in front end
+        :param ib_save_path: ib location of the training job output
+
+        """
         self.extraction_class_name = extraction_class_name
         self.dataset_list = dataset_list
         self.artifacts_context = artifacts_context
-        self.upload = upload
         self.ib_save_path = ib_save_path
         self.model_name = model_name
         self.mount_details = mount_details
@@ -401,6 +424,21 @@ def run_train_doc_pro(
     model_name: str = 'CustomModel',
     **kwargs: Any,
 ):
+    """
+    Endpoint used to run doc pro jobs.
+
+    :param hyperparams: dictionary of hyperparams passed from the frontend
+    :param dataset_paths: list of paths, can be either local or remote
+    :param save_path: ib location of the training job output
+    :param extraction_class_name: name of the extracted class
+    :param file_client: file_client used to open remote files
+    :param username: username of user who runs the training job
+    :param job_metadata_client: client used by callback to log progress/status of the training
+    :param mount_details: optional details of s3 mount
+    :param model_name: name of the model used in front end
+    :param kwargs:
+    :return:
+    """
     logging.info('Starting Doc Pro Extraction Model Training ----------')
     logging.info('Arguments to this training session:')
     logging.info(f'Hyperparameters: {hyperparams}')
@@ -470,7 +508,6 @@ def run_train_doc_pro(
         mount_details=ib_args.mount_details,
         model_name=ib_args.model_name,
         ib_save_path=ib_args.ib_save_path,
-        upload=ib_args.upload,
     )
 
     run_train(

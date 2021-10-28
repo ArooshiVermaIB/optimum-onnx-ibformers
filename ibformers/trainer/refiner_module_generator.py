@@ -1,13 +1,15 @@
 import os
-from typing import List
-
 from google.protobuf.json_format import MessageToJson
-
+from typing import List
 from instabase.protos.ibprog import ibrefiner_prog_pb2
+
 from instabase.training_utils.model_artifact import ModelArtifactContext
 
 _MIN_CONFIDENCE_FIELD_NAME = '__MIN_CONFIDENCE_VALIDATION'
 _MIN_CONFIDENCE_DEFAULT_VALUE = '0.90'
+
+_PUBLISHED_MODEL_COL_NAME = '__PUBLISHED_MODEL_VERSION'
+_PUBLISHED_MODEL_VALUE = '\'{{published_model_version}}\''
 
 
 def _make_refiner_field(label: str, function: str) -> ibrefiner_prog_pb2.RefinerField:
@@ -25,7 +27,7 @@ def _make_refiner_field(label: str, function: str) -> ibrefiner_prog_pb2.Refiner
 def _make_run_model_script_contents(model_path: str, model_name: str) -> str:
     return f"""
 from typing import Any, Mapping, Union, List
-from ib.market.ib_intelligence.functions import IntelligencePlatform
+from ib.market.ib_intelligence.functions import IntelligencePlatform, kwargs_to_ms_params, resolve_input, log
 from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder
 from instabase.provenance.tracking import Value
 
@@ -144,14 +146,14 @@ def get_field_no_provenance(MODEL_RESULT_COL: ModelResultNoProvType, field_name:
   raise NotImplementedError("Provenance Tracking must be on to call get_field. Please turn it on in File > Settings.")
 
 
-def run_model_no_provenance(INPUT_COL: Value[str], **kwargs) -> Any:
+def run_model_no_provenance(INPUT_COL: str, model_version: str, **kwargs) -> Any:
   \"\"\"
   Runs the trained model associated with this refiner program.
   \"\"\"
   raise NotImplementedError("Provenance Tracking must be on to run a model. Please turn it on in File > Settings.")
 
-def run_model(INPUT_COL: Value[str], **kwargs) -> ModelResultType:
-  ip_sdk = IntelligencePlatform(kwargs, ['{model_path}'])
+def run_model(INPUT_COL: Value[str], model_version: Value[str], **kwargs) -> ModelResultType:
+  ip_sdk = IntelligencePlatform(kwargs)
   ibocr, err = kwargs['_FN_CONTEXT_KEY'].get_by_col_name('INPUT_IBOCR_RECORD')
   if err:
     raise KeyError(err)
@@ -161,6 +163,7 @@ def run_model(INPUT_COL: Value[str], **kwargs) -> ModelResultType:
                           input_record=record, 
                           force_reload=False,
                           refresh_registry=False,
+                          model_version=model_version.value(),
                           **kwargs)
   return ner_result_to_values(results, INPUT_COL)
 
@@ -237,8 +240,17 @@ def write_refiner_program(
     min_confidence_field.desc.description = "Set a confidence between 0-1 that all fields must exceed to pass validation. Set to 0 for no validation."
     ibrefiner.fields.append(min_confidence_field)
 
+    # Create constant for the published model version to use
+    model_version_field = _make_refiner_field(_PUBLISHED_MODEL_COL_NAME, _PUBLISHED_MODEL_VALUE)
+    model_version_field.desc.description = (
+        "Set the model version published in Marketplace to use in this Refiner."
+    )
+    ibrefiner.fields.append(model_version_field)
+
     # create hidden field for model result
-    ibrefiner.fields.append(_make_refiner_field('__model_result', 'run_model(INPUT_COL)'))
+    ibrefiner.fields.append(
+        _make_refiner_field('__model_result', f'run_model(INPUT_COL, {_PUBLISHED_MODEL_COL_NAME})')
+    )
 
     # create fields for each of extracted_fields
     for label in labels:

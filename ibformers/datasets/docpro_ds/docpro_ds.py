@@ -13,6 +13,7 @@ from datasets.fingerprint import Hasher
 
 from ibformers.trainer.docpro_utils import load_datasets
 from instabase.dataset_utils.sdk import RemoteDatasetSDK, LocalDatasetSDK, AnnotationItem
+from instabase.dataset_utils.shared_types import ExtractionFieldDict
 from instabase.ocr.client.libs.ibocr import (
     IBOCRRecordLayout,
 )
@@ -47,11 +48,21 @@ class LabelEntity(TypedDict):
 
 def process_labels_from_annotation(
     words: List[WordPolyDict],
-    annotations: Optional[List] = None,
+    annotations: Optional[List[ExtractionFieldDict]] = None,
     label2id: Optional[Dict[str, int]] = None,
     label2ann_label_id: Optional[Dict[str, str]] = None,
     position_map: Optional[Dict] = None,
 ) -> Tuple[List[LabelEntity], Sequence[int]]:
+    """
+    Process annotations to the format expected by arrow writer
+    :param words: List of words
+    :param annotations: List of ExtractionFieldDict for give record
+    :param label2ann_label_id: mapping from entity name to entity id used in annotation object
+    :param label2id: dictionary which contain mapping from the entity name to class_id
+    :param position_map: maps tuple of word_line_idx, word_in_line_idx to the global index of word
+    :return: List of label entities, token_label_ids
+    """
+
     token_label_ids = np.zeros((len(words)), dtype=np.int64)
     entities = []
 
@@ -123,11 +134,12 @@ def get_images_from_layouts(
     open_fn: Callable,
 ):
     """
+    Optionally get images and save it as array objects
     :param layouts: list of layouts (pages) objects
     :param image_processor: callable object used to process images
     :param ocr_path: path of ocr used to obtain relative path of images
     :param open_fn: fn used to open the image
-    :return:
+    :return: image array
     """
     img_lst = []
     # TODO: support multi-page documents, currently quite difficult in hf/datasets
@@ -233,15 +245,16 @@ class DocProBuilderConfig(BuilderConfig):
 class DocProConfig(DocProBuilderConfig):
     """
     Config for Instabase Datasets which contain additional attributes related to Doc Pro dataset
+    :param use_image: whether to load the image of the page
+    :param ibsdk: if images is used ibsdk is used to pick up the image
+    :param id2label: label id to label name mapping
+    :param extraction_class_name: name of the extracted class
+    :param kwargs: keyword arguments forwarded to super.
     """
 
     def __init__(
         self, use_image=False, ibsdk=None, id2label=None, extraction_class_name=None, **kwargs
     ):
-        """BuilderConfig for Instabase Format Datasets.
-        Args:
-          **kwargs: keyword arguments forwarded to super.
-        """
         super(DocProConfig, self).__init__(**kwargs)
         self.use_image = use_image
         self.ibsdk = ibsdk
@@ -295,11 +308,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         return matching_class_ids[0]
 
     def _info(self):
-
-        # get schema of the the dataset
-        # TODO(ibds): Check if schema can be saved in the separate file, so we don't load whole annotation file
         data_files = self.config.data_files
-        assert len(data_files) == 1, "Only one annotation path should be provided"
         assert isinstance(data_files, dict), "data_files argument should be a dict for this dataset"
         if "train" in data_files:
             datasets_list = load_datasets(data_files["train"], self.config.ibsdk)
@@ -394,7 +403,6 @@ class DocProDs(datasets.GeneratorBasedBuilder):
     ):
         """
         process annotation_item feeded by Dataset SDK into dictionary yielded directly to Arrow writer
-
         :param ann_item: AnnotationItem object return by Dataset SDK
         :param dataset_id: id of the dataset of the processed record
         :param class_id: id of the extraction class for given dataset
