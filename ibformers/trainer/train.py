@@ -47,7 +47,6 @@ from ibformers.trainer.train_utils import (
     split_train_with_column,
     ModelArguments,
     DataAndPipelineArguments,
-    HF_TOKEN,
     IbArguments,
 )
 from ibformers.trainer.trainer import IbTrainer
@@ -242,6 +241,14 @@ def run_train(
     num_labels = len(label_list)
     label_to_id = {l: i for i, l in enumerate(label_list)}
 
+    if model_args.model_name_or_path.startswith("instabase/"):
+        # lazy import of file which is not always present in repo
+        from ibformers.trainer.hf_token import HF_TOKEN
+
+        token = HF_TOKEN
+    else:
+        token = None
+
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         num_labels=num_labels,
@@ -249,7 +256,7 @@ def run_train(
         id2label={i: l for l, i in label_to_id.items()},
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
+        use_auth_token=token,
     )
 
     model = model_class.from_pretrained(
@@ -258,7 +265,7 @@ def run_train(
         config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
+        use_auth_token=token,
     )
 
     callbacks = []

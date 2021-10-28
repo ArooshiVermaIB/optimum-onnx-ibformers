@@ -189,9 +189,6 @@ class DataAndPipelineArguments:
             json.dump(save_dict, writer, indent=2, sort_keys=True)
 
 
-HF_TOKEN = "api_AYGJoxZMBtWlYODoAQgLKAuNVRXaGfQtjX"
-
-
 @dataclass
 class IbArguments:
     """

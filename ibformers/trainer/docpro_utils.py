@@ -110,8 +110,8 @@ class DocProCallback(TrainerCallback):
     Handles events specific to doc pro
     """
 
-    # list of directories which will not be copied into the package
-    ibformers_do_not_copy = []
+    # list of files/dirs which will not be copied into the package
+    ibformers_do_not_copy = ['hf_token.py']
 
     def __init__(
         self,

@@ -1,6 +1,6 @@
 from transformers import PreTrainedModel, PreTrainedTokenizer, AutoTokenizer
 
-from ibformers.trainer.train_utils import HF_TOKEN
+from ibformers.trainer.hf_token import HF_TOKEN
 from transformers.file_utils import PushToHubMixin
 import fire
 from ibformers.data.pipelines.pipeline import PIPELINES

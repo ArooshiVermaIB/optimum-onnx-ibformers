@@ -279,7 +279,7 @@ def get_docpro_ds_split(anno: Optional[Dict]):
 
 class DocProDs(datasets.GeneratorBasedBuilder):
     """
-    Instabase internal dataset format, creation of dataset can be done by list of datasets
+    Instabase internal dataset format, creation of dataset can be done by passing list of datasets
     """
 
     BUILDER_CONFIGS = [
