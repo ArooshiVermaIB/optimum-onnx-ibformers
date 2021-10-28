@@ -1,16 +1,12 @@
-import os
 from pathlib import Path
 from typing import Optional, Dict, Any
-
+import fire
 from ibformers.trainer.ib_utils import run_train_annotator
-from instabase.model_training_tasks.jobs import JobMetadataClient
 
-
-# below is for debugging with running locally
-# this code is not reached via model service as it is directly calling run_train fn
+# SCRIPT USED FOR DEBUGGING WITH LOCAL RUNS
 class DummyJobStatus:
     def __init__(self):
-        self.job_id = 1
+        self.job_id = "999"
 
     def update_message(self, message: Optional[str]) -> None:
         pass
@@ -39,13 +35,12 @@ class InstabaseSDKDummy:
             f.write(content)
 
 
-if __name__ == "__main__":
-
+def run(ds_path, out_path):
     hyperparams = {
         "adam_epsilon": 1e-8,
         "batch_size": 8,
         "chunk_size": 512,
-        "epochs": 3,
+        "epochs": 10,
         "learning_rate": 5e-05,
         "loss_agg_steps": 2,
         "max_grad_norm": 1.0,
@@ -59,7 +54,11 @@ if __name__ == "__main__":
         "model_name": "microsoft/layoutlm-base-uncased",
     }
 
-    dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'
-    save_path = '/Users/rafalpowalski/python/models/test_model'
+    # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'
+    # save_path = '/Users/rafalpowalski/python/models/test_model'
     sdk = InstabaseSDKDummy(None, "user")
-    run_train_annotator(hyperparams, dataset_filename, save_path, sdk, 'user', DummyJobStatus())
+    run_train_annotator(hyperparams, ds_path, out_path, sdk, 'user', DummyJobStatus())
+
+
+if __name__ == "__main__":
+    fire.Fire(run)

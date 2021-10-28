@@ -313,7 +313,9 @@ class DocProCallback(TrainerCallback):
                 record_entities = record_value['entities']
                 for field_name, field_value in record_entities.items():
                     indexed_words = [
-                        IndexedWordDict(line_index=w['line_index'], word_index=w['word_index'])
+                        IndexedWordDict(
+                            line_index=w['word_line_idx'], word_index=w['word_in_line_idx']
+                        )
                         for w in field_value['words']
                     ]
                     fields.append(
@@ -445,7 +447,7 @@ def run_train_doc_pro(
 
     hparams_dict = prepare_docpro_params(
         hyperparams,
-        dataset_list,
+        dataset_paths,
         save_path,
         save_model_dir,
         extraction_class_name,

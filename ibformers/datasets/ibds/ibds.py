@@ -1,4 +1,5 @@
 import json
+import logging
 import urllib
 from pathlib import Path
 from typing import Tuple, List, Dict, Any, Union, NamedTuple, Optional, Callable, Sequence
@@ -583,8 +584,23 @@ class IbDs(datasets.GeneratorBasedBuilder):
                 if not (ocr_path.endswith(".ibdoc") or ocr_path.endswith(".ibocr")):
                     raise ValueError(f"Invaild document path: {ocr_path}")
 
-                with open_fn(ocr_path, "rb") as f:
-                    data = f.read()
+                try:
+                    with open_fn(ocr_path, "rb") as f:
+                        data = f.read()
+                except FileNotFoundError:
+                    # change to relative path to annotation path
+                    logging.warning(
+                        f'Didnt find absolute path from ibannotator. Trying relative path'
+                    )
+                    annotator_path = Path(self.config.data_files['train'])
+                    fallback_path = annotator_path.parent / Path(*Path(ocr_path).parts[-4:])
+                    if not fallback_path.is_file():
+                        logging.error(
+                            f"Both absolute path {ocr_path} and relative path {fallback_path} not found"
+                        )
+                    with open_fn(fallback_path, "rb") as f:
+                        data = f.read()
+
                 builder: ParsedIBOCRBuilder
                 builder, err = ParsedIBOCRBuilder.load_from_str(ocr_path, data)
 

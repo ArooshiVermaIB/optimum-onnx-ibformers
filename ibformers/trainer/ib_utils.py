@@ -398,10 +398,11 @@ def run_train_annotator(
     )
     model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
 
-    if isinstance(ib_args.file_client, InstabaseSDKDummy):
-        ibsdk = ib_args.file_client
+    if hasattr(file_client, "file_client") and file_client.file_client is None:
+        # support for InstabaseSDKDummy - debugging only
+        ibsdk = file_client
     else:
-        ibsdk = InstabaseSDK(ib_args.file_client, ib_args.username)
+        ibsdk = InstabaseSDK(file_client, username)
 
     callback = IbCallback(
         job_metadata_client=ib_args.job_metadata_client,
