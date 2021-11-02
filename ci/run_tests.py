@@ -230,7 +230,9 @@ async def run_inference_test(
     # We should ideally run against many or all documents to compare
     resp = await sdk.run_refiner(
         program_path=os.path.join(save_path, refiner_filename),
-        input_record_keys=[list(preds_dict.keys())[0] + "-0"],
+        input_record_keys=[
+            list(preds_dict.keys())[0] + "-0"
+        ],  # Weird thing that we have to add "-0"
     )
     if 'job_id' not in resp:
         logger.error(f"Running Refiner failed with error message: {resp}")
@@ -244,7 +246,9 @@ async def run_inference_test(
         status = await sdk.get_async_job_status(job_id)
         logger.debug(status)
         success = (
-            _extract_refiner_results_from_status(logger, status, model_result_by_record) and success
+            # Note that model_result_by_record is being mutated by this helper function
+            _extract_refiner_results_from_status(logger, status, model_result_by_record)
+            and success
         )
         if status.get('state') != "PENDING":
             break
@@ -330,7 +334,7 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str]):
 
     zip_bytes = zip_project(PROJECT_ROOT)
 
-    sync_tasks = {}
+    sync_tasks = {}  # We want to keep track of when these are finished to avoid conflicts
 
     for env_name in {test_config['env'] for test_config in model_tests.values()}:
         env_config = envs[env_name]
