@@ -168,6 +168,10 @@ def get_images_from_layouts(
     """
     img_lst = []
     # TODO: support multi-page documents, currently quite difficult in hf/datasets
+    if len(layouts) > 1:
+        logging.error(
+            f"Only support image modality for single-page documents. Got {len(layouts)} pages for {ocr_path}"
+        )
     for lay in layouts[:1]:
         img_path = Path(lay.get_processed_image_path())
         try:

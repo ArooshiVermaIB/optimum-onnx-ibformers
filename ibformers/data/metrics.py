@@ -213,7 +213,7 @@ def compute_legacy_metrics_for_sl(
         ]
         mismatch_text = "  ".join(mismatches[:max_examples])
         if len(mismatches) > 0:
-            logging.info(f"{lab}:\n{mismatch_text}", end="")
+            logging.info(f"{lab}:\n{mismatch_text}")
 
     # get list of document gold labels - List[Dict[List]]
     ground_truths: List[Dict[List]] = [
@@ -359,7 +359,7 @@ def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
         ]
         mismatch_text = "  ".join(mismatches[:max_examples])
         if len(mismatches) > 0:
-            logging.info(f"{lab}:\n{mismatch_text}", end="")
+            logging.info(f"{lab}:\n{mismatch_text}")
 
     final_results["predictions"] = pred_dict
 
