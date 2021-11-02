@@ -189,7 +189,7 @@ def get_images_from_layouts(
 class DocProBuilderConfig(BuilderConfig):
     """Base class for :class:`DatasetBuilder` data configuration.
     Copied from BuilderConfig class
-    Contains modifications which crete custom config_id (fingerprint) based on the dataset.json content
+    Contains modifications which create custom config_id (fingerprint) based on the dataset.json content
     """
 
     def __init__(self, *args, **kwargs):

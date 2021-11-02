@@ -292,7 +292,7 @@ def prepare_ib_params(
         do_train=True,
         do_eval=True,
         do_predict=True,
-        log_level='warning',
+        log_level='info',
         report_to='none',
         logging_strategy='epoch',
         evaluation_strategy='epoch',

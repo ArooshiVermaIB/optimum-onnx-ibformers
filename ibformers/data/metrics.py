@@ -184,7 +184,7 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
                 "is_match": pred_text == gold_text,
             }
 
-        is_test_file = doc['is_test_file'] if 'is_test_file' in doc else True
+        is_test_file = doc['is_test_file'] if 'is_test_file' in doc else False
         pred_dict[doc["id"]] = {'is_test_file': is_test_file, 'entities': doc_dict}
 
     return pred_dict
@@ -199,7 +199,7 @@ def compute_legacy_metrics_for_sl(
     # get prediction dict and print mismatches
     pred_dict = get_predictions_for_sl(predictions, dataset, label_list)
 
-    print("MISMATCH EXAMPLES")
+    logging.info("MISMATCH EXAMPLES")
     max_examples = 2
     for lab in label_list[1:]:
         mismatches = [
@@ -261,8 +261,8 @@ def compute_legacy_metrics_for_sl(
         / (token_level_df.precision + token_level_df.recall)
         # Note that this is Pandas, so dividing by zero gives NAN
     )
-    print("EVALUATION RESULTS")
-    print(token_level_df)
+    logging.info("EVALUATION RESULTS")
+    logging.info(token_level_df)
     token_level_results = token_level_df.fillna("NAN")[["precision", "recall", "f1"]].to_dict()
     results = {**doc_level_metrics, **token_level_results}
 
@@ -343,13 +343,13 @@ def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
     final_results["precision"]["_Overall"] = results["overall_precision"]
     final_results["recall"]["_Overall"] = results["overall_recall"]
     final_results["f1"]["_Overall"] = results["overall_f1"]
-    print("EVALUATION RESULTS")
-    print(pd.DataFrame(final_results))
+    logging.info("EVALUATION RESULTS")
+    logging.info(pd.DataFrame(final_results))
 
     # get prediction dict and print mismatches
     pred_dict = get_predictions_for_sl(predictions, dataset)
 
-    print("MISMATCH EXAMPLES")
+    logging.info("MISMATCH EXAMPLES")
     max_examples = 2
     for lab in label_list[1:]:
         mismatches = [
@@ -359,7 +359,7 @@ def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
         ]
         mismatch_text = "  ".join(mismatches[:max_examples])
         if len(mismatches) > 0:
-            print(f"{lab}:\n{mismatch_text}", end="")
+            logging.info(f"{lab}:\n{mismatch_text}", end="")
 
     final_results["predictions"] = pred_dict
 

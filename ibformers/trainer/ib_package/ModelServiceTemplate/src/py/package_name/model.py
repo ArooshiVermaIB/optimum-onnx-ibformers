@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sys
 
@@ -32,7 +33,7 @@ MODEL_PATH = Path(__file__).parent / "model_data"
 class IbModel(Model):
     """Class for handling inference of models trained by ibformers library"""
 
-    def __init__(self, model_data_path: str = None) -> None:
+    def __init__(self, model_data_path: str = None, ibsdk: InstabaseSDK = None) -> None:
         if model_data_path is None:
             self.model_data_path = MODEL_PATH
         else:
@@ -43,12 +44,12 @@ class IbModel(Model):
         self.pipeline_config = self.load_pipeline_config(self.model_data_path)
         self.pipeline = PIPELINES[self.pipeline_config["pipeline_name"]]
         # add file client in case we would need to donwload images from instabase file system
-        self.ibsdk = self.get_ibsdk()
+        self.ibsdk = self.get_ibsdk() if ibsdk is None else ibsdk
 
     @staticmethod
     def get_ibsdk():
         file_client = get_file_client()
-        return InstabaseSDK(file_client=file_client, username="")
+        return InstabaseSDK(file_client=file_client, username="ibformers_model")
 
     @staticmethod
     def load_pipeline_config(path):
@@ -89,7 +90,7 @@ class IbModel(Model):
 
     def prepare_mapper_and_word_pollys(self, record_joined):
         # TODO: investigate if we can remove outputting input column mapper indexes,
-        #  it requires lots of additional computation - two additional iteration over all words in document
+        #  it requires lots of additional computation - additional iteration over all words in document
         mapper = WordPolyInputColMapper(record_joined)  # not good
         word_polys: List["WordPolyDict"] = [i for j in record_joined.get_lines() for i in j]
 
@@ -100,13 +101,16 @@ class IbModel(Model):
             self.tokenizer is not None and self.model is not None
         ), "Trying to run a model that has not yet been loaded"
         parsed_ibocr = resolve_parsed_ibocr_from_request(request)
-        # TODO: this is inconsistent behaviour with the training!! Need to change that
-        # during training we get only records which belongs to given class, here we use all the records from ibocr
-        # that might cause unpredictable model outputs
-        record_joined, err = parsed_ibocr.get_joined_page()
-        if err:
-            raise RuntimeError(f"Error while getting parsed_ibocr.get_joined_page(): {err}")
-        mapper, word_polys = self.prepare_mapper_and_word_pollys(record_joined)
+
+        records = parsed_ibocr.get_ibocr_records()
+        if len(records) > 1:
+            logging.error(
+                'Model should consume only single record. '
+                'Check if you are passing only single class documents'
+            )
+        record = records[0]
+
+        mapper, word_polys = self.prepare_mapper_and_word_pollys(record)
 
         # pass single document and create in memory dataset
         ds_path = Path(DATASETS_PATH) / self.pipeline_config["dataset_name_or_path"]
@@ -122,7 +126,7 @@ class IbModel(Model):
         predict_dataset = load_dataset(
             path=name_to_use,
             name=self.pipeline_config["dataset_config_name"],
-            data_files={"test": [record_joined]},
+            data_files={"test": [record]},
             ignore_verifications=True,
             keep_in_memory=True,
             split="test",

@@ -40,7 +40,7 @@ def run(ds_path, out_path):
         "adam_epsilon": 1e-8,
         "batch_size": 8,
         "chunk_size": 512,
-        "epochs": 4,
+        "epochs": 5,
         "learning_rate": 5e-05,
         "loss_agg_steps": 2,
         "max_grad_norm": 1.0,
@@ -51,7 +51,7 @@ def run(ds_path, out_path):
         "use_mixed_precision": False,
         "warmup": 0.0,
         "weight_decay": 0,
-        "model_name": "microsoft/layoutlmv2-base-uncased",
+        "model_name": "microsoft/layoutlm-base-uncased",
     }
 
     # ds_path = '/Users/rafalpowalski/python/annotation/UberEatsDataset'
