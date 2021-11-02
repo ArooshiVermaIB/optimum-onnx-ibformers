@@ -24,7 +24,7 @@ def _make_refiner_field(label: str, function: str) -> ibrefiner_prog_pb2.Refiner
     )
 
 
-def _make_run_model_script_contents(model_path: str, model_name: str) -> str:
+def _make_run_model_script_contents(model_name: str) -> str:
     return f"""
 from typing import Any, Mapping, Union, List
 from ib.market.ib_intelligence.functions import IntelligencePlatform, kwargs_to_ms_params, resolve_input, log
@@ -217,7 +217,7 @@ def write_refiner_program(
 
     # write script that can load model
     script_path = os.path.join(refiner_scripts_path, 'run_model.py')
-    script_content = _make_run_model_script_contents(ib_model_path, model_name)
+    script_content = _make_run_model_script_contents(model_name)
     with open(script_path, 'w+') as f:
         f.write(script_content)
 
