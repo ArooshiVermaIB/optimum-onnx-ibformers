@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from typing import Tuple, Iterator, Union, List, Sequence, Mapping, Dict, Optional
 
@@ -212,7 +213,7 @@ def compute_legacy_metrics_for_sl(
         ]
         mismatch_text = "  ".join(mismatches[:max_examples])
         if len(mismatches) > 0:
-            print(f"{lab}:\n{mismatch_text}", end="")
+            logging.info(f"{lab}:\n{mismatch_text}", end="")
 
     # get list of document gold labels - List[Dict[List]]
     ground_truths: List[Dict[List]] = [

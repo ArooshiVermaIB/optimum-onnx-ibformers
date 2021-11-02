@@ -338,24 +338,6 @@ def run_train(
         logger.info("*** Predict ***")
 
         _ = trainer.predict(predict_dataset, metric_key_prefix="predict")
-        # Callback is saving predictions, therefore below code is not needed
-
-        # predictions = np.argmax(predictions, axis=2)
-        # # Remove ignored index (special tokens)
-        # true_predictions = [
-        #     [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
-        #     for prediction, label in zip(predictions, labels)
-        # ]
-        #
-        # # trainer.log_metrics("predict", metrics)
-        # trainer.save_metrics("predict", metrics)
-        #
-        # # Save predictions
-        # output_predictions_file = os.path.join(training_args.output_dir, "predictions.txt")
-        # if trainer.is_world_process_zero():
-        #     with open(output_predictions_file, "w") as writer:
-        #         for prediction in true_predictions:
-        #             writer.write(" ".join(prediction) + "\n")
 
 
 def _mp_fn(index):
