@@ -173,7 +173,7 @@ class DocProCallback(TrainerCallback):
             ignore=lambda x, y: self.ibformers_do_not_copy,
         )
 
-    def move_data_to_ib(self, output_dir):
+    def move_data_to_ib(self):
         self.copy_library_src_to_package()
 
         logging.info("Final state of the Model Artifact folder structure:")

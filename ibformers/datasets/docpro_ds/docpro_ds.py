@@ -1,5 +1,4 @@
 import logging
-import logging
 import os
 import traceback
 import urllib
@@ -11,8 +10,7 @@ import numpy as np
 from datasets import BuilderConfig, Features, config
 from datasets.fingerprint import Hasher
 
-from ibformers.trainer.docpro_utils import load_datasets
-from instabase.dataset_utils.sdk import RemoteDatasetSDK, LocalDatasetSDK, AnnotationItem
+
 from instabase.dataset_utils.shared_types import ExtractionFieldDict
 from instabase.ocr.client.libs.ibocr import (
     IBOCRRecordLayout,
@@ -44,6 +42,33 @@ class LabelEntity(TypedDict):
     char_spans: List[Span]
     token_spans: List[Span]
     token_label_id: int
+
+
+def load_datasets(dataset_paths, ibsdk):
+    # use lazy imports as in model service sdk is not available
+    try:
+        from instabase.dataset_utils.sdk import RemoteDatasetSDK, LocalDatasetSDK
+    except ImportError as err:
+        logging.error(f'SDK not found: {err}')
+    assert isinstance(dataset_paths, list)
+
+    file_client = ibsdk.file_client
+    username = ibsdk.username
+    try:
+        # load from doc pro
+        if file_client is None:
+            datasets_list = [LocalDatasetSDK(dataset_path) for dataset_path in dataset_paths]
+        else:
+            datasets_list = [
+                RemoteDatasetSDK(dataset_path, file_client, username)
+                for dataset_path in dataset_paths
+            ]
+
+    except Exception as e:
+        logging.error(traceback.format_exc())
+        raise RuntimeError(f"Error while compiling the datasets: {e}") from e
+
+    return datasets_list
 
 
 def process_labels_from_annotation(
@@ -318,7 +343,14 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             classes = ["O"] + [lab["name"] for lab in schema]
         elif "test" in data_files:
             # inference input is a list of parsedibocr files
-            raise NotImplementedError
+            assert (
+                self.config.id2label is not None
+            ), "Need to pass directly infromation about labels for the inference"
+            classes = [self.config.id2label[i] for i in range(len(self.config.id2label))]
+            if classes[0] != "O":
+                raise logging.error(
+                    f"loaded classes does not have required format. No O class: {classes}"
+                )
         else:
             raise ValueError("data_file argument should be either in train or test mode")
 
@@ -393,9 +425,20 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             for record_anno in dataset.iterator_over_annotations():
                 yield record_anno, label2ann_label_id, dataset_id, class_id
 
+    def get_annotation_from_model_service(self, records):
+        # get similar format to the one defined by dataset SDK
+        # Produce dummy AnnotationItem
+        # TODO: import AnnotationItem type once model-service will include dataset sdk
+        for record in records:
+            # generate ann item: (full_path, record_index, record, anno)
+            annotation_item = (record.get_document_path(), 0, record, None)
+            label2ann_label_id = {lab: None for lab in self.config.id2label.values()}
+            # yield annotation_item, label2ann_label_id, dataset_id, class_id
+            yield annotation_item, label2ann_label_id, None, None
+
     def process_annotation_item(
         self,
-        ann_item: AnnotationItem,
+        ann_item: Dict,
         dataset_id: str,
         class_id: str,
         label2ann_label_id: Dict,
@@ -403,7 +446,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
     ):
         """
         process annotation_item feeded by Dataset SDK into dictionary yielded directly to Arrow writer
-        :param ann_item: AnnotationItem object return by Dataset SDK
+        :param ann_item: AnnotationItem object return by Dataset SDK or created from model service request
         :param dataset_id: id of the dataset of the processed record
         :param class_id: id of the extraction class for given dataset
         :param label2ann_label_id: mapping from entity name to entity id used in annotation object
@@ -529,14 +572,22 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             return [
                 datasets.SplitGenerator(
                     name=datasets.Split.TRAIN,
-                    gen_kwargs={"annotation_items": annotation_items, "split": "train"},
+                    gen_kwargs={"annotation_items": annotation_items},
                 )
             ]
 
         elif "test" in data_files:
-            raise ValueError("Inference mode not implemented")
+            # inference input is a list of parsedibocr files
+            test_files = data_files["test"]
+            annotation_items = self.get_annotation_from_model_service(test_files)
 
-    def _generate_examples(self, annotation_items, split='train'):
+            return [
+                datasets.SplitGenerator(
+                    name=datasets.Split.TEST, gen_kwargs={"annotation_items": annotation_items}
+                ),
+            ]
+
+    def _generate_examples(self, annotation_items):
         """Yields examples."""
 
         label2id = self.info.features["token_label_ids"].feature._str2int

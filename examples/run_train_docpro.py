@@ -40,7 +40,7 @@ def run(ds_path, out_path):
         "adam_epsilon": 1e-8,
         "batch_size": 8,
         "chunk_size": 512,
-        "epochs": 1,
+        "epochs": 4,
         "learning_rate": 5e-05,
         "loss_agg_steps": 2,
         "max_grad_norm": 1.0,

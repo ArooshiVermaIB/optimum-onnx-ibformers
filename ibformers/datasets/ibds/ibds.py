@@ -464,11 +464,9 @@ class IbDs(datasets.GeneratorBasedBuilder):
                 labels = json.load(annotation_file)["labels"]
             classes = ["O"] + [lab["name"] for lab in labels]
         elif "test" in data_files:
-            # inference input is a list of parsedibocr files
-            assert (
-                self.config.id2label is not None
-            ), "Need to pass directly infromation about labels for the inference"
-            classes = [self.config.id2label[i] for i in range(len(self.config.id2label))]
+            raise NotImplementedError(
+                "Inference mode for ibds is not longer supported. Use docpro_ds."
+            )
         else:
             raise ValueError("data_file argument should be either in train or test mode")
 
@@ -563,13 +561,9 @@ class IbDs(datasets.GeneratorBasedBuilder):
 
         elif "test" in data_files:
             # inference input is a list of parsedibocr files
-            test_files = data_files["test"]
-
-            return [
-                datasets.SplitGenerator(
-                    name=datasets.Split.TEST, gen_kwargs={"files": test_files, "open_fn": None}
-                ),
-            ]
+            raise NotImplementedError(
+                "Inference mode for ibds is not longer supported. Use docpro_ds."
+            )
         else:
             raise ValueError("data_file argument should be either in train or test mode")
 

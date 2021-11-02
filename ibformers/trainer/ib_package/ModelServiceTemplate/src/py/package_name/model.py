@@ -87,19 +87,11 @@ class IbModel(Model):
         self.device = None
         torch.cuda.empty_cache()
 
-    def prepare_mapper_and_word_pollys(self, parsed_ibocr):
+    def prepare_mapper_and_word_pollys(self, record_joined):
         # TODO: investigate if we can remove outputting input column mapper indexes,
         #  it requires lots of additional computation - two additional iteration over all words in document
-        record_joined, err = parsed_ibocr.get_joined_page()
-        if err:
-            raise RuntimeError(f"Error while getting parsed_ibocr.get_joined_page(): {err}")
         mapper = WordPolyInputColMapper(record_joined)  # not good
-        word_polys: List["WordPolyDict"] = []
-        layouts = []
-        for record in parsed_ibocr.get_ibocr_records():
-            word_polys += [i for j in record.get_lines() for i in j]
-            l = record.get_metadata_list()
-            layouts.extend([i.get_layout() for i in l])
+        word_polys: List["WordPolyDict"] = [i for j in record_joined.get_lines() for i in j]
 
         return mapper, word_polys
 
@@ -108,7 +100,13 @@ class IbModel(Model):
             self.tokenizer is not None and self.model is not None
         ), "Trying to run a model that has not yet been loaded"
         parsed_ibocr = resolve_parsed_ibocr_from_request(request)
-        mapper, word_polys = self.prepare_mapper_and_word_pollys(parsed_ibocr)
+        # TODO: this is inconsistent behaviour with the training!! Need to change that
+        # during training we get only records which belongs to given class, here we use all the records from ibocr
+        # that might cause unpredictable model outputs
+        record_joined, err = parsed_ibocr.get_joined_page()
+        if err:
+            raise RuntimeError(f"Error while getting parsed_ibocr.get_joined_page(): {err}")
+        mapper, word_polys = self.prepare_mapper_and_word_pollys(record_joined)
 
         # pass single document and create in memory dataset
         ds_path = Path(DATASETS_PATH) / self.pipeline_config["dataset_name_or_path"]
@@ -124,7 +122,7 @@ class IbModel(Model):
         predict_dataset = load_dataset(
             path=name_to_use,
             name=self.pipeline_config["dataset_config_name"],
-            data_files={"test": [parsed_ibocr]},
+            data_files={"test": [record_joined]},
             ignore_verifications=True,
             keep_in_memory=True,
             split="test",
@@ -149,7 +147,7 @@ class IbModel(Model):
         doc_pred = list(predictions.values())[0]
 
         entities = []
-        for field, field_pred in doc_pred.items():
+        for field, field_pred in doc_pred['entities'].items():
             for word in field_pred["words"]:
                 token_idx = word["idx"]
                 original_word_poly = word_polys[token_idx]
