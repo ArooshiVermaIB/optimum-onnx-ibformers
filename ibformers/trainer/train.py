@@ -128,6 +128,14 @@ def run_train(
     load_kwargs = pipeline["dataset_load_kwargs"]
     model_class = pipeline["model_class"]
 
+    if model_args.model_name_or_path.startswith("instabase/"):
+        # lazy import of file which is not always present in repo
+        from ibformers.trainer.hf_token import HF_TOKEN
+
+        token = HF_TOKEN
+    else:
+        token = None
+
     data_files = {}
     if data_args.train_file is not None:
         data_files["train"] = data_args.train_file
@@ -165,7 +173,7 @@ def run_train(
         cache_dir=model_args.cache_dir,
         use_fast=True,
         revision=model_args.model_revision,
-        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
+        use_auth_token=token,
     )
 
     # Tokenizer check: this script requires a fast tokenizer.
@@ -240,14 +248,6 @@ def run_train(
 
     num_labels = len(label_list)
     label_to_id = {l: i for i, l in enumerate(label_list)}
-
-    if model_args.model_name_or_path.startswith("instabase/"):
-        # lazy import of file which is not always present in repo
-        from ibformers.trainer.hf_token import HF_TOKEN
-
-        token = HF_TOKEN
-    else:
-        token = None
 
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
