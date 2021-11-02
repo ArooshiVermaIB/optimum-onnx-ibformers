@@ -51,7 +51,7 @@ def run(ds_path, out_path):
         "use_mixed_precision": False,
         "warmup": 0.0,
         "weight_decay": 0,
-        "model_name": "microsoft/layoutlm-base-uncased",
+        "model_name": "microsoft/layoutlmv2-base-uncased",
     }
 
     # ds_path = '/Users/rafalpowalski/python/annotation/UberEatsDataset'

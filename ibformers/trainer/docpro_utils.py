@@ -398,7 +398,7 @@ class DocProCallback(TrainerCallback):
         label_names_ = {k: None for _, doc in predictions.items() for k, v in doc.items()}
         label_names = list(label_names_.keys())
         self.generate_refiner(label_names)
-        self.move_data_to_ib(args.output_dir)
+        self.move_data_to_ib()
 
 
 def _print_dir(path):

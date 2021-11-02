@@ -171,6 +171,7 @@ def get_images_from_layouts(
     for lay in layouts[:1]:
         img_path = Path(lay.get_processed_image_path())
         try:
+
             with open_fn(str(img_path)) as img_file:
                 img_arr = image_processor(img_file).astype(np.uint8)
         except OSError:
@@ -544,7 +545,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
         if self.config.use_image:
             open_fn = get_open_fn(self.config.ibsdk)
-            images = get_images_from_layouts(layouts, self.config.image_processor, doc_id, open_fn)
+            images = get_images_from_layouts(layouts, self.image_processor, full_path, open_fn)
             # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
             features["images"] = images
 
