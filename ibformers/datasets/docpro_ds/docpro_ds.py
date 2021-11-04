@@ -147,7 +147,7 @@ def process_labels_from_annotation(
                     token_spans=label_token_spans,
                     token_label_id=lab_id,
                 )
-            entities.append(entity)
+        entities.append(entity)
 
     return entities, token_label_ids
 

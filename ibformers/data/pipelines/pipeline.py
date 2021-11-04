@@ -91,7 +91,7 @@ layoutlm_sl = {
 
 layoutxlm_sl = {
     "dataset_load_kwargs": {"use_image": True},
-    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
+    "preprocess": [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox"), ("images", "image")],
     "collate": DataCollatorWithBBoxesAugmentedForTokenClassification,
     "model_class": AutoModelForTokenClassification,
@@ -107,15 +107,9 @@ layoutlmv2_sl = {
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
 
-layoutv1_mqa = {
+laymqav1 = {
     "dataset_load_kwargs": {"use_image": False},
-    "preprocess": [
-        build_prefix_with_mqa_ids,
-        tokenize,
-        norm_bboxes_for_layoutlm,
-        produce_chunks,
-        stack_pages,
-    ],
+    "preprocess": [build_prefix_with_mqa_ids, tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
     "collate": DataCollatorWithBBoxesForTokenClassification,
     "model_class": LayMQAForTokenClassification,
@@ -151,7 +145,7 @@ PIPELINES = {
     "layoutlm_sl": layoutlm_sl,
     "layoutlmv2_sl": layoutlmv2_sl,
     "layoutxlm_sl": layoutxlm_sl,
-    "layoutv1_mqa": layoutv1_mqa,
+    "laymqav1": laymqav1,
     "from_docvqa_to_mqa": from_docvqa_to_mqa,
     "plain_sl": plain_sl,
 }

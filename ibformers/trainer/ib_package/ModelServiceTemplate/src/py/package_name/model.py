@@ -88,20 +88,13 @@ class IbModel(Model):
         self.device = None
         torch.cuda.empty_cache()
 
-    def prepare_mapper_and_word_pollys(self, record_joined):
+    def prepare_mapper_and_word_pollys(self, parsed_ibocr):
         # TODO: investigate if we can remove outputting input column mapper indexes,
-        #  it requires lots of additional computation - additional iteration over all words in document
+        #  it requires lots of additional computation - two additional iteration over all words in document
+        record_joined, err = parsed_ibocr.get_joined_page()
+        if err:
+            raise RuntimeError(f"Error while getting parsed_ibocr.get_joined_page(): {err}")
         mapper = WordPolyInputColMapper(record_joined)  # not good
-        word_polys: List["WordPolyDict"] = [i for j in record_joined.get_lines() for i in j]
-
-        return mapper, word_polys
-
-    def run(self, request: model_service_pb2.RunModelRequest) -> model_service_pb2.ModelResult:
-        assert (
-            self.tokenizer is not None and self.model is not None
-        ), "Trying to run a model that has not yet been loaded"
-        parsed_ibocr = resolve_parsed_ibocr_from_request(request)
-
         records = parsed_ibocr.get_ibocr_records()
         if len(records) > 1:
             logging.error(
@@ -110,7 +103,15 @@ class IbModel(Model):
             )
         record = records[0]
 
-        mapper, word_polys = self.prepare_mapper_and_word_pollys(record)
+        word_polys: List["WordPolyDict"] = [i for j in record_joined.get_lines() for i in j]
+        return mapper, word_polys, record
+
+    def run(self, request: model_service_pb2.RunModelRequest) -> model_service_pb2.ModelResult:
+        assert (
+            self.tokenizer is not None and self.model is not None
+        ), "Trying to run a model that has not yet been loaded"
+        parsed_ibocr = resolve_parsed_ibocr_from_request(request)
+        mapper, word_polys, record = self.prepare_mapper_and_word_pollys(parsed_ibocr)
 
         # pass single document and create in memory dataset
         ds_path = Path(DATASETS_PATH) / self.pipeline_config["dataset_name_or_path"]
@@ -156,6 +157,8 @@ class IbModel(Model):
                 token_idx = word["idx"]
                 original_word_poly = word_polys[token_idx]
                 start = mapper.get_index(original_word_poly)
+                if start is None:
+                    raise ValueError(f'start index not found. Word polly: {original_word_poly}')
                 assert word["raw_word"] == original_word_poly["raw_word"]
                 ner_result = model_service_pb2.NERTokenResult(
                     content=word["raw_word"],

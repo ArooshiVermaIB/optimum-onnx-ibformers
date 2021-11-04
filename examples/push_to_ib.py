@@ -1,7 +1,6 @@
 from transformers import PreTrainedModel, PreTrainedTokenizer, AutoTokenizer
 
 from ibformers.trainer.hf_token import HF_TOKEN
-from transformers.file_utils import PushToHubMixin
 import fire
 from ibformers.data.pipelines.pipeline import PIPELINES
 
@@ -14,8 +13,7 @@ def push_to_ib(model_path, pipeline_name, model_name):
 
     # load model
     model: PreTrainedModel = model_class.from_pretrained(model_path)
-    if not hasattr(model.config, "pipeline_name"):
-        model.config.pipeline_name = pipeline_name
+    model.config.pipeline_name = pipeline_name
     url = model.push_to_hub(
         model_name,
         commit_message='add model',

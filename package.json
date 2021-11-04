@@ -18,12 +18,12 @@
     "function_annotator": "ibformers.trainer.ib_utils.run_train_annotator",
     "base_models": [
       {
-        "name": "layout-base-2",
+        "name": "layout-base",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
           "stride": 64,
-          "epochs": 5,
+          "epochs": 10,
           "learning_rate": 5e-05,
           "warmup": 0.0,
           "weight_decay": 0,
@@ -31,12 +31,25 @@
         }
       },
       {
-        "name": "layout-multilingual-single-page (experimental)",
+        "name": "layout-large",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
           "stride": 64,
-          "epochs": 5,
+          "epochs": 10,
+          "learning_rate": 5e-05,
+          "warmup": 0.0,
+          "weight_decay": 0,
+          "model_name": "microsoft/layoutlm-large-uncased"
+        }
+      },
+      {
+        "name": "layout-multilingual (single-page)",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "chunk_size": 512,
+          "stride": 64,
+          "epochs": 10,
           "learning_rate": 5e-05,
           "warmup": 0.0,
           "weight_decay": 0,
@@ -44,12 +57,12 @@
         }
       },
       {
-        "name": "layout-single-page (experimental)",
+        "name": "layoutv2 (single-page)",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
           "stride": 64,
-          "epochs": 5,
+          "epochs": 10,
           "learning_rate": 5e-05,
           "warmup": 0.0,
           "weight_decay": 0,
@@ -57,17 +70,45 @@
         }
       },
       {
-        "name": "natural language (experimental)",
+        "name": "LayoutMultiQA-base",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
           "stride": 64,
-          "epochs": 5,
+          "epochs": 10,
+          "learning_rate": 5e-05,
+          "warmup": 0.0,
+          "weight_decay": 0,
+          "model_name":"instabase/laymqav1-base",
+          "pipeline_name": "laymqav1"
+        }
+      },
+      {
+        "name": "legal natural language",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "chunk_size": 512,
+          "stride": 64,
+          "epochs": 10,
           "learning_rate": 5e-05,
           "warmup": 0.0,
           "weight_decay": 0,
           "pipeline_name": "plain_sl",
-          "model_name": "bert-base-uncased"
+          "model_name": "nlpaueb/legal-bert-base-uncased"
+        }
+      },
+      {
+        "name": "natural language",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "chunk_size": 512,
+          "stride": 64,
+          "epochs": 10,
+          "learning_rate": 5e-05,
+          "warmup": 0.0,
+          "weight_decay": 0,
+          "pipeline_name": "plain_sl",
+          "model_name": "roberta-base"
         }
       }
     ]
