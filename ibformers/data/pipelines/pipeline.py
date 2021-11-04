@@ -91,7 +91,7 @@ layoutlm_sl = {
 
 layoutxlm_sl = {
     "dataset_load_kwargs": {"use_image": True},
-    "preprocess": [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox"), ("images", "image")],
     "collate": DataCollatorWithBBoxesAugmentedForTokenClassification,
     "model_class": AutoModelForTokenClassification,
