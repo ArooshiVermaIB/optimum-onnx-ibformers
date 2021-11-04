@@ -157,6 +157,7 @@ def get_images_from_layouts(
     image_processor: ImageProcessor,
     ocr_path: str,
     open_fn: Callable,
+    page_nums: List[int],
 ):
     """
     Optionally get images and save it as array objects
@@ -164,28 +165,29 @@ def get_images_from_layouts(
     :param image_processor: callable object used to process images
     :param ocr_path: path of ocr used to obtain relative path of images
     :param open_fn: fn used to open the image
+    :param page_nums: number of pages associated with given record
     :return: image array
     """
     img_lst = []
     # TODO: support multi-page documents, currently quite difficult in hf/datasets
-    if len(layouts) > 1:
+    if len(page_nums) > 1:
         logging.error(
-            f"Only support image modality for single-page documents. Got {len(layouts)} pages for {ocr_path}"
+            f"Only support image modality for single-page documents. Got {len(page_nums)} pages for {ocr_path}"
         )
-    for lay in layouts[:1]:
-        img_path = Path(lay.get_processed_image_path())
-        try:
 
-            with open_fn(str(img_path)) as img_file:
-                img_arr = image_processor(img_file).astype(np.uint8)
-        except OSError:
-            # try relative path - useful for debugging
-            ocr_path = Path(ocr_path)
-            img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
-            with open_fn(str(img_rel_path), "rb") as img_file:
-                img_arr = image_processor(img_file).astype(np.uint8)
+    lay = layouts[page_nums[0]]
+    img_path = Path(lay.get_processed_image_path())
+    try:
 
-        img_lst.append(img_arr)
+        with open_fn(str(img_path)) as img_file:
+            img_arr = image_processor(img_file).astype(np.uint8)
+    except OSError:
+        # try relative path - useful for debugging
+        ocr_path = Path(ocr_path)
+        img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
+        with open_fn(str(img_rel_path), "rb") as img_file:
+            img_arr = image_processor(img_file).astype(np.uint8)
+
     # img_arr_all = np.stack(img_lst, axis=0)
     return img_arr
 
@@ -549,7 +551,10 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
         if self.config.use_image:
             open_fn = get_open_fn(self.config.ibsdk)
-            images = get_images_from_layouts(layouts, self.image_processor, full_path, open_fn)
+            page_nums = list(np.unique(word_pages_arr))
+            images = get_images_from_layouts(
+                layouts, self.image_processor, full_path, open_fn, page_nums
+            )
             # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
             features["images"] = images
 
