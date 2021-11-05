@@ -1,12 +1,16 @@
 from functools import partial
 
-from transformers import DataCollatorForTokenClassification, AutoModelForTokenClassification
+from transformers import DataCollatorForTokenClassification, AutoModelForTokenClassification, AutoModelForMaskedLM
 
+from ibformers.data.collators.augmenters.bbox import BboxAugmenter
+from ibformers.data.collators.augmenters.mlm import MLMAugmenter
 from ibformers.data.collators.collate import (
     DataCollatorWithBBoxesForTokenClassification,
     DataCollatorWithBBoxesAugmentedForTokenClassification,
     DataCollatorFor1DTokenClassification,
 )
+
+from ibformers.data.collators.collmenter import get_collator_class
 from ibformers.data.metrics import (
     compute_metrics_for_sl,
     compute_legacy_metrics_for_sl,
@@ -84,7 +88,7 @@ layoutlm_sl = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": DataCollatorWithBBoxesForTokenClassification,
+    "collate": get_collator_class(BboxAugmenter),
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -141,6 +145,27 @@ plain_sl = {
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
 
+# mlm pretraining
+
+layoutlm_mlm = {
+    "dataset_load_kwargs": {},
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
+    "collate": get_collator_class(MLMAugmenter),
+    "model_class": AutoModelForMaskedLM,
+    "compute_metrics": None,
+}
+
+
+plain_mlm = {
+    "dataset_load_kwargs": {},
+    "preprocess": [tokenize, produce_chunks],
+    "column_mapping": [("token_label_ids", "labels")],
+    "collate": get_collator_class(MLMAugmenter),
+    "model_class": AutoModelForMaskedLM,
+    "compute_metrics": compute_legacy_metrics_for_sl,
+}
+
 PIPELINES = {
     "layoutlm_sl": layoutlm_sl,
     "layoutlmv2_sl": layoutlmv2_sl,
@@ -148,4 +173,6 @@ PIPELINES = {
     "laymqav1": laymqav1,
     "from_docvqa_to_mqa": from_docvqa_to_mqa,
     "plain_sl": plain_sl,
+    'plain_mlm': plain_mlm,
+    'layoutlm_mlm': layoutlm_mlm
 }
