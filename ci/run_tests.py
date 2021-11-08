@@ -207,13 +207,13 @@ async def run_inference_test(
 
     refiner_path = str(refiner_filename)
 
-    # refiner_path = await sdk.create_refiner_for_model(
-    #    model_path=str(model_path),
-    #    refiner_path=str(refiner_filename),
-    #    model_name=model_name,
-    #    save_path=save_path,
-    #    dev_input_folder=dev_input_folder,
-    # )
+    refiner_path = await sdk.create_refiner_for_model(
+        model_path=str(model_path),
+        refiner_path=str(refiner_filename),
+        model_name=model_name,
+        save_path=save_path,
+        dev_input_folder=dev_input_folder,
+    )
 
     assert refiner_path, "Refiner path not found"
 

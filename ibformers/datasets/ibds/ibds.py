@@ -240,7 +240,7 @@ def process_labels_from_annotation(
             entity: LabelEntity = LabelEntity(
                 name=label_name,
                 order_id=0,
-                text="",
+                text=annotation["value"],
                 char_spans=[],
                 token_spans=[],
                 token_label_id=lab_id,
