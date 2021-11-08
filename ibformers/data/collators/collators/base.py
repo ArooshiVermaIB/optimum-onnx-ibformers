@@ -1,9 +1,8 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Optional, Union, List, ClassVar
 
-from transformers import PreTrainedTokenizerBase, PreTrainedModel
-from typing import Optional, Union, Sequence, List, ClassVar
-
+from transformers import PreTrainedTokenizerBase
 from transformers.file_utils import PaddingStrategy
 
 
@@ -29,6 +28,12 @@ class CollatorABC(ABC):
 
 @dataclass
 class BaseCollator(CollatorABC):
+    """
+    Base data collator. Uses provided tokenizer for data collation.
+
+    We assume that this collator should be called for each model.
+    Each subclass of this class gets registered in `extra_collators` field.
+    """
     tokenizer: PreTrainedTokenizerBase
     padding: Union[bool, str, PaddingStrategy] = True
     max_length: Optional[int] = None

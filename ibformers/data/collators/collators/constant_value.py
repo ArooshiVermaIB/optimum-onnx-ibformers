@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import ClassVar, List, Any, Optional
 
 from ibformers.data.collators.collators.base import BaseCollator
@@ -6,6 +6,18 @@ from ibformers.data.collators.collators.base import BaseCollator
 
 @dataclass
 class DefaultValueCollator(BaseCollator):
+    """
+    Base data collator for fields with single value imputation for padded indices.
+
+    This collator extends each feature from `_padded_fields` up to the desired length, with extra
+    indices filled with `_default_value`.
+    To create a specific DefaultValueCollator, subclass this class and set the class attributes
+    to desired values. See ibformers.data.collators.collators.constant_value.BboxCollator for reference.
+
+    Class Attributes:
+        _padded_fields: The names of the fields supported by the collator.
+        _default_value: The default value for extended indices.
+    """
     _padded_fields: ClassVar[List[str]] = []
     _default_value: ClassVar[Any]
 
