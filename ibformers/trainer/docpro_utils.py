@@ -341,17 +341,20 @@ class DocProCallback(TrainerCallback):
                         )
                         for w in field_value['words']
                     ]
+                    predictions = (
+                        [
+                            PredictionInstanceDict(
+                                avg_confidence=field_value['avg_confidence'],
+                                value=field_value['text'],
+                                words=indexed_words,
+                            )
+                        ]
+                        if len(indexed_words) > 0
+                        else []
+                    )
+
                     fields.append(
-                        PredictionFieldDict(
-                            field_name=field_name,
-                            annotations=[
-                                PredictionInstanceDict(
-                                    avg_confidence=field_value['avg_confidence'],
-                                    value=field_value['text'],
-                                    words=indexed_words,
-                                )
-                            ],
-                        )
+                        PredictionFieldDict(field_name=field_name, annotations=predictions)
                     )
                 prediction_writer.add_prediction(
                     dataset,
