@@ -11,6 +11,7 @@ import shutil
 
 from transformers import TrainerCallback, HfArgumentParser, TrainingArguments
 
+from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.trainer.train import run_train
 from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments
 
@@ -395,7 +396,7 @@ def run_train_annotator(
 ):
     assert hyperparams is not None
     parser = HfArgumentParser(
-        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
+        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments, AugmenterArguments)
     )
 
     hparams_dict = prepare_ib_params(
@@ -408,7 +409,7 @@ def run_train_annotator(
         mount_details,
         model_name,
     )
-    model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
+    model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hparams_dict)
 
     if hasattr(file_client, "file_client") and file_client.file_client is None:
         # support for InstabaseSDKDummy - debugging only
@@ -431,6 +432,7 @@ def run_train_annotator(
         data_args,
         training_args,
         ib_args,
+        augmenter_args,
         extra_callbacks=[callback],
         extra_load_kwargs={"ibsdk": ibsdk},
     )

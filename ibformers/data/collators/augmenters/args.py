@@ -23,4 +23,4 @@ def _get_augmenter_param_fields() -> List[Tuple[str, Type, Field]]:
     ]
 
 
-AugmenterParams = make_dataclass('AugmenterParams', _get_augmenter_param_fields())
+AugmenterArguments = make_dataclass('AugmenterArguments', _get_augmenter_param_fields())

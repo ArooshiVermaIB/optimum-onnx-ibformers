@@ -1,24 +1,17 @@
 from functools import partial
 
-from transformers import DataCollatorForTokenClassification, AutoModelForTokenClassification, AutoModelForMaskedLM
+from transformers import AutoModelForTokenClassification, AutoModelForMaskedLM
 
+from ibformers.data.chunk import produce_chunks
 from ibformers.data.collators.augmenters.bbox import BboxAugmenter
 from ibformers.data.collators.augmenters.mlm import MLMAugmenter
-from ibformers.data.collators.collate import (
-    DataCollatorWithBBoxesForTokenClassification,
-    DataCollatorWithBBoxesAugmentedForTokenClassification,
-    DataCollatorFor1DTokenClassification,
-)
-
 from ibformers.data.collators.collmenter import get_collator_class
 from ibformers.data.metrics import (
-    compute_metrics_for_sl,
     compute_legacy_metrics_for_sl,
     compute_legacy_metrics_for_mqa,
     compute_metrics_for_qa_task,
 )
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
-from ibformers.data.chunk import produce_chunks
 from ibformers.data.transform import (
     norm_bboxes_for_layoutlm,
     stack_pages,
@@ -88,7 +81,7 @@ layoutlm_sl = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": get_collator_class(BboxAugmenter),
+    "collate": get_collator_class(),
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -97,7 +90,7 @@ layoutxlm_sl = {
     "dataset_load_kwargs": {"use_image": True},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox"), ("images", "image")],
-    "collate": DataCollatorWithBBoxesAugmentedForTokenClassification,
+    "collate": get_collator_class(BboxAugmenter),
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -106,7 +99,7 @@ layoutlmv2_sl = {
     "dataset_load_kwargs": {"use_image": True},
     "preprocess": [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox"), ("images", "image")],
-    "collate": DataCollatorWithBBoxesAugmentedForTokenClassification,
+    "collate": get_collator_class(BboxAugmenter),
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -115,7 +108,7 @@ laymqav1 = {
     "dataset_load_kwargs": {"use_image": False},
     "preprocess": [build_prefix_with_mqa_ids, tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": DataCollatorWithBBoxesForTokenClassification,
+    "collate": get_collator_class(),
     "model_class": LayMQAForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_mqa,
 }
@@ -131,7 +124,7 @@ from_docvqa_to_mqa = {
         produce_chunks,
     ],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": DataCollatorWithBBoxesForTokenClassification,
+    "collate": get_collator_class(),
     "model_class": LayMQAForTokenClassification,
     "compute_metrics": compute_metrics_for_qa_task,
 }
@@ -140,7 +133,7 @@ plain_sl = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, produce_chunks],
     "column_mapping": [("token_label_ids", "labels")],
-    "collate": DataCollatorFor1DTokenClassification,
+    "collate": get_collator_class(),
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }

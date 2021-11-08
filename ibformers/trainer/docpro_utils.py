@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional
 
 from transformers import HfArgumentParser, TrainingArguments, TrainerCallback
 
+from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.trainer.ib_utils import (
     MountDetails,
     prepare_ib_params,
@@ -477,7 +478,7 @@ def run_train_doc_pro(
 
     assert hyperparams is not None
     parser = HfArgumentParser(
-        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
+        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments, AugmenterArguments)
     )
 
     if hasattr(file_client, "file_client") and file_client.file_client is None:
@@ -501,7 +502,7 @@ def run_train_doc_pro(
         model_name,
     )
 
-    model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
+    model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hparams_dict)
 
     callback = DocProCallback(
         dataset_list=dataset_list,
@@ -520,6 +521,7 @@ def run_train_doc_pro(
         data_args,
         training_args,
         ib_args,
+        augmenter_args,
         extra_callbacks=[callback],
         extra_load_kwargs={"ibsdk": ibsdk, "extraction_class_name": extraction_class_name},
     )
