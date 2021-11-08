@@ -603,7 +603,7 @@ class IbDs(datasets.GeneratorBasedBuilder):
                     builder, err = ParsedIBOCRBuilder.load_from_str(ocr_path, data)  # for debugging
                     logging.warning("Could not load file: {}".format(ocr_path))
                     continue
-                        #IOError("Could not load file: {}".format(ocr_path))
+                    # IOError("Could not load file: {}".format(ocr_path))
                 ibocr = builder.as_parsed_ibocr()
                 annotations = file
 
