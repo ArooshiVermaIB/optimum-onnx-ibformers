@@ -1,5 +1,6 @@
 NYDriversLicenses:
-  env: dogfood
+  env:
+    - dogfood
   ibannotator: ib_annotation/data/fs/Prod Drive/datasets/DLs Clean/Drivers Licenses Clean.ibannotator
   time_limit: 1200 # 20 minutes
   config: &defaults
@@ -23,7 +24,7 @@ NYDriversLicenses:
   metrics: # TODO stop assuming higher is better
     # TODO maybe transpose this?
     precision:
-      DL Number: 0.9
+      DL Number: 0.89
       Name: 0.7
       Address: 0.9
     recall:
@@ -34,8 +35,11 @@ NYDriversLicenses:
       DL Number: 0.9
       Name: 0.6
       Address: 0.8
+
+
 UberEatsReceipts:
-  env: doc-insights-sandbox
+  env:
+    - doc-insights-sandbox
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
   time_limit: 1200 # 20 minutes
   config:
@@ -53,8 +57,10 @@ UberEatsReceipts:
       date: 0.9
       total: 0.95
 
+
 UberEatsXLM:
-  env: doc-insights-sandbox
+  env:
+    - doc-insights-sandbox
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
   time_limit: 1200 # 20 minutes
   config:
@@ -74,7 +80,8 @@ UberEatsXLM:
 
 
 UberEatsV2:
-  env: doc-insights-sandbox
+  env:
+    - doc-insights-sandbox
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
   time_limit: 1200 # 20 minutes
   config:
@@ -92,8 +99,10 @@ UberEatsV2:
       date: 0.6
       total: 0.6
 
+
 UberEatsBERT:
-  env: doc-insights-sandbox
+  env:
+    - doc-insights-sandbox
   ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
   time_limit: 1200 # 20 minutes
   config:

@@ -205,13 +205,15 @@ async def run_inference_test(
 
     logger.info("Creating Refiner")
 
-    refiner_path = await sdk.create_refiner_for_model(
-        model_path=str(model_path),
-        refiner_path=str(refiner_filename),
-        model_name=model_name,
-        save_path=save_path,
-        dev_input_folder=dev_input_folder,
-    )
+    refiner_path = str(refiner_filename)
+
+    # refiner_path = await sdk.create_refiner_for_model(
+    #    model_path=str(model_path),
+    #    refiner_path=str(refiner_filename),
+    #    model_name=model_name,
+    #    save_path=save_path,
+    #    dev_input_folder=dev_input_folder,
+    # )
 
     assert refiner_path, "Refiner path not found"
 
@@ -308,7 +310,7 @@ async def sync_and_unzip(sdk, contents):
     logger.debug(f"Done syncing code")
 
 
-async def run_tests(train: bool, inference: bool, test_name: Optional[str]):
+async def run_tests(train: bool, inference: bool, test_name: Optional[str], test_environment: str):
     model_tests = await load_model_tests()
     if not model_tests:
         logging.error("No tests found in model_tests.yaml.")
@@ -322,39 +324,44 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str]):
             )
             exit(1)
 
+    # validate test_environment
     envs = await load_environments()
-    for test_name, test_config in model_tests.items():
-        env = test_config['env']
-        if env not in envs:
-            logging.error(
-                f"In 'model_tests.yaml' for {test_name}, the attribute 'env' is set to '{env}', which is not "
-                f"one of the environments in 'environments.yaml': {[i for i in envs]}"
-            )
-            exit(1)
-
-    zip_bytes = zip_project(PROJECT_ROOT)
-
-    sync_tasks = {}  # We want to keep track of when these are finished to avoid conflicts
-
-    for env_name in {test_config['env'] for test_config in model_tests.values()}:
-        env_config = envs[env_name]
-        sdk = Instabase(
-            name=env_name,
-            host=env_config['host'],
-            token=env_config['token'],
-            root_path=env_config['path'],
+    if test_environment not in envs:
+        logging.error(
+            f"test_environment is not one of the environments "
+            f"in 'environments.yaml': {[i for i in envs]}"
         )
-        if train:
-            sync_tasks[env_name] = asyncio.create_task(sync_and_unzip(sdk, zip_bytes))
-    del zip_bytes
+        exit(1)
+
+    # create sync_and_unzip task first
+    sync_tasks = {}  # We want to keep track of when these are finished to avoid conflicts
+    env_config = envs[test_environment]
+    sdk = Instabase(
+        name=test_environment,
+        host=env_config['host'],
+        token=env_config['token'],
+        root_path=env_config['path'],
+    )
+    if train:
+        zip_bytes = zip_project(PROJECT_ROOT)
+        sync_tasks[test_environment] = asyncio.create_task(sync_and_unzip(sdk, zip_bytes))
+        del zip_bytes
 
     tasks: List[asyncio.Task] = []
 
     for test_name, test_config in model_tests.items():
-        env_name = test_config['env']
-        env_config = envs[env_name]
+        supported_envs = test_config['env']
+        if test_environment not in supported_envs:
+            logging.warning(
+                f"test_environment: {test_environment} is not supported by list of "
+                f"supported envs in {test_name},"
+                f"which are: {[i for i in supported_envs]}"
+            )
+            continue
+
+        env_config = envs[test_environment]
         sdk = Instabase(
-            name=env_name,
+            name=test_environment,
             host=env_config['host'],
             token=env_config['token'],
             root_path=env_config['path'],
@@ -364,7 +371,7 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str]):
             train_task = asyncio.create_task(
                 run_training_test(
                     sdk,
-                    wait_for=sync_tasks[env_name],
+                    wait_for=sync_tasks[test_environment],
                     test_name=test_name,
                     test_config=test_config,
                 )
@@ -389,6 +396,13 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str]):
 
 parser = argparse.ArgumentParser(description='Run model training regression tests')
 parser.add_argument(
+    '--environment',
+    dest='environment',
+    default='doc-insights-sandbox',
+    help="environment tests will be running on",
+)
+
+parser.add_argument(
     '--log-level', dest='log_level', default='INFO', help="DEBUG, INFO, WARNING, ERROR"
 )
 
@@ -410,6 +424,7 @@ parser.add_argument(
 parser.add_argument(
     '--no-inference', dest='inference', action='store_false', help="Don't run inference tests"
 )
+
 parser.set_defaults(train=True, inference=True)
 
 if __name__ == "__main__":
@@ -426,6 +441,9 @@ if __name__ == "__main__":
 
     asyncio.run(
         run_tests(
-            train=namespace.train, inference=namespace.inference, test_name=namespace.test_name
+            train=namespace.train,
+            inference=namespace.inference,
+            test_name=namespace.test_name,
+            test_environment=namespace.environment,
         )
     )
