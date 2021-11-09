@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from typing import Tuple, Iterator, Union, List, Sequence, Mapping, Dict, Optional
 
@@ -97,8 +98,11 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
         doc_conf = np.max(doc_prob, axis=-1)
         doc_class_index = np.argmax(doc_prob, axis=-1)
 
-        # get word level predictions - we might want to change that to support token level predictions
-        # word-begin indices
+        # get word level predictions
+        if "word_line_idx" in doc:
+            word_line_idx = doc['word_line_idx']
+        if 'word_in_line_idx' in doc:
+            word_in_line_idx = doc['word_in_line_idx']
 
         doc_conf = doc_conf[word_indices]
         doc_class_index = doc_class_index[word_indices]
@@ -130,6 +134,11 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
                 conf=conf,
                 idx=idx,
             )
+            if "word_line_idx" in doc:
+                word['word_line_idx'] = word_line_idx[idx]
+            if 'word_in_line_idx' in doc:
+                word['word_in_line_idx'] = word_in_line_idx[idx]
+
             doc_words_dict[tag_name].append(word)
 
         # generate correct answers to print pred/gold mismatches
@@ -175,37 +184,44 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
                 "is_match": pred_text == gold_text,
             }
 
-        pred_dict[doc["id"]] = doc_dict
+        is_test_file = doc['is_test_file'] if 'is_test_file' in doc else False
+        pred_dict[doc["id"]] = {'is_test_file': is_test_file, 'entities': doc_dict}
 
     return pred_dict
 
 
-def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None):
+def compute_legacy_metrics_for_sl(
+    predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None
+):
 
     if label_list is None:
         label_list = dataset.features["labels"].feature.names
     # get prediction dict and print mismatches
     pred_dict = get_predictions_for_sl(predictions, dataset, label_list)
 
-    print("MISMATCH EXAMPLES")
+    logging.info("MISMATCH EXAMPLES")
     max_examples = 2
     for lab in label_list[1:]:
         mismatches = [
-            "\tpred:\t'" + v[lab]["text"] + "'\n\tgold:\t'" + v[lab]["gold_text"] + "'\n"
+            "\tpred:\t'"
+            + v['entities'][lab]["text"]
+            + "'\n\tgold:\t'"
+            + v['entities'][lab]["gold_text"]
+            + "'\n"
             for k, v in pred_dict.items()
-            if not v[lab]["is_match"]
+            if not v['entities'][lab]["is_match"]
         ]
         mismatch_text = "  ".join(mismatches[:max_examples])
         if len(mismatches) > 0:
-            print(f"{lab}:\n{mismatch_text}", end="")
+            logging.info(f"{lab}:\n{mismatch_text}")
 
     # get list of document gold labels - List[Dict[List]]
     ground_truths: List[Dict[List]] = [
-        {k: [wrd["idx"] for wrd in v["gold_words"]] for k, v in doc_lab.items()}
+        {k: [wrd["idx"] for wrd in v["gold_words"]] for k, v in doc_lab['entities'].items()}
         for doc_lab in pred_dict.values()
     ]
     pred_words: List[Dict[List]] = [
-        {k: [wrd["idx"] for wrd in v["words"]] for k, v in doc_lab.items()}
+        {k: [wrd["idx"] for wrd in v["words"]] for k, v in doc_lab['entities'].items()}
         for doc_lab in pred_dict.values()
     ]
 
@@ -245,8 +261,8 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_li
         / (token_level_df.precision + token_level_df.recall)
         # Note that this is Pandas, so dividing by zero gives NAN
     )
-    print("EVALUATION RESULTS")
-    print(token_level_df)
+    logging.info("EVALUATION RESULTS")
+    logging.info(token_level_df)
     token_level_results = token_level_df.fillna("NAN")[["precision", "recall", "f1"]].to_dict()
     results = {**doc_level_metrics, **token_level_results}
 
@@ -327,13 +343,13 @@ def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
     final_results["precision"]["_Overall"] = results["overall_precision"]
     final_results["recall"]["_Overall"] = results["overall_recall"]
     final_results["f1"]["_Overall"] = results["overall_f1"]
-    print("EVALUATION RESULTS")
-    print(pd.DataFrame(final_results))
+    logging.info("EVALUATION RESULTS")
+    logging.info(pd.DataFrame(final_results))
 
     # get prediction dict and print mismatches
     pred_dict = get_predictions_for_sl(predictions, dataset)
 
-    print("MISMATCH EXAMPLES")
+    logging.info("MISMATCH EXAMPLES")
     max_examples = 2
     for lab in label_list[1:]:
         mismatches = [
@@ -343,7 +359,7 @@ def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
         ]
         mismatch_text = "  ".join(mismatches[:max_examples])
         if len(mismatches) > 0:
-            print(f"{lab}:\n{mismatch_text}", end="")
+            logging.info(f"{lab}:\n{mismatch_text}")
 
     final_results["predictions"] = pred_dict
 

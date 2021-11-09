@@ -3,13 +3,13 @@ from pathlib import Path
 from ibformers.trainer.ib_package.ModelServiceTemplate.src.py.package_name.model import IbModel
 from instabase.protos.model_service import model_service_pb2
 
-annotation_file = Path(__file__).parent.parent / "ibformers" / "example" / "UberEats.ibannotator"
+annotation_file = Path("/Users/rafalpowalski/python/annotation/uber/UberEats.ibannotator")
 with open(str(annotation_file), 'r') as fl:
     content = json.load(fl)
 
 
 # Load model
-model_path = '/var/folders/k_/kwwcpz8944j2c5xbyfpypmgc0000gn/T/tmpz8wv2ji5/model'
+model_path = '/Users/rafalpowalski/python/models/test_model/artifact/src/py/CustomModel/model_data'
 model = IbModel(model_data_path=model_path)
 model.load()
 
@@ -22,6 +22,3 @@ for annotations in content['files']:
 
 
 print(len(outs))
-
-
-

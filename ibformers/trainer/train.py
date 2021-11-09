@@ -18,23 +18,17 @@ Fine-tuning the library models for token classification.
 """
 # You can also adapt this script on your own token classification task and datasets. Pointers for this are left as
 # comments.
-import json
 import logging
 import os
 import sys
-import tempfile
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, Any
 from pathlib import Path
 
 import datasets
-import numpy as np
-from datasets import ClassLabel, load_dataset, concatenate_datasets
+from datasets import ClassLabel, load_dataset
 
 import transformers
 from transformers import (
     AutoConfig,
-    AutoModelForTokenClassification,
     AutoTokenizer,
     HfArgumentParser,
     PreTrainedTokenizerFast,
@@ -44,19 +38,16 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
 
-from instabase.model_training_tasks.jobs import JobMetadataClient
-
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.10.0.dev0")
-from ibformers.trainer.ib_utils import (
-    IbCallback,
+from ibformers.trainer.train_utils import (
+    split_train_with_column,
+    ModelArguments,
+    DataAndPipelineArguments,
     IbArguments,
-    InstabaseSDK,
-    prepare_ib_params,
-    HF_TOKEN,
 )
 from ibformers.trainer.trainer import IbTrainer
 
@@ -68,179 +59,7 @@ require_version(
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ModelArguments:
-    """
-    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-    """
-
-    model_name_or_path: str = field(
-        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
-    )
-    config_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "Pretrained config name or path if not the same as model_name"},
-    )
-    tokenizer_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"},
-    )
-    cache_dir: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Where do you want to store the pretrained models downloaded from huggingface.co"
-        },
-    )
-    model_revision: str = field(
-        default="main",
-        metadata={
-            "help": "The specific model version to use (can be a branch name, tag name or commit id)."
-        },
-    )
-    use_auth_token: bool = field(
-        default=False,
-        metadata={
-            "help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
-            "with private models)."
-        },
-    )
-
-
-@dataclass
-class DataAndPipelineArguments:
-    """
-    Arguments pertaining to what data we are going to input our model for training and eval.
-    """
-
-    task_name: Optional[str] = field(
-        default="ner", metadata={"help": "The name of the task (ner, pos...)."}
-    )
-    dataset_name_or_path: Optional[str] = field(
-        default=None,
-        metadata={"help": "The name of the dataset to use (via the datasets library)."},
-    )
-    dataset_config_name: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "The configuration name of the dataset to use (via the datasets library)."
-        },
-    )
-    train_file: Optional[str] = field(
-        default=None, metadata={"help": "The input training data file (a csv or JSON file)."}
-    )
-    validation_file: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."
-        },
-    )
-    test_file: Optional[str] = field(
-        default=None,
-        metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
-    )
-    overwrite_cache: bool = field(
-        default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
-    )
-    preprocessing_num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "The number of processes to use for the preprocessing."},
-    )
-    max_length: int = field(
-        default=None,
-        metadata={
-            "help": "The maximum total input sequence length after tokenization. If set, sequences longer "
-            "than this will be truncated, sequences shorter will be padded."
-        },
-    )
-    chunk_overlap: int = field(
-        default=None,
-        metadata={"help": "Overlap needed for producing multiple chunks"},
-    )
-    pad_to_max_length: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to pad all samples to model maximum sentence length. "
-            "If False, will pad the samples dynamically when batching to the maximum length in the batch. More "
-            "efficient on GPU but very bad for TPU."
-        },
-    )
-    max_train_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of training examples to this "
-            "value if set."
-        },
-    )
-    max_eval_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
-            "value if set."
-        },
-    )
-    max_predict_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "For debugging purposes or quicker training, truncate the number of prediction examples to this "
-            "value if set."
-        },
-    )
-    return_entity_level_metrics: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to return all the entity levels during evaluation or just the overall ones."
-        },
-    )
-    pipeline_name: str = field(
-        default=None,
-        metadata={
-            "help": "pipeline which is defining a training process. "
-            "Default is None which is trying to infer it from model name"
-        },
-    )
-
-    def __post_init__(self):
-        if (
-            self.dataset_name_or_path is None
-            and self.train_file is None
-            and self.validation_file is None
-        ):
-            raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                # assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                # assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
-        self.task_name = self.task_name.lower()
-
-    def save(self, save_path, filename="pipeline.json"):
-        save_dict = asdict(self)
-        with open(os.path.join(save_path, filename), "w", encoding="utf-8") as writer:
-            json.dump(save_dict, writer, indent=2, sort_keys=True)
-
-
-def run_train(
-    hyperparams: Optional[Dict] = None,
-    dataset_filename: Optional[str] = None,
-    save_path: Optional[str] = None,
-    file_client: Optional[Any] = None,
-    username: Optional[str] = None,
-    job_metadata_client: Optional["JobMetadataClient"] = None,
-    mount_details: Optional[Dict] = None,
-    model_name: Optional[str] = "CustomModel",
-    **kwargs: Any,
-):
-
-    # scripts will support both running from model-training-tasks and running from shell
-    if hyperparams is not None:
-        assert dataset_filename is not None
-        assert save_path is not None
-        # assert file_client is not None
-        assert username is not None
-        assert job_metadata_client is not None
-
+def run_cmdline_train():
     parser = HfArgumentParser(
         (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
     )
@@ -250,25 +69,15 @@ def run_train(
         model_args, data_args, training_args, ib_args = parser.parse_json_file(
             json_file=os.path.abspath(sys.argv[1])
         )
-    elif hyperparams is not None:
-        # support running from model-training-tasks
-        hparams_dict = prepare_ib_params(
-            hyperparams,
-            dataset_filename,
-            save_path,
-            file_client,
-            username,
-            job_metadata_client,
-            mount_details,
-            model_name,
-        )
-        model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
     else:
         model_args, data_args, training_args, ib_args = parser.parse_args_into_dataclasses()
 
-    # create variable which indicate whether this is run by IB model service
-    ibtrain = ib_args.file_client is not None
+    run_train(model_args, data_args, training_args, ib_args)
 
+
+def run_train(
+    model_args, data_args, training_args, ib_args, extra_callbacks=None, extra_load_kwargs=None
+):
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -276,8 +85,7 @@ def run_train(
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    # log_level = training_args.get_process_log_level()
-    log_level = logging.INFO
+    log_level = training_args.get_process_log_level()
     logger.setLevel(log_level)
     datasets.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.set_verbosity(log_level)
@@ -320,6 +128,14 @@ def run_train(
     load_kwargs = pipeline["dataset_load_kwargs"]
     model_class = pipeline["model_class"]
 
+    if model_args.model_name_or_path.startswith("instabase/"):
+        # lazy import of file which is not always present in repo
+        from ibformers.trainer.hf_token import HF_TOKEN
+
+        token = HF_TOKEN
+    else:
+        token = None
+
     data_files = {}
     if data_args.train_file is not None:
         data_files["train"] = data_args.train_file
@@ -332,28 +148,21 @@ def run_train(
     ds_path = Path(DATASETS_PATH) / data_args.dataset_name_or_path
     name_to_use = str(ds_path) if ds_path.is_dir() else data_args.dataset_name_or_path
 
-    if ibtrain:
-        # for debugging
-        if isinstance(ib_args.file_client, InstabaseSDKDummy):
-            ibsdk = ib_args.file_client
-        else:
-            ibsdk = InstabaseSDK(ib_args.file_client, ib_args.username)
-        raw_datasets = load_dataset(
-            path=name_to_use,
-            name=data_args.dataset_config_name,
-            cache_dir=model_args.cache_dir,
-            data_files=data_files,
-            ibsdk=ibsdk,
-            **load_kwargs,
-        )
-    else:
-        raw_datasets = load_dataset(
-            path=name_to_use,
-            name=data_args.dataset_config_name,
-            cache_dir=model_args.cache_dir,
-            data_files=data_files,
-            **load_kwargs,
-        )
+    if extra_load_kwargs is not None:
+        load_kwargs.update(extra_load_kwargs)
+
+    raw_datasets = load_dataset(
+        path=name_to_use,
+        name=data_args.dataset_config_name,
+        cache_dir=model_args.cache_dir,
+        data_files=data_files,
+        **load_kwargs,
+    )
+
+    # workaround currently only for docpro dataset which require loading into single dataset as information about split
+    # could be obtained after loading a record
+    if 'split' in next(iter(raw_datasets.column_names.values())):
+        raw_datasets = split_train_with_column(raw_datasets)
 
     tokenizer_name_or_path = (
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
@@ -364,7 +173,7 @@ def run_train(
         cache_dir=model_args.cache_dir,
         use_fast=True,
         revision=model_args.model_revision,
-        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
+        use_auth_token=token,
     )
 
     # Tokenizer check: this script requires a fast tokenizer.
@@ -447,7 +256,7 @@ def run_train(
         id2label={i: l for l, i in label_to_id.items()},
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
+        use_auth_token=token,
     )
 
     model = model_class.from_pretrained(
@@ -456,22 +265,12 @@ def run_train(
         config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=HF_TOKEN if model_args.model_name_or_path.startswith("instabase/") else None,
+        use_auth_token=token,
     )
 
     callbacks = []
-    if ibtrain:
-        callbacks.append(
-            IbCallback(
-                job_metadata_client=ib_args.job_metadata_client,
-                ibsdk=ibsdk,
-                username=ib_args.username,
-                mount_details=ib_args.mount_details,
-                model_name=ib_args.model_name,
-                ib_save_path=ib_args.ib_save_path,
-                upload=ib_args.upload,
-            )
-        )
+    if extra_callbacks is not None:
+        callbacks.extend(extra_callbacks)
 
     # Data collator
     data_collator = collate_fn(
@@ -500,9 +299,13 @@ def run_train(
             checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
-        model_save_path = os.path.join(training_args.output_dir, "model")
-        trainer.save_model(model_save_path)  # Saves the tokenizer too for easy upload
-        data_args.save(model_save_path)  # Saves the pipeline & data arguments
+        final_model_dir = (
+            ib_args.final_model_dir
+            if ib_args.final_model_dir is not None
+            else training_args.output_dir
+        )
+        trainer.save_model(final_model_dir)  # Saves the tokenizer too for easy upload
+        data_args.save(final_model_dir)  # Saves the pipeline & data arguments
         max_train_samples = (
             data_args.max_train_samples
             if data_args.max_train_samples is not None
@@ -534,85 +337,13 @@ def run_train(
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
-        predictions, labels, metrics = trainer.predict(predict_dataset, metric_key_prefix="predict")
-
-        # Callback is saving predictions, therefore below code is not needed
-
-        # predictions = np.argmax(predictions, axis=2)
-        # # Remove ignored index (special tokens)
-        # true_predictions = [
-        #     [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
-        #     for prediction, label in zip(predictions, labels)
-        # ]
-        #
-        # # trainer.log_metrics("predict", metrics)
-        # trainer.save_metrics("predict", metrics)
-        #
-        # # Save predictions
-        # output_predictions_file = os.path.join(training_args.output_dir, "predictions.txt")
-        # if trainer.is_world_process_zero():
-        #     with open(output_predictions_file, "w") as writer:
-        #         for prediction in true_predictions:
-        #             writer.write(" ".join(prediction) + "\n")
+        _ = trainer.predict(predict_dataset, metric_key_prefix="predict")
 
 
 def _mp_fn(index):
     # For xla_spawn (TPUs)
-    run_train()
-
-
-# below is for debugging with running locally
-# this code is not reached via model service as it is directly calling run_train fn
-class InstabaseSDKDummy:
-    def __init__(self, file_client: Any, username: str):
-        # these will be ignored
-        self.file_client = file_client
-        self.username = username
-
-    def ibopen(self, path: str, mode: str = "r") -> Any:
-        return open(path, mode)
-
-    def read_file(self, file_path: str) -> str:
-        with open(file_path) as f:
-            return f.read()
-
-    def write_file(self, file_path: str, content: str):
-        with open(file_path, "w") as f:
-            f.write(content)
+    run_cmdline_train()
 
 
 if __name__ == "__main__":
-
-    class DummyJobStatus(JobMetadataClient):
-        def __init__(self):
-            pass
-
-        def update_message(self, message: Optional[str]) -> None:
-            pass
-
-        def update_metadata(self, metadata: Optional[Dict[str, Any]]) -> None:
-            pass
-
-    hyperparams = {
-        "adam_epsilon": 1e-8,
-        "batch_size": 8,
-        "chunk_size": 512,
-        "epochs": 3,
-        "learning_rate": 5e-05,
-        "loss_agg_steps": 2,
-        "max_grad_norm": 1.0,
-        "optimizer_type": "AdamW",
-        "scheduler_type": "constant_schedule_with_warmup",
-        "stride": 64,
-        "use_gpu": True,
-        "use_mixed_precision": False,
-        "warmup": 0.0,
-        "weight_decay": 0,
-        "model_name": "microsoft/layoutxlm-base",
-    }
-    example_dir = Path(__file__).parent.parent / "example"
-    # dataset_filename = '/Users/rafalpowalski/python/annotation/receipts/Receipts.ibannotator'
-    dataset_filename = os.path.join(example_dir, "UberEats.ibannotator")
-    save_path = os.path.join(example_dir, "saved_model")
-    sdk = InstabaseSDKDummy(None, "user")
-    run_train(hyperparams, dataset_filename, save_path, sdk, 'user', DummyJobStatus())
+    run_cmdline_train()

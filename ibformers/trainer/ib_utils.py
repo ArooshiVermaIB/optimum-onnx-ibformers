@@ -3,21 +3,19 @@ import logging
 import os
 import tempfile
 import uuid
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional, Any, Iterable, Tuple
 from typing_extensions import TypedDict
 import boto3
 import shutil
 
-from transformers import TrainerCallback
+from transformers import TrainerCallback, HfArgumentParser, TrainingArguments
+
+from ibformers.trainer.train import run_train
+from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments
 from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase
-
-
-HF_TOKEN = "api_AYGJoxZMBtWlYODoAQgLKAuNVRXaGfQtjX"
-
 
 logger = logging.getLogger(__name__)
 
@@ -186,50 +184,6 @@ class IbCallback(TrainerCallback):
         self.set_status({'predictions_uuid': uuid.uuid4().hex})
 
 
-@dataclass
-class IbArguments:
-    """
-    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-    """
-
-    username: Optional[str] = field(
-        default=None, metadata={"help": "Username of person who is running the model training"}
-    )
-    file_client: Optional[Any] = field(
-        default=None, metadata={"help": "File client object which support different file systems"}
-    )
-    job_metadata_client: Optional['JobMetadataClient'] = field(
-        default=None,
-        metadata={
-            "help": "Job metadata client. Used for collecting information of training progress"
-        },
-    )
-    mount_details: Optional[Dict] = field(
-        default=None,
-        metadata={"help": "Store information about S3 details"},
-    )
-    model_name: Optional[str] = field(
-        default="CustomModel",
-        metadata={
-            "help": "The model name which will be appear in the model management dashboard ??"
-        },
-    )
-    ib_save_path: Optional[str] = field(
-        default=None,
-        metadata={"help": "Where do you want to save ib_package on the IB space"},
-    )
-    upload: Optional[bool] = field(
-        default=None, metadata={"help": "Whether to upload model files to ib_save_path"}
-    )
-
-
-def generate_randomness() -> str:
-    """
-    Get random five ascii letters
-    """
-    return ''.join(random.choice(string.ascii_letters) for _ in range(5))
-
-
 class MountDetails(TypedDict):
     client_type: str  # Should be "S3" on prod
     prefix: str
@@ -311,7 +265,7 @@ def _abspath(relpath: str) -> str:
 
 def prepare_ib_params(
     hyperparams: Dict,
-    dataset_filename: str,
+    dataset_filename: Optional[str],
     save_path: str,
     file_client: Any,
     username: str,
@@ -338,7 +292,7 @@ def prepare_ib_params(
         do_train=True,
         do_eval=True,
         do_predict=True,
-        log_level='warning',
+        log_level='info',
         report_to='none',
         logging_strategy='epoch',
         evaluation_strategy='epoch',
@@ -358,14 +312,9 @@ def prepare_ib_params(
         job_metadata_client=job_metadata_client,
         mount_details=mount_details,
         model_name=model_name,
+        final_model_dir=os.path.join(temp_dir, "model"),
     )
 
-    if "dataset" in hyperparams:
-        out_dict["dataset_name_or_path"] = hyperparams["dataset"]
-        out_dict["dataset_config_name"] = hyperparams["dataset"]
-    else:
-        out_dict["dataset_name_or_path"] = "ibds"
-        out_dict["dataset_config_name"] = "ibds"
     if 'epochs' in hyperparams:
         out_dict['num_train_epochs'] = hyperparams.pop('epochs')
     if 'batch_size' in hyperparams:
@@ -419,3 +368,57 @@ def prepare_ib_params(
         )
 
     return out_dict
+
+
+def run_train_annotator(
+    hyperparams: Dict,
+    dataset_filename: str,
+    save_path: str,
+    file_client: Any,
+    username: Optional[str] = 'user',
+    job_metadata_client: Optional["JobMetadataClient"] = None,
+    mount_details: Optional[Dict] = None,
+    model_name: Optional[str] = "CustomModel",
+    **kwargs: Any,
+):
+    assert hyperparams is not None
+    parser = HfArgumentParser(
+        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
+    )
+
+    hparams_dict = prepare_ib_params(
+        hyperparams,
+        dataset_filename,
+        save_path,
+        file_client,
+        username,
+        job_metadata_client,
+        mount_details,
+        model_name,
+    )
+    model_args, data_args, training_args, ib_args = parser.parse_dict(hparams_dict)
+
+    if hasattr(file_client, "file_client") and file_client.file_client is None:
+        # support for InstabaseSDKDummy - debugging only
+        ibsdk = file_client
+    else:
+        ibsdk = InstabaseSDK(file_client, username)
+
+    callback = IbCallback(
+        job_metadata_client=ib_args.job_metadata_client,
+        ibsdk=ibsdk,
+        username=ib_args.username,
+        mount_details=ib_args.mount_details,
+        model_name=ib_args.model_name,
+        ib_save_path=ib_args.ib_save_path,
+        upload=ib_args.upload,
+    )
+
+    run_train(
+        model_args,
+        data_args,
+        training_args,
+        ib_args,
+        extra_callbacks=[callback],
+        extra_load_kwargs={"ibsdk": ibsdk},
+    )
