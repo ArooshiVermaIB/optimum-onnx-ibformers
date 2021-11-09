@@ -309,6 +309,16 @@ def get_docpro_ds_split(anno: Optional[Dict]):
         return False, "train"
 
 
+def validate_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes):
+    for dim in range(1):
+        tokens_outside_dim = np.nonzero(bbox_arr[:, 2 + dim] > size_per_token[:, dim])
+        if len(tokens_outside_dim[0]) > 0:
+            example_idx = tokens_outside_dim[0][0]
+            ex_bbox = bbox_arr[example_idx]
+            ex_page = page_bboxes[word_pages_arr[example_idx]]
+            raise ValueError(f'found bbox {ex_bbox} outside of the page. bbox {ex_page}')
+
+
 class DocProDs(datasets.GeneratorBasedBuilder):
     """
     Instabase internal dataset format, creation of dataset can be done by passing list of datasets
@@ -519,9 +529,12 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         page_bboxes = np.array([[0, 0, pg.get_width(), pg.get_height()] for pg in layouts])
 
         # normalize bboxes - divide only by width to keep information about ratio
-        width_per_token = np.take(page_bboxes[:, 2], word_pages_arr)
-        norm_bboxes = bbox_arr * 1000 / width_per_token[:, None]
+        size_per_token = np.take(page_bboxes[:, 2:], word_pages_arr, axis=0)
+        norm_bboxes = bbox_arr * 1000 / size_per_token[:, 0:1]
         norm_page_bboxes = page_bboxes * 1000 / page_bboxes[:, 2:3]
+
+        # Validate bboxes
+        validate_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes)
 
         entities, token_label_ids = process_labels_from_annotation(
             annotations=anno_fields,

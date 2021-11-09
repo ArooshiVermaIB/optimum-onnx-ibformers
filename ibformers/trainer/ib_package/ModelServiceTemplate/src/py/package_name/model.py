@@ -1,5 +1,5 @@
+import copy
 import json
-import logging
 import os
 import sys
 
@@ -91,15 +91,14 @@ class IbModel(Model):
     def prepare_mapper_and_word_pollys(self, parsed_ibocr):
         # TODO: investigate if we can remove outputting input column mapper indexes,
         #  it requires lots of additional computation - two additional iteration over all words in document
-        record_joined, err = parsed_ibocr.get_joined_page()
+        record_joined, err = copy.deepcopy(parsed_ibocr).get_joined_page()
         if err:
             raise RuntimeError(f"Error while getting parsed_ibocr.get_joined_page(): {err}")
         mapper = WordPolyInputColMapper(record_joined)  # not good
         records = parsed_ibocr.get_ibocr_records()
         if len(records) > 1:
-            logging.error(
-                'Model should consume only single record. '
-                'Check if you are passing only single class documents'
+            ValueError(
+                'Model should consume only single record. Check if you are passing only single class documents'
             )
         record = records[0]
 
