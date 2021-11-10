@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import uuid
 from typing import Dict, Any
 
 import yaml
@@ -12,9 +13,8 @@ def abspath(relpath):
     return os.path.abspath(os.path.join(dirpath, relpath))
 
 
-# PROJECT_ROOT = abspath('../../test_package')
 PROJECT_ROOT = abspath('../../ibformers')
-REMOTE_TEMP_ZIP_PATH = 'temp.ibsolution'  # TODO: Make this random
+REMOTE_TEMP_ZIP_PATH = '%s.ibsolution' % uuid.uuid4().hex
 REMOTE_CODE_LOCATION = 'ibformers'  # TODO: Make this within a randomly generated directory
 SCRIPT_FUNCTION = 'ibformers.trainer.ib_utils.run_train_annotator'
 

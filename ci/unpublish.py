@@ -26,7 +26,7 @@ async def unpublish_from_env(sdk: Instabase, package: str, version: str) -> bool
     return success
 
 
-async def unpublish(package: str, version: str) -> Dict[str, bool]:
+async def unpublish(package: str, version: str, env_name: str) -> Dict[str, bool]:
     """
     Unpublishes the given package and version from every environment in res/environments.yml
     :param package: the name of the package to unpublish
@@ -35,23 +35,26 @@ async def unpublish(package: str, version: str) -> Dict[str, bool]:
     """
     envs = await load_environments()
 
-    sdks = [
-        Instabase(
-            name=env_name,
-            host=env_dict['host'],
-            token=env_dict['token'],
-            root_path=env_dict['path'],
-        )
-        for env_name, env_dict in envs.items()
-    ]
+    env_dict = dict(envs).get(env_name)
+    if env_dict is None:
+        logger.error(f"the environment {env_name} does not exist!")
+        exit(1)
 
-    results: Sequence[bool] = await asyncio.gather(
-        *[unpublish_from_env(sdk, package, version) for sdk in sdks]
+    sdk = Instabase(
+        name=env_name,
+        host=env_dict['host'],
+        token=env_dict['token'],
+        root_path=env_dict['path'],
     )
-    return {k: v for k, v in zip(envs.keys(), results)}
+
+    return await unpublish_from_env(sdk, package, version)
 
 
 parser = argparse.ArgumentParser(description='Publish layoutlm package')
+parser.add_argument(
+    '--environment', dest='environment', help="environment package will be published to"
+)
+
 parser.add_argument(
     '--log-level',
     dest='log_level',
@@ -79,4 +82,5 @@ if __name__ == "__main__":
     )
     package = namespace.package
     version = namespace.version
-    asyncio.run(unpublish(package, version))
+    env_name = namespace.environment
+    asyncio.run(unpublish(package, version, env_name))

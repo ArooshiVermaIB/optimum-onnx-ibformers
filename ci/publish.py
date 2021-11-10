@@ -49,7 +49,9 @@ async def sync_and_publish(
         package_name=package_name,
         package_version=package_version,
     ):
-        logger.info(f"Skipping publishing to {sdk.name}: current version is already present")
+        logger.info(
+            f"Skipping publishing to {sdk.name}: current version {package_version} is already present"
+        )
         return
 
     logger.info(f"Publishing {package_name} to {sdk.name}")
@@ -68,7 +70,9 @@ async def sync_and_publish(
         )
 
 
-async def publish(package: str):
+async def publish(package: str, env_name: str):
+    logger = logging.getLogger(f"publish-{package}-{env_name}")
+
     envs = await load_environments()
 
     package_location = abspath(f'../../{package}')
@@ -78,30 +82,34 @@ async def publish(package: str):
         package_json = json.load(f)
     package_name = package_json['name']
     package_version = package_json['version']
-    sdks = [
-        Instabase(
-            name=env_name,
-            host=env_dict['host'],
-            token=env_dict['token'],
-            root_path=env_dict['path'],
-        )
-        for env_name, env_dict in envs.items()
-    ]
+
+    env_dict = dict(envs).get(env_name)
+    if env_dict is None:
+        logger.error(f"the environment {env_name} does not exist!")
+        exit(1)
+
+    sdk = Instabase(
+        name=env_name,
+        host=env_dict['host'],
+        token=env_dict['token'],
+        root_path=env_dict['path'],
+    )
+
     zip_bytes = zip_project(package_location)
-    return await asyncio.gather(
-        *[
-            sync_and_publish(
-                sdk,
-                zip_bytes,
-                package_name=package_name,
-                package_version=package_version,
-            )
-            for sdk in sdks
-        ]
+
+    return await sync_and_publish(
+        sdk,
+        zip_bytes,
+        package_name=package_name,
+        package_version=package_version,
     )
 
 
 parser = argparse.ArgumentParser(description='Publish ibformers package')
+parser.add_argument(
+    '--environment', dest='environment', help="environment package will be published to"
+)
+
 parser.add_argument(
     '--log-level',
     dest='log_level',
@@ -123,4 +131,5 @@ if __name__ == "__main__":
         format='[%(levelname)s] [%(asctime)s] [%(name)s] (%(module)s.%(funcName)s:%(lineno)d) %(message)s',
     )
     package = namespace.package
-    asyncio.run(publish(package))
+    env_name = namespace.environment
+    asyncio.run(publish(package, env_name))
