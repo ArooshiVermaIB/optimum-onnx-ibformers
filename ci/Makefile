@@ -1,5 +1,5 @@
 build-docker:
-	docker build -f . -t docker-test ../
+	docker build -f `pwd`/. -t docker-test `pwd`/../
 
 run-docker-ci-test-doc-insights-sandbox:
 	docker run docker-test ci.run_tests --environment doc-insights-sandbox --no-train --no-inference
