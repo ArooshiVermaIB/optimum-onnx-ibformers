@@ -1,0 +1,12 @@
+invoices-non-tabular:
+  name: Invoices - non tabular
+  shared_path: /home/ib/datasets/invoices-non-tabular/Invoices.ibannotator
+invoices-tabular:
+  name: Invoices - tabular
+  shared_path: /home/ib/datasets/invoices-tabular/Invoices-Tabular fields.ibannotator
+receipts:
+  name: Receipts
+  shared_path: /home/ib/datasets/receipts/Receipts.ibannotator
+w2:
+  name: W2
+  shared_path: /home/ib/datasets/w2/W2_Marketplace.ibannotator

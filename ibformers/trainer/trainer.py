@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from datasets import IterableDataset
 from torch.utils.data import DataLoader, Dataset
+from transformers.integrations import WandbCallback
 from transformers.trainer import Trainer
 from transformers import EvalPrediction, is_torch_tpu_available, AdamW
 from transformers.file_utils import (
@@ -26,6 +27,8 @@ from transformers.trainer_pt_utils import (
 from transformers.trainer_utils import EvalLoopOutput, denumpify_detensorize, PredictionOutput
 from transformers.utils import logging
 
+from ibformers.callbacks.wandb import ExtendedWandbCallback
+
 logger = logging.get_logger(__name__)
 
 _is_torch_generator_available = False
@@ -33,7 +36,7 @@ _is_native_amp_available = False
 
 
 if is_in_notebook():
-    from .utils.notebook import NotebookProgressCallback
+    from transformers.utils.notebook import NotebookProgressCallback
 
     DEFAULT_PROGRESS_CALLBACK = NotebookProgressCallback
 
@@ -61,8 +64,15 @@ class IbTrainer(Trainer):
 
     def __init__(self, *args, post_process_function=None, **kwargs):
         super().__init__(*args, **kwargs)
+        #TODO: Add replace the default wandb callback with the custom one that logs more data'
         self.post_process_function = post_process_function
         self.test_dataset = None
+        self._update_callbacks()
+
+    def _update_callbacks(self) -> None:
+        old_callback = self.pop_callback(WandbCallback)
+        if old_callback is not None:
+            self.add_callback(ExtendedWandbCallback)
 
     def create_optimizer(self) -> torch.optim.Optimizer:
         config = {"lr": self.args.learning_rate, "eps": self.args.adam_epsilon}
@@ -268,7 +278,7 @@ class IbTrainer(Trainer):
             # MODIFICATION - pass eval_dataset to metric computing in order to get document level predictions
             metrics = self.compute_metrics(
                 EvalPrediction(predictions=all_preds, label_ids=all_labels),
-                self.eval_dataset if metric_key_prefix == "eval" else self.test_dataset,
+                self.eval_dataset if metric_key_prefix in {'eval', 'final_eval'} else self.test_dataset,
             )
         else:
             metrics = {}

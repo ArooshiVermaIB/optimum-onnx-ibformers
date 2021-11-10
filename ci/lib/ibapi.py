@@ -34,7 +34,21 @@ class Instabase:
             async with session.get(url, headers=headers, ) as r:
                 resp = await r.text()
 
-        self.logger.debug(f'{self.name} read_file: IB API response: {resp}')
+        self.logger.debug(f'{self.name} read_file: IB API response head: {resp}')
+        return resp
+
+    async def read_binary(self, ib_path: str) -> bytes:
+        headers = {
+            **self._make_headers(),
+            'Instabase-API-Args': json.dumps(dict(type='file', get_content=True)),
+        }
+
+        url = os.path.join(self.drive_api_url, self._root_path, ib_path)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, ) as r:
+                resp = await r.read()
+
+        self.logger.debug(f'{self.name} read_binary: IB API response: {resp[:100]}')
         return resp
 
     async def write_file(self, ib_path: str, contents: AnyStr) -> Dict[str, Any]:

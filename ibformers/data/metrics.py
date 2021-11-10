@@ -190,6 +190,35 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
     return pred_dict
 
 
+def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, float]:
+    """
+    Calculate average (micro- and macro-) metrics.
+
+    Args:
+        token_level_df: Dataframe with columns `true_positives`,
+            `total_positives`, `total_true`, `f1`, `precision`, `recall`
+
+    Returns:
+        Dictionary with micro- and macro- f1, precision and recall.
+    """
+
+    summed_df = token_level_df.sum(axis=0)
+    summed_df['micro_precision'] = (summed_df['true_positives'] / summed_df['total_positives'])
+    summed_df['micro_recall'] = (summed_df['true_positives'] / summed_df['total_true'])
+    summed_df.fillna(0, inplace=True)
+    summed_df['micro_f1'] = (
+        (2 * summed_df['micro_precision'] * summed_df['micro_recall']) /
+        (summed_df['micro_precision'] + summed_df['micro_recall'] + 1e-10)
+    )
+
+    average_results = summed_df[['micro_precision', 'micro_recall', 'micro_f1']].to_dict()
+
+    average_results['macro_f1'] = token_level_df["f1"].fillna(0).mean()
+    average_results['macro_precision'] = token_level_df["precision"].fillna(0).mean()
+    average_results['macro_recall'] = token_level_df["recall"].fillna(0).mean()
+    return average_results
+
+
 def compute_legacy_metrics_for_sl(
     predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None
 ):
@@ -261,10 +290,13 @@ def compute_legacy_metrics_for_sl(
         / (token_level_df.precision + token_level_df.recall)
         # Note that this is Pandas, so dividing by zero gives NAN
     )
+
+    average_results = calculate_average_metrics(token_level_df)
+
     logging.info("EVALUATION RESULTS")
     logging.info(token_level_df)
     token_level_results = token_level_df.fillna("NAN")[["precision", "recall", "f1"]].to_dict()
-    results = {**doc_level_metrics, **token_level_results}
+    results = {**doc_level_metrics, **token_level_results, **average_results}
 
     results["predictions"] = pred_dict
 

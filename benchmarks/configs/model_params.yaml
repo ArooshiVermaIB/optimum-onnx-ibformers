@@ -1,0 +1,63 @@
+_default:
+  name:
+  hyperparams: &defaults
+    adam_epsilon: 1.e-8
+    batch_size: 8
+    gradient_accumulation_steps: 1
+    chunk_size: 512
+    stride: 64
+    epochs: 15
+    learning_rate: 5.e-5
+    optimizer_type: AdamW
+    scheduler_type: constant_schedule_with_warmup
+    use_gpu: true
+    use_mixed_precision: true
+    warmup: 0.0
+    weight_decay: 0
+
+microsoft/layoutlm-base-uncased:
+  name: layout-base
+  hyperparams:
+    <<: *defaults
+
+microsoft/layoutxlm-base:
+  name: layout-multilingual (single-page)
+  hyperparams:
+    <<: *defaults
+
+microsoft/layoutlmv2-base-uncased:
+  name: layoutv2 (single-page)
+  hyperparams:
+    <<: *defaults
+
+instabase/laymqav1-base:
+  name: LayoutMultiQA-base
+  hyperparams:
+    <<: *defaults
+
+nlpaueb/legal-bert-base-uncased:
+  name: legal natural language
+  hyperparams:
+    <<: *defaults
+    pipeline_name: plain_sl
+
+bert-base-uncased:
+  name: natural language
+  hyperparams:
+    <<: *defaults
+    pipeline_name: plain_sl
+
+microsoft/layoutlm-large-uncased:
+  name: layout-large
+  hyperparams:
+    <<: *defaults
+    batch_size: 4
+    gradient_accumulation_steps: 2
+
+microsoft/layoutlmv2-large-uncased:
+  name: layoutv2-base (single-page)
+  hyperparams:
+    <<: *defaults
+    batch_size: 4
+    gradient_accumulation_steps: 2
+

@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import urllib
 from pathlib import Path
 from typing import Tuple, List, Dict, Any, Union, NamedTuple, Optional, Callable, Sequence
@@ -599,7 +600,10 @@ class IbDs(datasets.GeneratorBasedBuilder):
                 builder, err = ParsedIBOCRBuilder.load_from_str(ocr_path, data)
 
                 if err:
-                    raise IOError("Could not load file: {}".format(ocr_path))
+                    builder, err = ParsedIBOCRBuilder.load_from_str(ocr_path, data)  # for debugging
+                    logging.warning("Could not load file: {}".format(ocr_path))
+                    continue
+                        #IOError("Could not load file: {}".format(ocr_path))
                 ibocr = builder.as_parsed_ibocr()
                 annotations = file
 

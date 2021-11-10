@@ -13,6 +13,9 @@ from transformers import TrainerCallback, HfArgumentParser, TrainingArguments
 
 from ibformers.trainer.train import run_train
 from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments
+
+
+from instabase.model_training_tasks.jobs import JobMetadataClient
 from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase
@@ -163,7 +166,7 @@ class IbCallback(TrainerCallback):
             # workaround for missing on_predict callback in the transformers TrainerCallback
             if 'predict_loss' in kwargs["metrics"]:
                 self.on_predict(args, state, control, **kwargs)
-            else:
+            elif 'eval_loss' in kwargs["metrics"]:
                 metrics = {}
                 metrics['precision'] = kwargs["metrics"]['eval_precision']
                 metrics['recall'] = kwargs["metrics"]['eval_recall']
@@ -173,6 +176,9 @@ class IbCallback(TrainerCallback):
                 )
 
                 self.evaluation_results = metrics
+            else:
+                # ignore last evaluation call
+                pass
 
     def on_predict(self, args, state, control, **kwargs):
         predictions = kwargs["metrics"]['predict_predictions']
@@ -319,6 +325,8 @@ def prepare_ib_params(
         out_dict['num_train_epochs'] = hyperparams.pop('epochs')
     if 'batch_size' in hyperparams:
         out_dict['per_device_train_batch_size'] = int(hyperparams.pop('batch_size'))
+    if 'gradient_accumulation_steps' in hyperparams:
+        out_dict['gradient_accumulation_steps'] = int(hyperparams.pop('gradient_accumulation_steps'))
     if 'learning_rate' in hyperparams:
         out_dict['learning_rate'] = hyperparams.pop('learning_rate')
     if 'max_grad_norm' in hyperparams:
@@ -358,9 +366,13 @@ def prepare_ib_params(
                 pipeline_name = 'layoutlmv2_sl'
             elif 'layoutxlm' in model_name.lower():
                 pipeline_name = 'layoutxlm_sl'
+            elif 'laymqav1' in model_name.lower():
+                pipeline_name = 'layoutv1_mqa'
             else:
                 pipeline_name = 'layoutlm_sl'
         out_dict['pipeline_name'] = pipeline_name
+    if 'report_to' in hyperparams:
+        out_dict['report_to'] = hyperparams.pop('report_to')
 
     if hyperparams:
         logging.info(
@@ -422,3 +434,26 @@ def run_train_annotator(
         extra_callbacks=[callback],
         extra_load_kwargs={"ibsdk": ibsdk},
     )
+
+
+class DummyJobStatus(JobMetadataClient):
+    def __init__(self):
+        pass
+
+    def update_message(self, message: Optional[str]) -> None:
+        pass
+
+    def update_metadata(self, metadata: Optional[Dict[str, Any]]) -> None:
+        pass
+
+    def job_id(self) -> str:
+        pass
+
+    def get_job_status(self):
+        pass
+
+    def set_job_status(self, metadata) -> None:
+        pass
+
+    def update_job_status(self, **updates: Any) -> None:
+        pass
