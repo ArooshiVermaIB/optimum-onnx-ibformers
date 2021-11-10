@@ -42,3 +42,26 @@ For imports to properly show up in PyCharm, try the following:
     - classification - with classification head (TBD)
     - classification - seq2seq (TBD)
     
+
+### Unsupervised MLM training
+
+For unsupervised pre-training, there are two pipelines available so far: `plain_mlm` and `layoutlm_mlm`. Example call:
+```bash
+python ibformers/trainer/train.py \
+--model_name_or_path microsoft/layoutlm-base-uncased \
+--output_dir /tmp/dry_mlm_run \
+--overwrite_output_dir \
+--dataset_config_name ibds \
+--dataset_name_or_path ibds \
+--train_file "/home/ib/datasets/receipts/Receipts.ibannotator" \
+--max_length 512 \
+--pipeline_name layoutlm_mlm \
+--do_train \
+--do_eval \
+--report_to none \
+--max_steps 10000 \
+--gradient_accumulation_steps 8 \
+--fp16 \
+--evaluation_strategy steps \
+--eval_steps 200
+```

@@ -21,6 +21,7 @@ Fine-tuning the library models for token classification.
 import logging
 import os
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import datasets
@@ -38,6 +39,7 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
 
+from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 
@@ -61,22 +63,22 @@ logger = logging.getLogger(__name__)
 
 def run_cmdline_train():
     parser = HfArgumentParser(
-        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments)
+        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments, AugmenterArguments)
     )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, ib_args = parser.parse_json_file(
+        model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_json_file(
             json_file=os.path.abspath(sys.argv[1])
         )
     else:
-        model_args, data_args, training_args, ib_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_args_into_dataclasses()
 
-    run_train(model_args, data_args, training_args, ib_args)
+    run_train(model_args, data_args, training_args, ib_args, augmenter_args)
 
 
 def run_train(
-    model_args, data_args, training_args, ib_args, extra_callbacks=None, extra_load_kwargs=None
+    model_args, data_args, training_args, ib_args, augmenter_args, extra_callbacks=None, extra_load_kwargs=None
 ):
     # Setup logging
     logging.basicConfig(
@@ -274,7 +276,8 @@ def run_train(
 
     # Data collator
     data_collator = collate_fn(
-        tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None, model=model
+        tokenizer, pad_to_multiple_of=8 if training_args.fp16 else None, model=model,
+        augmenter_kwargs=asdict(augmenter_args)
     )
 
     # Initialize our Trainer

@@ -159,7 +159,7 @@ class ExtendedWandbCallback(WandbCallback):
 
     def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
         metrics = kwargs.get('metrics').copy()
-        if 'final_eval_loss' in metrics:
+        if 'final_eval_predictions' in metrics:
             predictions = metrics.pop('final_eval_predictions')
             self._log_summary_metrics(metrics)
             self._log_predictions(predictions)

@@ -119,7 +119,7 @@ class DataAndPipelineArguments:
         },
     )
     chunk_overlap: int = field(
-        default=None,
+        default=64,
         metadata={"help": "Overlap needed for producing multiple chunks"},
     )
     pad_to_max_length: bool = field(
