@@ -4,6 +4,6 @@ WORKDIR /ci_test
 
 COPY . /ci_test/
 
-RUN pip install -r ci/requirements.txt
+RUN python -m pip install --upgrade pip && pip install --user -r ci/requirements.txt
 
 ENTRYPOINT ["sh", "ci/entrypoint.sh"]
