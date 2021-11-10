@@ -205,8 +205,6 @@ async def run_inference_test(
 
     logger.info("Creating Refiner")
 
-    refiner_path = str(refiner_filename)
-
     refiner_path = await sdk.create_refiner_for_model(
         model_path=str(model_path),
         refiner_path=str(refiner_filename),
