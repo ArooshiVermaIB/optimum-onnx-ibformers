@@ -230,7 +230,8 @@ def upload_dir(
                     "Upload with S3 was not successful. Falling back to using Instabase API."
                 )
         if not s3 or not success:
-            sdk.write_file(remote, open(local, 'rb').read())
+            with open(local, 'rb') as f:
+                sdk.write_file(remote, f.read())
         os.remove(local)
     logger.info("Finished uploading")
 
