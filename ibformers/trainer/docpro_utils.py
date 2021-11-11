@@ -119,7 +119,7 @@ class DocProCallback(TrainerCallback):
         dataset_list: List[DatasetSDK],
         artifacts_context: ModelArtifactContext,
         extraction_class_name: str,
-        job_metadata_client: "JobMetadataClient",
+        job_metadata_client: "JobMetadataClient",  # type: ignore
         ibsdk: InstabaseSDK,
         username: str,
         mount_details: Dict,
@@ -478,7 +478,13 @@ def run_train_doc_pro(
 
     assert hyperparams is not None
     parser = HfArgumentParser(
-        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments, AugmenterArguments)
+        (
+            ModelArguments,
+            DataAndPipelineArguments,
+            TrainingArguments,
+            IbArguments,
+            AugmenterArguments,
+        )
     )
 
     if hasattr(file_client, "file_client") and file_client.file_client is None:

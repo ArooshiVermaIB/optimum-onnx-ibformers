@@ -122,8 +122,7 @@ class ExtendedWandbCallback(WandbCallback):
                 table_rows[dp_name].append(metric_value)
         table = [[k] + v for k, v in table_rows.items()]
         columns = ['datapoint'] + metric_names
-        self._wandb.log({'metrics': wandb.Table(data=table,
-                                                columns=columns)})
+        self._wandb.log({'metrics': wandb.Table(data=table, columns=columns)})
 
     def _log_predictions(self, predictions):
         columns = [
@@ -151,14 +150,15 @@ class ExtendedWandbCallback(WandbCallback):
                     is_match,
                 ]
                 prediction_data.append(row)
-        self._wandb.log({'predictions': wandb.Table(data=prediction_data,
-                                                    columns=columns)})
+        self._wandb.log({'predictions': wandb.Table(data=prediction_data, columns=columns)})
 
     def setup(self, args, state, model, **kwargs):
         super().setup(args, state, model, **kwargs)
 
-    def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
-        metrics = kwargs.get('metrics').copy()
+    def on_evaluate(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
+    ):
+        metrics = kwargs.get('metrics').copy()  # type: ignore
         if 'final_eval_predictions' in metrics:
             predictions = metrics.pop('final_eval_predictions')
             self._log_summary_metrics(metrics)

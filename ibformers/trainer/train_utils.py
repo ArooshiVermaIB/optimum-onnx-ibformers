@@ -5,13 +5,20 @@ from typing import Optional, Any, Dict
 
 from datasets import Dataset, DatasetDict
 
+from ibformers.utils import exceptions
+
 
 def split_train_with_column(dataset: Dataset):
     # dataset should contain only train set
-    assert list(dataset.keys()) == ['train'], "Dataset for splitting should contain only train set"
+    if list(dataset.keys()) != ['train']:
+        raise exceptions.ValidationError(
+            f"Dataset: {dataset} for splitting should contain only train set"
+        )
+
     train_ds = dataset['train']
 
-    assert 'split' in train_ds.features, "No column named split which is needed for splitting"
+    if 'split' not in train_ds.features:
+        raise exceptions.ValidationError("No column named split which is needed for splitting")
 
     split_lst = train_ds['split']
 
