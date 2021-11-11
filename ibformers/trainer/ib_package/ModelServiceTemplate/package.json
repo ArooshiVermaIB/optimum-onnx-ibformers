@@ -3,6 +3,7 @@
     "display_name": "{{model_name}}",
     "version": "0.0.1",
     "keywords": "",
+    "category": "model",
     "short_description": "Deep learning model for {{model_name}} extraction",
     "long_description": "Deep learning model for extracting {{model_name}} documents.",
     "input_types": ["path"],

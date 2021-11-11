@@ -20,24 +20,30 @@ from instabase.model_training_tasks.jobs import JobMetadataClient
 from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase
+from instabase.utils.rpc.file_client import ThriftGRPCFileClient
 
 logger = logging.getLogger(__name__)
 
 
+_IBFILE_CHUNK_SIZE_IN_MB = 500
+_PARALLEL_UPLOAD_WORKERS = 5
+
+
 class InstabaseSDK:
-    def __init__(self, file_client: FileService.Iface, username: str):
+    def __init__(
+        self, file_client: FileService.Iface, username: str, use_write_multipart: bool = True
+    ):
         self.file_client = file_client
         self.username = username
+        self._CHUNK_SIZE = min(default_max_write_size, _IBFILE_CHUNK_SIZE_IN_MB * 1024 * 1024)
 
-    def ibopen(self, path: str, mode: str = "r", **kwargs) -> IBFileBase:
+        self.use_multipart = use_write_multipart and isinstance(file_client, ThriftGRPCFileClient)
+
+    def ibopen(self, path: str, mode: str = 'r') -> IBFileBase:
         result = ibfile.ibopen(path, mode, file_client=self.file_client, username=self.username)
         return result
 
-    def stat(self, path: str) -> FileService.StatResp:
-        result, _ = ibfile.stat(path, file_client=self.file_client, username=self.username)
-        return result
-
-    def read_file(self, file_path: str) -> str:
+    def read_file(self, file_path: str) -> bytes:
         result, error = ibfile.read_file(
             file_path, username=self.username, file_client=self.file_client
         )
@@ -45,13 +51,32 @@ class InstabaseSDK:
             raise IOError(error)
         return result
 
-    def write_file(self, file_path: str, content):
-        result, error = ibfile.write_file(
-            file_path, content, username=self.username, file_client=self.file_client
-        )
-        if error:
-            raise IOError(error)
-        return result
+    def _chunked_write_file(self, file_path: str, content: bytes):
+        chunk_size = self._CHUNK_SIZE
+        total_chunks = math.ceil(len(content) / chunk_size)
+
+        with self.ibopen(file_path, 'wb') as f:
+            for i, chunk in enumerate(range(0, len(content), chunk_size)):
+                chunk_bytes = content[chunk : chunk + chunk_size]
+                cur_chunk_size_mb = len(chunk_bytes) / 1024 / 1024
+                logging.info(
+                    f'[InstabaseSDK._chunked_write_file] Writing chunk# {i+1}/{total_chunks}, {cur_chunk_size_mb:.3f} MB'
+                )
+                f.write(chunk_bytes)  # raises Exception
+
+    def write_file(self, file_path: str, content: bytes):
+        if self.use_multipart and (len(content) > 0):
+            logging.info(f'[InstabaseSDK.write_file] Uploading {file_path} with multipart.')
+            ibfile.write_file_multipart(
+                file_path,
+                content,
+                username=self.username,
+                file_client=self.file_client,
+                max_workers=_PARALLEL_UPLOAD_WORKERS,
+            )
+        else:
+            logging.info(f'[InstabaseSDK.write_file] Uploading {file_path} with chunked write.')
+            self._chunked_write_file(file_path, content)
 
 
 class IbCallback(TrainerCallback):
@@ -214,7 +239,7 @@ def upload_dir(
     sdk: InstabaseSDK, local_folder: str, remote_folder: str, mount_details: Optional[MountDetails]
 ):
     s3 = get_s3_client() if mount_details and mount_details['client_type'] == "S3" else None
-    logger.info(f"Uploading using " + ("S3" if s3 else "IB Filesystem"))
+    logging.info(f"Uploading using " + ("S3" if s3 else "IB Filesystem"))
     for local, remote in map_directory_remote(local_folder, remote_folder):
         success = False
         if s3:
@@ -226,14 +251,14 @@ def upload_dir(
                 prefix=mount_details['prefix'],
             )
             if not success:
-                logging.debug(
+                logging.warning(
                     "Upload with S3 was not successful. Falling back to using Instabase API."
                 )
         if not s3 or not success:
             with open(local, 'rb') as f:
                 sdk.write_file(remote, f.read())
         os.remove(local)
-    logger.info("Finished uploading")
+    logging.info("Finished uploading")
 
 
 def map_directory_remote(local_folder, remote_folder) -> Iterable[Tuple[str, str]]:
@@ -244,13 +269,19 @@ def map_directory_remote(local_folder, remote_folder) -> Iterable[Tuple[str, str
             yield local, remote
 
 
-def get_s3_client():
-    # TODO: Invalidate these and replace with literally any better method
-    return boto3.client(
-        's3',
-        aws_access_key_id="AKIARG3DSRG347TJWJXU",
-        aws_secret_access_key="4RwcJffPHfNpA9bv4NuGYBeg5As4n3QJoTqg1e0w",
-    )
+def get_s3_client() -> Optional[boto3.session.Session.client]:
+    aws_access_key_id = os.environ.get('aws_access_key_id', None)
+    aws_secret_access_key = os.environ.get('aws_secret_access_key', None)
+
+    if aws_access_key_id and aws_secret_access_key:
+        return boto3.client(
+            's3',
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+        )
+
+    logging.warning('[get_s3_client] AWS credentials not found in environment!')
+    return None
 
 
 def s3_write(client, local_file: str, remote_file: str, bucket_name: str, prefix: str) -> bool:
@@ -262,7 +293,7 @@ def s3_write(client, local_file: str, remote_file: str, bucket_name: str, prefix
         client.upload_file(local_file, bucket_name, prefix + remote_file)
         return True
     except Exception as e:
-        logging.debug(f"Error while uploading with S3: {repr(e)}")
+        logging.warning(f"[s3_write] {repr(e)}")
         return False
 
 
@@ -328,7 +359,9 @@ def prepare_ib_params(
     if 'batch_size' in hyperparams:
         out_dict['per_device_train_batch_size'] = int(hyperparams.pop('batch_size'))
     if 'gradient_accumulation_steps' in hyperparams:
-        out_dict['gradient_accumulation_steps'] = int(hyperparams.pop('gradient_accumulation_steps'))
+        out_dict['gradient_accumulation_steps'] = int(
+            hyperparams.pop('gradient_accumulation_steps')
+        )
     if 'learning_rate' in hyperparams:
         out_dict['learning_rate'] = hyperparams.pop('learning_rate')
     if 'max_grad_norm' in hyperparams:
@@ -397,7 +430,13 @@ def run_train_annotator(
 ):
     assert hyperparams is not None
     parser = HfArgumentParser(
-        (ModelArguments, DataAndPipelineArguments, TrainingArguments, IbArguments, AugmenterArguments)
+        (
+            ModelArguments,
+            DataAndPipelineArguments,
+            TrainingArguments,
+            IbArguments,
+            AugmenterArguments,
+        )
     )
 
     hparams_dict = prepare_ib_params(
