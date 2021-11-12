@@ -7,14 +7,13 @@ from transformers.file_utils import PaddingStrategy
 
 
 class CollatorABC(ABC):
-
     @abstractmethod
     def _collate_features(self, features, target_length: Optional[int] = None):
         pass
 
     @property
     @abstractmethod
-    def padded_fields(self):
+    def supported_fields(self):
         pass
 
     def __call__(self, features, target_length: Optional[int] = None):
@@ -22,7 +21,7 @@ class CollatorABC(ABC):
         return {
             feature_name: feature_value
             for (feature_name, feature_value) in all_features.items()
-            if feature_name in self.padded_fields
+            if feature_name in self.supported_fields
         }
 
 
@@ -34,6 +33,7 @@ class BaseCollator(CollatorABC):
     We assume that this collator should be called for each model.
     Each subclass of this class gets registered in `extra_collators` field.
     """
+
     tokenizer: PreTrainedTokenizerBase
     padding: Union[bool, str, PaddingStrategy] = True
     max_length: Optional[int] = None
@@ -53,7 +53,7 @@ class BaseCollator(CollatorABC):
         return list(features[0].keys())
 
     @property
-    def padded_fields(self):
+    def supported_fields(self):
         return self.tokenizer.model_input_names
 
     def _collate_features(self, features, target_length: Optional[int] = None):
@@ -63,5 +63,5 @@ class BaseCollator(CollatorABC):
             max_length=self.max_length,
             pad_to_multiple_of=self.pad_to_multiple_of,
             # Conversion to tensors will fail if we have labels as they are not of the same length yet.
-            return_tensors=None
+            return_tensors=None,
         )

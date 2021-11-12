@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 import tempfile
 import uuid
@@ -19,7 +20,7 @@ from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArgumen
 from instabase.model_training_tasks.jobs import JobMetadataClient
 from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
-from instabase.content.filehandle_lib.ibfile_lib import IBFileBase
+from instabase.content.filehandle_lib.ibfile_lib import IBFileBase, default_max_write_size
 from instabase.utils.rpc.file_client import ThriftGRPCFileClient
 
 logger = logging.getLogger(__name__)

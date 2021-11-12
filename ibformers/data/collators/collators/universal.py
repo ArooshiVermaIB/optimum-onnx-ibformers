@@ -43,11 +43,14 @@ class UniversalDataCollator:
     3. If some feature doesn't have a matching collator, throw an error.
     """
 
-    def __init__(self,
-                 tokenizer: PreTrainedTokenizerBase,
-                 padding: Union[bool, str, PaddingStrategy] = True,
-                 max_length: Optional[int] = None,
-                 pad_to_multiple_of: Optional[int] = None, **kwargs):
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        padding: Union[bool, str, PaddingStrategy] = True,
+        max_length: Optional[int] = None,
+        pad_to_multiple_of: Optional[int] = None,
+        **kwargs,
+    ):
         """
         Args:
             tokenizer: Tokenizer used for base collation
@@ -63,7 +66,7 @@ class UniversalDataCollator:
             tokenizer=tokenizer,
             padding=padding,
             max_length=max_length,
-            pad_to_multiple_of=pad_to_multiple_of
+            pad_to_multiple_of=pad_to_multiple_of,
         )
         self.collators: List[BaseCollator] = [
             safe_dataclass_init(
@@ -72,7 +75,7 @@ class UniversalDataCollator:
                 padding=padding,
                 max_length=max_length,
                 pad_to_multiple_of=pad_to_multiple_of,
-                **kwargs
+                **kwargs,
             )
             for collator in available_collators
         ]
@@ -80,16 +83,18 @@ class UniversalDataCollator:
         self.field_to_collator: Dict[str, List[BaseCollator]] = defaultdict(list)
 
         for collator in self.collators:
-            for field in collator.padded_fields:
+            for field in collator.supported_fields:
                 self.field_to_collator[field].append(collator)
 
     def _get_collator_for_field(self, field_name: str) -> BaseCollator:
         try:
             return self.field_to_collator[field_name][0]
         except KeyError:
-            raise KeyError(f'Could not find a collator for field {field_name}. '
-                           f'Make sure that the field name is correct, and define a subclass of '
-                           f'BaseCollator if it is not yet covered.')
+            raise KeyError(
+                f'Could not find a collator for field {field_name}. '
+                f'Make sure that the field name is correct, and define a subclass of '
+                f'BaseCollator if it is not yet covered.'
+            )
 
     def __call__(self, features: [List[Dict[str, Any]]]) -> Dict[str, torch.Tensor]:
         """
@@ -109,10 +114,15 @@ class UniversalDataCollator:
         """
         to_collate = set(features[0].keys())
         collated = self.base_collator(features)
-        target_length = len(collated[self.base_collator.padded_fields[0]][0])
+        target_length = len(collated[self.base_collator.supported_fields[0]][0])
         to_collate -= collated.keys()
         while len(to_collate) != 0:
             field = to_collate.pop()
+            if field not in self.field_to_collator:
+                continue
+                # raise NotImplementedError(f"There is no collator implemented for {field}")
+            if len(self.field_to_collator[field]) > 1:
+                raise RuntimeError(f"There are more than one collators for given filed.")
             extra_collator = self.field_to_collator[field][0]
             extra_collated = extra_collator(features, target_length)
             to_collate -= extra_collated.keys()

@@ -6,6 +6,7 @@ import traceback
 import uuid
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+import pandas as pd
 
 from transformers import HfArgumentParser, TrainingArguments, TrainerCallback
 
@@ -146,7 +147,7 @@ class DocProCallback(TrainerCallback):
         self.mount_details = mount_details
         self.username = username
         self.job_metadata_client = job_metadata_client
-        self.evaluation_results = None
+        self.evaluation_results = []
         self.prediction_results = None
         self.ibsdk = ibsdk
         self.job_status = {}
@@ -207,7 +208,7 @@ class DocProCallback(TrainerCallback):
             # workaround for missing on_predict callback in the transformers TrainerCallback
             if 'predict_loss' in kwargs["metrics"]:
                 self.on_predict(args, state, control, **kwargs)
-            else:
+            elif 'eval_loss' in kwargs["metrics"]:
                 metrics = {}
                 metrics['precision'] = kwargs["metrics"]['eval_precision']
                 metrics['recall'] = kwargs["metrics"]['eval_recall']
@@ -216,7 +217,10 @@ class DocProCallback(TrainerCallback):
                     {"evaluation_results": metrics, "progress": state.global_step / state.max_steps}
                 )
 
-                self.evaluation_results = metrics
+                self.evaluation_results.append(metrics)
+            else:
+                # ignore last evaluation call
+                pass
 
     def write_metrics(self):
         logging.info("Writing metrics for this training run...")
@@ -392,6 +396,12 @@ class DocProCallback(TrainerCallback):
             logging.error(traceback.format_exc())
             logging.error(f"Skipped Refiner module generation due to an error: {e}")
 
+    def write_epoch_summary(self):
+        logging.info("Metrics over Epochs")
+        for epoch, metrics in enumerate(self.evaluation_results):
+            logging.info(f'Epoch {epoch} ^')
+            logging.info(pd.DataFrame(metrics))
+
     def on_predict(self, args, state, control, **kwargs):
         # called after the training finish
         predictions = kwargs["metrics"]['predict_predictions']
@@ -405,6 +415,7 @@ class DocProCallback(TrainerCallback):
         label_names = [id2label[idx] for idx in range(1, len(id2label))]
         self.generate_refiner(label_names)
         self.move_data_to_ib()
+        self.write_epoch_summary()
 
 
 def _print_dir(path):

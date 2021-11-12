@@ -203,12 +203,11 @@ def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, float]:
     """
 
     summed_df = token_level_df.sum(axis=0)
-    summed_df['micro_precision'] = (summed_df['true_positives'] / summed_df['total_positives'])
-    summed_df['micro_recall'] = (summed_df['true_positives'] / summed_df['total_true'])
+    summed_df['micro_precision'] = summed_df['true_positives'] / summed_df['total_positives']
+    summed_df['micro_recall'] = summed_df['true_positives'] / summed_df['total_true']
     summed_df.fillna(0, inplace=True)
-    summed_df['micro_f1'] = (
-        (2 * summed_df['micro_precision'] * summed_df['micro_recall']) /
-        (summed_df['micro_precision'] + summed_df['micro_recall'] + 1e-10)
+    summed_df['micro_f1'] = (2 * summed_df['micro_precision'] * summed_df['micro_recall']) / (
+        summed_df['micro_precision'] + summed_df['micro_recall'] + 1e-10
     )
 
     average_results = summed_df[['micro_precision', 'micro_recall', 'micro_f1']].to_dict()
@@ -228,7 +227,7 @@ def compute_legacy_metrics_for_sl(
     # get prediction dict and print mismatches
     pred_dict = get_predictions_for_sl(predictions, dataset, label_list)
 
-    logging.info("MISMATCH EXAMPLES")
+    mismatches_text = "MISMATCH EXAMPLES\n"
     max_examples = 2
     for lab in label_list[1:]:
         mismatches = [
@@ -240,9 +239,10 @@ def compute_legacy_metrics_for_sl(
             for k, v in pred_dict.items()
             if not v['entities'][lab]["is_match"]
         ]
-        mismatch_text = "  ".join(mismatches[:max_examples])
+        label_mismatch_text = "  ".join(mismatches[:max_examples])
         if len(mismatches) > 0:
-            logging.info(f"{lab}:\n{mismatch_text}")
+            mismatches_text += f"{lab}:\n{label_mismatch_text}\n"
+    logging.info(mismatches_text)
 
     # get list of document gold labels - List[Dict[List]]
     ground_truths: List[Dict[List]] = [
@@ -340,59 +340,3 @@ def compute_metrics_for_qa_task(predictions: Tuple, dataset: Dataset):
     dummy_label_list = [f'class_{i}' for i in range(num_labels)]
 
     return compute_legacy_metrics_for_sl(predictions, dataset, dummy_label_list)
-
-
-def compute_metrics_for_sl(predictions: Tuple, dataset: Dataset):
-    metric = load_metric("seqeval")
-    preds, labels = predictions
-    pred_class_index = np.argmax(preds, axis=-1)
-
-    features = dataset.features
-    label_list = features["labels"].feature.names
-
-    # add tags to label_list
-    label_list_tags = [f"I-{label}" if label != "O" else "O" for label in label_list]
-
-    # Remove ignored index (special tokens)
-    true_predictions = [
-        [label_list_tags[p] for (p, l) in zip(doc_pred_cls, label) if l != -100]
-        for doc_pred_cls, label in zip(pred_class_index, labels)
-    ]
-    true_labels = [
-        [label_list_tags[l] for (p, l) in zip(doc_pred_cls, label) if l != -100]
-        for doc_pred_cls, label in zip(pred_class_index, labels)
-    ]
-
-    results = metric.compute(predictions=true_predictions, references=true_labels)
-    # Unpack nested dictionaries
-    final_results = {"precision": {}, "recall": {}, "f1": {}}
-
-    for key, value in results.items():
-        if isinstance(value, dict):
-            final_results["precision"][key] = value["precision"]
-            final_results["recall"][key] = value["recall"]
-            final_results["f1"][key] = value["f1"]
-    final_results["precision"]["_Overall"] = results["overall_precision"]
-    final_results["recall"]["_Overall"] = results["overall_recall"]
-    final_results["f1"]["_Overall"] = results["overall_f1"]
-    logging.info("EVALUATION RESULTS")
-    logging.info(pd.DataFrame(final_results))
-
-    # get prediction dict and print mismatches
-    pred_dict = get_predictions_for_sl(predictions, dataset)
-
-    logging.info("MISMATCH EXAMPLES")
-    max_examples = 2
-    for lab in label_list[1:]:
-        mismatches = [
-            "\tpred:\t'" + v[lab]["text"] + "'\n\tgold:\t'" + v[lab]["gold"] + "'\n"
-            for k, v in pred_dict.items()
-            if not v[lab]["is_match"]
-        ]
-        mismatch_text = "  ".join(mismatches[:max_examples])
-        if len(mismatches) > 0:
-            logging.info(f"{lab}:\n{mismatch_text}")
-
-    final_results["predictions"] = pred_dict
-
-    return final_results

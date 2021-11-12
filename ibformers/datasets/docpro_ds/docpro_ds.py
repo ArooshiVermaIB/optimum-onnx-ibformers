@@ -10,10 +10,10 @@ import numpy as np
 from datasets import BuilderConfig, Features, config
 from datasets.fingerprint import Hasher
 
-
 from instabase.dataset_utils.shared_types import ExtractionFieldDict
 from instabase.ocr.client.libs.ibocr import (
     IBOCRRecordLayout,
+    IBOCRRecord,
 )
 from instabase.ocr.client.libs.ocr_types import WordPolyDict
 from more_itertools import consecutive_groups
@@ -177,8 +177,10 @@ def get_images_from_layouts(
 
     lay = layouts[page_nums[0]]
     img_path = Path(lay.get_processed_image_path())
-    try:
 
+    a = asfd
+
+    try:
         with open_fn(str(img_path)) as img_file:
             img_arr = image_processor(img_file).astype(np.uint8)
     except OSError:
@@ -317,6 +319,49 @@ def validate_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes):
             ex_bbox = bbox_arr[example_idx]
             ex_page = page_bboxes[word_pages_arr[example_idx]]
             raise ValueError(f'found bbox {ex_bbox} outside of the page. bbox {ex_page}')
+
+
+# https://github.com/instabase/instabase/pull/22443/files
+def assert_valid_record(ibocr_record: IBOCRRecord) -> str:
+    """
+    Confirms an IBOCR Record's lines and text are aligned, such that
+    provenance tracking will work downstream.
+    Returns a string describing an error if the record is malformed, or
+    None if the record is well-formed.
+    """
+    text = ibocr_record.get_text()
+    split_text = text.split('\n')
+
+    lines = ibocr_record.get_lines()
+
+    len_split_text = len(split_text)
+    len_lines = len(lines)
+    if len_split_text != len_lines:
+        return (
+            f"Number of lines mismatched. Record "
+            f"`text` had {len_split_text} lines, and `lines` had {len_lines}."
+        )
+
+    for i, (text_line, line) in enumerate(zip(split_text, lines)):
+        j = 0
+        for word_dict in line:
+            word = word_dict['word']
+            if word.strip() == "":
+                return (
+                    f"Line {i} (\"{line}\") had a word that was just whitespace at"
+                    f" index {j} (\"{word}\")"
+                )
+            try:
+                start = text_line.index(word)
+            except:
+                return (
+                    f"Line {i} (\"{line}\") did not contain 0-indexed word"
+                    f" number {j} (\"{word}\")"
+                )
+            j += 1
+            text_line = text_line[start + len(word) :]
+
+    return None
 
 
 class DocProDs(datasets.GeneratorBasedBuilder):
@@ -494,6 +539,12 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             return None
 
         lines = record.get_lines()
+
+        err = assert_valid_record(record)
+        if err is not None:
+            logging.error(f"Skipping this document because the IBDOC has corrupt OCR words: {err}")
+            return None
+
         layouts = [mtd.get_layout() for mtd in record.get_metadata_list()]
         words = []
         word_global_idx = 0
