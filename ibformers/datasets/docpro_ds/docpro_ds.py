@@ -178,8 +178,6 @@ def get_images_from_layouts(
     lay = layouts[page_nums[0]]
     img_path = Path(lay.get_processed_image_path())
 
-    a = asfd
-
     try:
         with open_fn(str(img_path)) as img_file:
             img_arr = image_processor(img_file).astype(np.uint8)
