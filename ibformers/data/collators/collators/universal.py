@@ -119,8 +119,7 @@ class UniversalDataCollator:
         while len(to_collate) != 0:
             field = to_collate.pop()
             if field not in self.field_to_collator:
-                continue
-                # raise NotImplementedError(f"There is no collator implemented for {field}")
+                raise NotImplementedError(f"There is no collator implemented for {field}")
             if len(self.field_to_collator[field]) > 1:
                 raise RuntimeError(f"There are more than one collators for given filed.")
             extra_collator = self.field_to_collator[field][0]
