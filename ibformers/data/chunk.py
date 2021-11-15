@@ -11,13 +11,9 @@ from ibformers.data.utils import (
 
 
 def get_chunk_ranges(input_len, chunk_size, overlap):
-    assert chunk_size > 0
-    assert overlap >= 0
-    assert overlap < chunk_size
     if input_len < chunk_size:
         return [(0, input_len)]
     ranges = []
-
     for i in range(0, input_len - 1, chunk_size):
         from_range = max(0, i - overlap)
         to_range = min(input_len, i + chunk_size)
@@ -27,9 +23,6 @@ def get_chunk_ranges(input_len, chunk_size, overlap):
 
 
 def get_single_page_chunk_ranges(input_len, chunk_size, overlap, page_nums):
-    assert chunk_size > 0
-    assert overlap >= 0
-    assert overlap < chunk_size
     assert input_len == len(page_nums)
 
     page_nums_arr = np.array(page_nums)
@@ -53,6 +46,9 @@ def produce_chunks(
     prefix_len = len(example.get("prefix_input_ids", []))
     input_len = len(example.get("input_ids", []))
 
+    assert max_length > 0
+    assert chunk_overlap >= 0
+    assert chunk_overlap < max_length
     if chunk_overlap + prefix_len < (max_length // 2):
         logging.warning(
             f"Extra tokens occupies too much space. Prefix tokens: {prefix_len}, overlap: {chunk_overlap}"
