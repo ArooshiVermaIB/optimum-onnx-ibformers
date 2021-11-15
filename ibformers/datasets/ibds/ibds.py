@@ -230,9 +230,11 @@ def process_labels_from_annotation(
         _SearchKey(x["start_x"], x["start_y"], x["page"], x["raw_word"]): i
         for i, x in enumerate(words)
     }
-    assert len(key_to_words) == len(
-        words
-    ), "Issue with assumption that _SearchKey(x, y, page, word) is unique"
+    if len(key_to_words) != len(words):
+        logging.error(
+            f"Issue with assumption that _SearchKey(x, y, page, word) is unique. "
+            f"{len(key_to_words)}!={len(words)}"
+        )
     annotation: Annotation
     for label_name, lab_id in label2id.items():
         if lab_id == 0 and label_name == "O":

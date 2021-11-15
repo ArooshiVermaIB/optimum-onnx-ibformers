@@ -82,6 +82,10 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
                 chunk_processed["input_ids"], already_has_special_tokens=True
             )
         )
+        # do not treat UNK token as special
+        unk_id = getattr(tokenizer, "unk_token_id", -1)
+        special_mask = special_mask * (np.array(chunk_processed["input_ids"]) != unk_id)
+
         # all prefix tokens will be treated as special
         if "prefix_input_ids" in example:
             # search for prefix start
@@ -99,9 +103,11 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
 
         content_tokens_mask = np.logical_not(special_mask)
 
-        assert (
-            len(chunk["input_ids"]) == content_tokens_mask.sum()
-        ), "Number of non special tokens should be equal to number of chunk tokens"
+        if len(chunk["input_ids"]) != content_tokens_mask.sum():
+            raise ValueError(
+                f'Number of non special tokens should be equal to number of chunk tokens. '
+                f'chunk_input={chunk["input_ids"]}, special_mask={special_mask}'
+            )
 
         chunk_processed["content_tokens_mask"] = content_tokens_mask
         chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], content_tokens_mask, 0)
