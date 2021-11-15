@@ -87,6 +87,9 @@ class UniversalDataCollator:
                 self.field_to_collator[field].append(collator)
 
     def _get_collator_for_field(self, field_name: str) -> BaseCollator:
+        collators = self.field_to_collator[field_name]
+        if len(collators) > 1:
+            raise RuntimeError(f"There are more than one collators for given filed.")
         try:
             return self.field_to_collator[field_name][0]
         except KeyError:
@@ -110,6 +113,7 @@ class UniversalDataCollator:
 
         Raises:
             KeyError: When a field name is present in features, but has no defined collator.
+            RuntimeError: When a field name has multiple collators available.
 
         """
         to_collate = set(features[0].keys())
@@ -118,11 +122,7 @@ class UniversalDataCollator:
         to_collate -= collated.keys()
         while len(to_collate) != 0:
             field = to_collate.pop()
-            if field not in self.field_to_collator:
-                raise NotImplementedError(f"There is no collator implemented for {field}")
-            if len(self.field_to_collator[field]) > 1:
-                raise RuntimeError(f"There are more than one collators for given filed.")
-            extra_collator = self.field_to_collator[field][0]
+            extra_collator = self._get_collator_for_field(field)
             extra_collated = extra_collator(features, target_length)
             to_collate -= extra_collated.keys()
             collated = dict(**collated, **extra_collated)
