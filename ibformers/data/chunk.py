@@ -61,7 +61,7 @@ def produce_chunks(
     assert max_length > 0
     assert chunk_overlap >= 0
     assert chunk_overlap < max_length
-    if chunk_overlap + prefix_len < (max_length // 2):
+    if chunk_overlap + prefix_len > (max_length // 2):
         logging.warning(
             f"Extra tokens occupies too much space. Prefix tokens: {prefix_len}, overlap: {chunk_overlap}"
         )
