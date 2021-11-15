@@ -530,6 +530,27 @@ class IbDs(datasets.GeneratorBasedBuilder):
             supervised_keys=None,
         )
 
+    def _fix_file_path(self, file_data: Dict[str, str], annotation_path_str: str) -> Dict[str, str]:
+        annotation_dir = Path(annotation_path_str).parent
+        file_path = Path(file_data['ocrPath'])
+        file_path_parts = file_path.parts
+
+        current_suffix = file_path_parts[-1]
+        for part in file_path_parts[-2::-1]:
+            current_suffix = os.path.join(part, current_suffix)
+            candidate = annotation_dir / current_suffix
+            logging.info(f"Checking {candidate}...")
+            if candidate.exists():
+                break
+        else:
+            logging.warning(f'No alternative file found for {file_path}!')
+            return file_data
+
+        corrected_file_path = str(candidate)
+        corrected_data = file_data.copy()
+        corrected_data['ocrPath'] = corrected_file_path
+        return corrected_data
+
     def _split_generators(self, dl_manager):
         """We handle string, list and dicts in datafiles"""
         data_files = self.config.data_files
@@ -543,18 +564,18 @@ class IbDs(datasets.GeneratorBasedBuilder):
 
             # create generators for train and test
             train_files = (
-                file
+                self._fix_file_path(file, annotation_path)
                 for file in annotations["files"]
                 if file["id"] not in annotations["testFiles"] and len(file["annotations"]) > 0
             )
             val_files = (
-                file
+                self._fix_file_path(file, annotation_path)
                 for file in annotations["files"]
                 if file["id"] in annotations["testFiles"] and len(file["annotations"]) > 0
             )
             # test set is the sum of unannotated documents and validation set
             test_files = (
-                file
+                self._fix_file_path(file, annotation_path)
                 for file in annotations["files"]
                 if len(file["annotations"]) == 0 or file["id"] in annotations["testFiles"]
             )
