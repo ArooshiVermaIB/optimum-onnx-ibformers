@@ -3,14 +3,11 @@ from typing import TypeVar, List, Sequence, Any, Mapping, Tuple
 
 import numpy as np
 
-from ibformers.data.utils import (
-    feed_single_example,
-    convert_to_dict_of_lists,
-    feed_single_example_and_flatten,
-)
+from ibformers.data.utils import feed_single_example_and_flatten
 
 
 def get_chunk_ranges(input_len, chunk_size, overlap):
+    # get chunk ranges which will cover whole input size
     if input_len < chunk_size:
         return [(0, input_len)]
     ranges = []
@@ -23,6 +20,7 @@ def get_chunk_ranges(input_len, chunk_size, overlap):
 
 
 def get_single_page_chunk_ranges(input_len, chunk_size, overlap, page_nums):
+    # get chunk ranges with the restriction that chunk can be within single page
     assert input_len == len(page_nums)
 
     page_nums_arr = np.array(page_nums)
@@ -43,6 +41,16 @@ def get_single_page_chunk_ranges(input_len, chunk_size, overlap, page_nums):
 def produce_chunks(
     example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS", chunk_overlap=64, **kwargs
 ) -> Sequence:
+    """
+    Produce chunks of required lenght
+    :param example: example comming from dataset
+    :param tokenizer: tokenizer assigned to given model
+    :param max_length: maximum lenght of the chunk (including special tokens)
+    :param chunking_strategy: strategy of splitting documents into chunks
+    :param chunk_overlap: overlap between consecutive chunks
+    :param kwargs:
+    :return: yield single chunks
+    """
     prefix_len = len(example.get("prefix_input_ids", []))
     input_len = len(example.get("input_ids", []))
 
@@ -169,39 +177,6 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
         )
 
         yield chunk_processed
-
-
-# def first_only(example, tokenizer, max_length: int):
-#     chunks = tokenizer.prepare_for_model(example["input_ids"], max_length=max_length,
-#                                          add_special_tokens=True)
-#     special_mask = np.array(tokenizer.get_special_tokens_mask(chunks["input_ids"], already_has_special_tokens=True))
-#     chunks['special_tokens_mask'] = special_mask
-#
-#     max_len_wo_special = len(special_mask) - special_mask.sum()
-#     chunks['offset_mapping'] = example['offset_mapping'][:max_len_wo_special]
-#     chunks['word_map'] = example['word_map'][:max_len_wo_special]
-#     chunks['word_starts'] = example['word_starts'][:max_len_wo_special]
-#     chunks['token_page_nums'] = example['token_page_nums'][:max_len_wo_special]
-#
-#     if 'bboxes' in example:
-#         chunks["bboxes"] = np.array(example["bboxes"])[:max_len_wo_special]
-#         chunks["bboxes"] = fill_special_tokens(chunks["bboxes"], special_mask, 0)
-#
-#     if 'token_label_ids' in example:
-#         chunks["token_label_ids"] = np.array(example["token_label_ids"])[:max_len_wo_special]
-#         chunks['token_label_ids'] = fill_special_tokens(chunks["token_label_ids"], special_mask, -100)
-#
-#     return [chunks]
-
-# return convert_to_dict_of_lists([chunks, chunks], keys=list(chunks.keys()))
-
-
-# example = {"input_ids": [1, 2, 3, 4],
-#            "offset_mapping": [(0, 1), (2, 3), (4, 5), (6, 7)],
-#            "word_map": [0, 0, 1, 1],
-#            "bboxes": [[0, 0, 1, 1]] * 4,
-#            "token_label_ids": [1, 2, 3, 4]}
-# produce_chunks(example, )
 
 
 def fill_special_tokens(arr: Sequence[Any], content_mask: Sequence[int], fill_value: int):
