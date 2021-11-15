@@ -1,4 +1,5 @@
-from typing import TypeVar, List, Sequence, Any, Mapping
+import logging
+from typing import TypeVar, List, Sequence, Any, Mapping, Tuple
 
 import numpy as np
 
@@ -9,17 +10,68 @@ from ibformers.data.utils import (
 )
 
 
+def get_chunk_ranges(input_len, chunk_size, overlap):
+    assert chunk_size > 0
+    assert overlap >= 0
+    assert overlap < chunk_size
+    if input_len < chunk_size:
+        return [(0, input_len)]
+    ranges = []
+
+    for i in range(0, input_len - 1, chunk_size):
+        from_range = max(0, i - overlap)
+        to_range = min(input_len, i + chunk_size)
+        ranges.append((from_range, to_range))
+
+    return ranges
+
+
+def get_single_page_chunk_ranges(input_len, chunk_size, overlap, page_nums):
+    assert chunk_size > 0
+    assert overlap >= 0
+    assert overlap < chunk_size
+    assert input_len == len(page_nums)
+
+    page_nums_arr = np.array(page_nums)
+    ranges = np.nonzero(np.diff(page_nums_arr, prepend=-2, append=-1))[0]
+
+    all_ranges = []
+    for i in range(len(ranges) - 1):
+        rng_from, rng_to = ranges[i], ranges[i + 1]
+        page_len = rng_to - rng_from
+        page_chunks = get_chunk_ranges(page_len, chunk_size, overlap)
+        for page_chunk in page_chunks:
+            all_ranges.append((page_chunk[0] + rng_from, page_chunk[1] + rng_from))
+
+    return all_ranges
+
+
 @feed_single_example_and_flatten
 def produce_chunks(
     example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS", chunk_overlap=64, **kwargs
 ) -> Sequence:
+    prefix_len = len(example.get("prefix_input_ids", []))
+    input_len = len(example.get("input_ids", []))
+
+    if chunk_overlap + prefix_len < (max_length // 2):
+        logging.warning(
+            f"Extra tokens occupies too much space. Prefix tokens: {prefix_len}, overlap: {chunk_overlap}"
+        )
+
     if chunking_strategy == "ALL_CHUNKS":
-        return all_chunks(example, tokenizer, max_length, chunk_overlap)
+        chunk_ranges = get_chunk_ranges(input_len, max_length - prefix_len - 2, chunk_overlap)
+        return get_chunks(example, tokenizer, chunk_ranges)
+    elif chunking_strategy == "SINGLE_PAGES":
+        page_nums = example.get("token_page_nums")
+        chunk_ranges = get_single_page_chunk_ranges(
+            input_len, max_length - prefix_len - 2, chunk_overlap, page_nums
+        )
+        return get_chunks(example, tokenizer, chunk_ranges)
     else:
         raise ValueError(f"{chunking_strategy} is not implemented")
 
 
-def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Mapping]:
+def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
     """
     Input ID: [1,2,3,4,5,6]
     Chunked: [1,2,3], [4,5,6]
@@ -37,27 +89,28 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
         "word_map",
         "token_page_nums",
     ]
-    prefix_len = len(example.get("prefix_input_ids", []))
 
     # TODO: check how many tokens are added and remove hardcoded "2"
     chunked = {
-        k: _chunk_with_overlap(example[k], chunk_size=max_length - 2 - prefix_len, overlap=overlap)
-        for k in keys_to_chunk
-        if k in example
+        k: _split_by_ranges(example[k], ranges=chunk_ranges) for k in keys_to_chunk if k in example
     }
 
-    # We want to keep track of how each chunk maps back to the full document, so we can
-    # map back during inference
-    chunk_ranges = _chunk_with_overlap(
-        list(range(len(example["input_ids"]))),
-        chunk_size=max_length - 2 - prefix_len,
-        overlap=overlap,
-    )
+    # add images to chunks
+    # get pages
+    if 'images' in example:
+        pages_idx = [sorted(set(pg)) for pg in chunked['token_page_nums']]
+        assert all(
+            [len(a) == 1 for a in pages_idx]
+        ), "Chunks need to be single page to support images"
+        pages_idx = np.array([a[0] for a in pages_idx])
+        chunked['images'] = example['images'][pages_idx][:, None]
 
-    chunked["chunk_ranges"] = [(i[0], i[-1] + 1) for i in chunk_ranges]
+    chunked["chunk_ranges"] = chunk_ranges
 
     # This includes things like the document's ID
-    other_keys = [i for i in list(example.keys()) if i not in keys_to_chunk]
+    other_keys = [
+        i for i in list(example.keys()) if i not in set(keys_to_chunk).union(chunked.keys())
+    ]
 
     # We're transposing now to make it easier to "flatten" the document into essentially independent examples
     transposed = [{k: v[i] for k, v in chunked.items()} for i, _ in enumerate(chunked["input_ids"])]
@@ -71,10 +124,6 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
         # doing it in two steps is a workaround
         chunk_input_ids = example.get("prefix_input_ids", []) + chunk["input_ids"]
         chunk_processed = tokenizer.prepare_for_model(chunk_input_ids, add_special_tokens=True)
-        assert (
-            len(chunk_processed["input_ids"]) <= max_length
-        ), f"len(blah['input_ids']) <= max_length : {len(chunk_processed['input_ids'])} <= {max_length}"
-
         chunk_processed = {**chunk, **chunk_processed}
 
         special_mask = np.array(
@@ -110,7 +159,9 @@ def all_chunks(example, tokenizer, max_length: int, overlap: int) -> Sequence[Ma
             )
 
         chunk_processed["content_tokens_mask"] = content_tokens_mask
-        chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], content_tokens_mask, 0)
+        chunk_processed["bboxes"] = fill_special_tokens(
+            chunk["bboxes"], content_tokens_mask, 0
+        ).tolist()
         # if "prefix_input_ids" in example:
         #     prefix_bboxes = np.array(
         #         [[[i * 20, 10, i * 20 + 10, 20] for i in range(1, len_prefix + 1)]]
@@ -166,41 +217,11 @@ def fill_special_tokens(arr: Sequence[Any], content_mask: Sequence[int], fill_va
     return filled
 
 
-# Chunk with overlap
-# Chunking without crossing page boundaries
-# -> May lead to shit goin' down with things like relative biases
+def _split_by_ranges(seq: Sequence[Any], ranges: List[Tuple]):
+    if len(seq) != ranges[-1][-1]:
+        raise ValueError(f"Seqence of length {len(seq)} does not match ranges {ranges}")
+    chunks = []
+    for rng_from, rng_to in ranges:
+        chunks.append(seq[rng_from:rng_to])
 
-# [[1,2], [3,4]] -> [1,2,3,4]
-
-
-S = TypeVar("S")
-
-
-def _chunk_with_overlap(input_list: List[S], chunk_size: int, overlap: int) -> List[List[S]]:
-    """
-    Chunk a list, with a fixed amount of overlap (equal to 'stride')
-
-    >>> _chunk_with_overlap(list(range(5)), chunk_size=10, overlap=0)
-    [[0, 1, 2, 3, 4]]
-
-    >>> _chunk_with_overlap(list(range(5)), chunk_size=2, overlap=0)
-    [[0, 1], [2, 3], [4]]
-
-    >>> _chunk_with_overlap(list(range(4)), chunk_size=2, overlap=0)
-    [[0, 1], [2, 3]]
-
-    >>> _chunk_with_overlap(list(range(10)), chunk_size=5, overlap=2)
-    [[0, 1, 2, 3, 4], [3, 4, 5, 6, 7], [6, 7, 8, 9]]
-    """
-    assert chunk_size > 0
-    assert overlap >= 0
-    assert overlap < chunk_size
-    if len(input_list) < chunk_size:
-        return [input_list]
-    l = []
-    i = 0
-    while i + overlap < len(input_list):
-        x = input_list[i : i + chunk_size]
-        l.append(x)
-        i += chunk_size - overlap
-    return l
+    return chunks

@@ -82,7 +82,7 @@ def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
 
 def _norm_bboxes_for_layoutlm(
     bboxes: List[List[int]], page_bboxes: List[List[int]], page_spans: List[Tuple[int, int]]
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[List[List[float]], List[List[float]]]:
     norm_bboxes = np.array(bboxes)
     norm_page_bboxes = np.array(page_bboxes)
     for (_, _, _, page_height), (page_start_i, page_end_i) in zip(page_bboxes, page_spans):
@@ -92,7 +92,7 @@ def _norm_bboxes_for_layoutlm(
 
     norm_page_bboxes[:, 3] = 1000
 
-    return norm_bboxes, norm_page_bboxes
+    return norm_bboxes.tolist(), norm_page_bboxes.tolist()
 
 
 @feed_single_example

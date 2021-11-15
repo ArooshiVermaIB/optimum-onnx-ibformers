@@ -4,6 +4,8 @@ import os
 import sys
 
 # TODO: remove once packages paths defined in package.json will be added to PYTHONPATH
+from datasets.data_files import DataFilesDict
+
 from ibformers.trainer.ib_utils import InstabaseSDK
 
 pth, _ = os.path.split(__file__)
@@ -126,7 +128,7 @@ class IbModel(Model):
         predict_dataset = load_dataset(
             path=name_to_use,
             name=self.pipeline_config["dataset_config_name"],
-            data_files={"test": [record]},
+            data_files=DataFilesDict(test=[record]),
             ignore_verifications=True,
             keep_in_memory=True,
             split="test",

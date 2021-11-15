@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 
 from transformers import AutoModelForTokenClassification, AutoModelForMaskedLM
@@ -46,7 +47,8 @@ def pipeline_preprocess(
     if chain_functions:
         fn_lst = [partial(chain, fn_lst=fn_lst)]
 
-    for fn in fn_lst:
+    for fn_idx, fn in enumerate(fn_lst):
+        logging.debug(f"apply function number {fn_idx} in the pipeline")
         ds = ds.map(
             fn,
             batched=True,
@@ -68,6 +70,13 @@ def map_column_names(dataset, column_mapping):
 def prepare_dataset(dataset, pipeline, **kwargs):
     # preprocess
     map_fn_lst = pipeline["preprocess"]
+    preprocess_kwargs = pipeline.get("preprocess_kwargs", {})
+    # add pipeline specific arguments. Keys passed in kwargs will overwrite pipeline specific kwargs
+    for k, v in preprocess_kwargs.items():
+        if k in kwargs["fn_kwargs"]:
+            logging.warning(f'{k}={v} will be overwritetten by {kwargs["fn_kwargs"][k]}')
+        else:
+            kwargs["fn_kwargs"][k] = v
     dataset = pipeline_preprocess(dataset, fn_lst=map_fn_lst, **kwargs)
     # rename
     column_mapping = pipeline["column_mapping"]
@@ -88,7 +97,8 @@ layoutlm_sl = {
 
 layoutxlm_sl = {
     "dataset_load_kwargs": {"use_image": True},
-    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "preprocess_kwargs": {"chunking_strategy": "SINGLE_PAGES"},
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox"), ("images", "image")],
     "collate": get_collator_class(BboxAugmenter),
     "model_class": AutoModelForTokenClassification,
@@ -97,7 +107,8 @@ layoutxlm_sl = {
 
 layoutlmv2_sl = {
     "dataset_load_kwargs": {"use_image": True},
-    "preprocess": [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks, stack_pages],
+    "preprocess": [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks],
+    "preprocess_kwargs": {"chunking_strategy": "SINGLE_PAGES"},
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox"), ("images", "image")],
     "collate": get_collator_class(BboxAugmenter),
     "model_class": AutoModelForTokenClassification,
@@ -167,5 +178,5 @@ PIPELINES = {
     "from_docvqa_to_mqa": from_docvqa_to_mqa,
     "plain_sl": plain_sl,
     'plain_mlm': plain_mlm,
-    'layoutlm_mlm': layoutlm_mlm
+    'layoutlm_mlm': layoutlm_mlm,
 }

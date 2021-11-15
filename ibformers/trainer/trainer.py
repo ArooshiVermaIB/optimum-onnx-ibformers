@@ -1,7 +1,7 @@
 import collections
 import sys
 from logging import StreamHandler
-from typing import Optional, List
+from typing import Optional, List, Dict
 import numpy as np
 import torch
 from datasets import IterableDataset
@@ -64,7 +64,7 @@ class IbTrainer(Trainer):
 
     def __init__(self, *args, post_process_function=None, **kwargs):
         super().__init__(*args, **kwargs)
-        #TODO: Add replace the default wandb callback with the custom one that logs more data'
+        # TODO: Add replace the default wandb callback with the custom one that logs more data'
         self.post_process_function = post_process_function
         self.test_dataset = None
         self._update_callbacks()
@@ -278,7 +278,9 @@ class IbTrainer(Trainer):
             # MODIFICATION - pass eval_dataset to metric computing in order to get document level predictions
             metrics = self.compute_metrics(
                 EvalPrediction(predictions=all_preds, label_ids=all_labels),
-                self.eval_dataset if metric_key_prefix in {'eval', 'final_eval'} else self.test_dataset,
+                self.eval_dataset
+                if metric_key_prefix in {'eval', 'final_eval'}
+                else self.test_dataset,
             )
         else:
             metrics = {}
@@ -317,3 +319,10 @@ class IbTrainer(Trainer):
         return PredictionOutput(
             predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics
         )
+
+    def log(self, logs: Dict[str, float]) -> None:
+        """ "
+        Method removes predictions from logging
+        """
+        logs_mod = {k: v for k, v in logs.items() if not k.endswith('predictions')}
+        super().log(logs_mod)
