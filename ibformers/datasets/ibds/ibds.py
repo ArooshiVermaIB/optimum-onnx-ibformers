@@ -309,17 +309,21 @@ def get_images_from_layouts(
     image_processor: ImageProcessor,
     ocr_path: str,
     open_fn: Callable,
+    page_nums: List[int],
 ):
     """
+    Optionally get images and save it as array objects
     :param layouts: list of layouts (pages) objects
     :param image_processor: callable object used to process images
     :param ocr_path: path of ocr used to obtain relative path of images
     :param open_fn: fn used to open the image
-    :return:
+    :param page_nums: number of pages associated with given record
+    :return: image array
     """
     img_lst = []
-    # TODO: support multi-page documents, currently quite difficult in hf/datasets
-    for lay in layouts[:1]:
+
+    for page in page_nums:
+        lay = layouts[page]
         img_path = Path(lay.get_processed_image_path())
         try:
             with open_fn(str(img_path)) as img_file:
@@ -332,8 +336,10 @@ def get_images_from_layouts(
                 img_arr = image_processor(img_file).astype(np.uint8)
 
         img_lst.append(img_arr)
-    # img_arr_all = np.stack(img_lst, axis=0)
-    return img_arr
+
+    img_arr_all = np.stack(img_lst, axis=0)
+
+    return img_arr_all
 
 
 def process_parsedibocr(
@@ -411,7 +417,8 @@ def process_parsedibocr(
     }
 
     if use_image:
-        images = get_images_from_layouts(layouts, image_processor, doc_id, open_fn)
+        page_nums = list(np.unique(word_pages_arr))
+        images = get_images_from_layouts(layouts, image_processor, doc_id, open_fn, page_nums)
         # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
         features["images"] = images
 
@@ -511,7 +518,7 @@ class IbDs(datasets.GeneratorBasedBuilder):
             # ds_features['images'] = datasets.Sequence(datasets.Sequence(
             #     datasets.Sequence(datasets.Sequence(datasets.Value('uint8'), length=224), length=224), length=3))
             # for now support only 1-page documents
-            ds_features["images"] = datasets.Array3D(shape=(3, 224, 224), dtype="uint8")
+            ds_features["images"] = datasets.Array4D(shape=(None, 3, 224, 224), dtype="uint8")
 
         return datasets.DatasetInfo(
             # This is the description that will appear on the datasets page.
