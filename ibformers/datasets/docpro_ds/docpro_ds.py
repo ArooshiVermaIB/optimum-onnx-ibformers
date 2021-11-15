@@ -320,7 +320,7 @@ def validate_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes):
 
 
 # https://github.com/instabase/instabase/pull/22443/files
-def assert_valid_record(ibocr_record: IBOCRRecord) -> str:
+def assert_valid_record(ibocr_record: IBOCRRecord) -> Optional[str]:
     """
     Confirms an IBOCR Record's lines and text are aligned, such that
     provenance tracking will work downstream.
