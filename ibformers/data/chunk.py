@@ -11,10 +11,14 @@ def get_chunk_ranges(input_len, chunk_size, overlap):
     if input_len < chunk_size:
         return [(0, input_len)]
     ranges = []
-    for i in range(0, input_len - 1, chunk_size):
-        from_range = max(0, i - overlap)
-        to_range = min(input_len, i + chunk_size)
+    for i in range(0, input_len - 1, chunk_size - overlap):
+        from_range = max(0, i)
+        to_range = min(input_len, from_range + chunk_size)
+        len_chunk = to_range - from_range
+        assert len_chunk <= chunk_size
         ranges.append((from_range, to_range))
+        if to_range == input_len:
+            break
 
     return ranges
 

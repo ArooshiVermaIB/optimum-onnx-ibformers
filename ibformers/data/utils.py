@@ -173,7 +173,7 @@ def spread_with_mapping(features_batch, word_map_batch):
     spread_features_batch = []
     for features, word_map in zip(features_batch, word_map_batch):
         features = np.array(features)
-        spread_features = np.take(features, word_map, axis=0)
+        spread_features = np.take(features, word_map, axis=0).tolist()
         spread_features_batch.append(spread_features)
 
     return spread_features_batch
