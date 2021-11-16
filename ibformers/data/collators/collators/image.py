@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import ClassVar, List, Any, Optional
+from typing import ClassVar, List, Optional
 
 from ibformers.data.collators.collators.base import BaseCollator
 
@@ -20,6 +20,9 @@ class ImageCollator(BaseCollator):
         present_supported_names = [key for key in feature_keys if key in self.supported_fields]
         batch = {}
         for feature_name in present_supported_names:
-            feature_batch = [feature[feature_name] for feature in features]
+            assert all(
+                feature[feature_name].shape[0] == 1 for feature in features
+            ), "Collator supports only single pages"
+            feature_batch = [feature[feature_name][0] for feature in features]
             batch[feature_name] = feature_batch
         return batch

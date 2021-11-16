@@ -1,9 +1,12 @@
+import logging
 from typing import List, Any, Dict, Mapping, Callable, Sequence
 
 import numpy as np
 from fuzzysearch import find_near_matches
 from transformers.image_utils import ImageFeatureExtractionMixin
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 
 class ImageProcessor(ImageFeatureExtractionMixin):
@@ -14,7 +17,11 @@ class ImageProcessor(ImageFeatureExtractionMixin):
         self.resample = resample
 
     def __call__(self, f):
-        image = Image.open(f).convert("RGB")
+        try:
+            image = Image.open(f).convert("RGB")
+        except:
+            logger.warning(f'Failed to open image {f}. Replacing it with an empty image instead.')
+            image = Image.fromarray(np.ones((self.size, self.size, 3), dtype=np.uint8), mode='RGB')
 
         # transformations (resizing)
         if self.do_resize and self.size is not None:
@@ -173,7 +180,7 @@ def spread_with_mapping(features_batch, word_map_batch):
     spread_features_batch = []
     for features, word_map in zip(features_batch, word_map_batch):
         features = np.array(features)
-        spread_features = np.take(features, word_map, axis=0)
+        spread_features = np.take(features, word_map, axis=0).tolist()
         spread_features_batch.append(spread_features)
 
     return spread_features_batch

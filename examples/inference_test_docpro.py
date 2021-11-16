@@ -5,7 +5,9 @@ from typing import Any
 from ibformers.trainer.ib_package.ModelServiceTemplate.src.py.package_name.model import IbModel
 from instabase.protos.model_service import model_service_pb2
 
-dataset_files = Path("/Users/rafalpowalski/python/annotation/UberEatsDataset/out/s1_process_files")
+dataset_files = Path(
+    "/Users/rafalpowalski/python/annotation/CompleteDemoDataset/out/s1_process_files"
+)
 
 file_list = dataset_files.glob('*ibdoc')
 
@@ -40,9 +42,13 @@ outs = []
 for ocr_path in file_list:
     # with open(ocr_path, "rb") as f:
     #     data = f.read()
+
     req = model_service_pb2.RunModelRequest(input_path=str(ocr_path))
-    out = model.run(req)
-    outs.append(out)
+    try:
+        out = model.run(req)
+        outs.append(out)
+    except ValueError:
+        print('Value error')
 
 
 print(len(outs))

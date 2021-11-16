@@ -169,27 +169,25 @@ def get_images_from_layouts(
     :return: image array
     """
     img_lst = []
-    # TODO: support multi-page documents, currently quite difficult in hf/datasets
-    if len(page_nums) > 1:
-        logging.error(
-            f"Only support image modality for single-page documents. Got {len(page_nums)} pages for {ocr_path}"
-        )
 
-    lay = layouts[page_nums[0]]
-    img_path = Path(lay.get_processed_image_path())
+    for page in page_nums:
+        lay = layouts[page]
+        img_path = Path(lay.get_processed_image_path())
+        try:
+            with open_fn(str(img_path)) as img_file:
+                img_arr = image_processor(img_file).astype(np.uint8)
+        except OSError:
+            # try relative path - useful for debugging
+            ocr_path = Path(ocr_path)
+            img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
+            with open_fn(str(img_rel_path), "rb") as img_file:
+                img_arr = image_processor(img_file).astype(np.uint8)
 
-    try:
-        with open_fn(str(img_path)) as img_file:
-            img_arr = image_processor(img_file).astype(np.uint8)
-    except OSError:
-        # try relative path - useful for debugging
-        ocr_path = Path(ocr_path)
-        img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
-        with open_fn(str(img_rel_path), "rb") as img_file:
-            img_arr = image_processor(img_file).astype(np.uint8)
+        img_lst.append(img_arr)
 
-    # img_arr_all = np.stack(img_lst, axis=0)
-    return img_arr
+    img_arr_all = np.stack(img_lst, axis=0)
+
+    return img_arr_all
 
 
 class DocProBuilderConfig(BuilderConfig):
@@ -453,12 +451,8 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
         if self.config.use_image:
             # first dimension is defined as a number of pages in the document
-            # workaround with sequences - dynamic dimensions are not yet supported by hf/datasets
-            # ds_features['images'] = datasets.Array4D(shape=(None, 3, 224, 224), dtype="uint8")
-            # ds_features['images'] = datasets.Sequence(datasets.Sequence(
-            #     datasets.Sequence(datasets.Sequence(datasets.Value('uint8'), length=224), length=224), length=3))
-            # for now support only 1-page documents
-            ds_features["images"] = datasets.Array3D(shape=(3, 224, 224), dtype="uint8")
+            ds_features["images"] = datasets.Array4D(shape=(None, 3, 224, 224), dtype="uint8")
+            ds_features["images_page_nums"] = datasets.Sequence(datasets.Value("int32"))
 
         return datasets.DatasetInfo(
             # This is the description that will appear on the datasets page.
@@ -487,14 +481,10 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
     def get_annotation_from_model_service(self, records):
         # get similar format to the one defined by dataset SDK
-        # Produce dummy AnnotationItem
-        # TODO: import AnnotationItem type once model-service will include dataset sdk
-        for record in records:
-            # generate ann item: (full_path, record_index, record, anno)
-            annotation_item = (record.get_document_path(), 0, record, None)
+        for prediction_item in records:
             label2ann_label_id = {lab: None for lab in self.config.id2label.values()}
             # yield annotation_item, label2ann_label_id, dataset_id, class_id
-            yield annotation_item, label2ann_label_id, None, None
+            yield prediction_item, label2ann_label_id, None, None
 
     def process_annotation_item(
         self,
@@ -613,12 +603,14 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
         if self.config.use_image:
             open_fn = get_open_fn(self.config.ibsdk)
-            page_nums = list(np.unique(word_pages_arr))
+            page_nums = np.unique(word_pages_arr)
+            page_nums.sort()
             images = get_images_from_layouts(
                 layouts, self.image_processor, full_path, open_fn, page_nums
             )
             # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
             features["images"] = images
+            features["images_page_nums"] = page_nums
 
         return features
 

@@ -4,6 +4,8 @@ import os
 import sys
 
 # TODO: remove once packages paths defined in package.json will be added to PYTHONPATH
+from datasets.data_files import DataFilesDict
+
 from ibformers.trainer.ib_utils import InstabaseSDK
 
 pth, _ = os.path.split(__file__)
@@ -13,7 +15,7 @@ if pth not in sys.path:
 
 import tempfile
 from pathlib import Path
-from typing import List, Tuple, Mapping, Optional, NamedTuple
+from typing import List, Optional
 
 import torch
 from datasets import load_dataset, GenerateMode
@@ -72,7 +74,9 @@ class IbModel(Model):
 
         # Initialize our Trainer, trainer class will be used only for prediction
         self.trainer = IbTrainer(
-            args=TrainingArguments(output_dir=tempfile.TemporaryDirectory().name),
+            args=TrainingArguments(
+                output_dir=tempfile.TemporaryDirectory().name, per_device_eval_batch_size=8
+            ),
             model=self.model,
             train_dataset=None,
             eval_dataset=None,
@@ -112,6 +116,9 @@ class IbModel(Model):
         parsed_ibocr = resolve_parsed_ibocr_from_request(request)
         mapper, word_polys, record = self.prepare_mapper_and_word_pollys(parsed_ibocr)
 
+        if request.input_path != "":
+            record.doc_path = request.input_path
+
         # pass single document and create in memory dataset
         ds_path = Path(DATASETS_PATH) / self.pipeline_config["dataset_name_or_path"]
         name_to_use = (
@@ -123,16 +130,23 @@ class IbModel(Model):
         if hasattr(self.model.config, "id2label"):
             load_kwargs["id2label"] = self.model.config.id2label
 
+        # generate prediction item: (full_path, record_index, record, anno)
+        doc_path = request.input_path if request.input_path != "" else record.get_document_path()
+        prediction_item = (doc_path, record.get_ibdoc_record_id(), record, None)
+
         predict_dataset = load_dataset(
             path=name_to_use,
             name=self.pipeline_config["dataset_config_name"],
-            data_files={"test": [record]},
+            data_files=DataFilesDict(test=[prediction_item]),
             ignore_verifications=True,
             keep_in_memory=True,
             split="test",
             download_mode=GenerateMode.FORCE_REDOWNLOAD,
             **load_kwargs,
         )
+
+        if len(predict_dataset) == 0:
+            raise ValueError("Something went wrong.")
 
         fn_kwargs = {**self.pipeline_config, **{"tokenizer": self.tokenizer}}
 

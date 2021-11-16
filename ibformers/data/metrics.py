@@ -51,11 +51,10 @@ def join_chunks(
         # for the last chunk there might be padding so content mask will have different length
         if content_mask is None:
             content_chunk = chunk
-        elif i == len(chunks) - 1:
+        else:
             content_mask_with_padding = content_mask + [False] * (len(chunk) - len(content_mask))
             content_chunk = chunk[content_mask_with_padding]
-        else:
-            content_chunk = chunk[content_mask]
+
         assert (
             len(content_chunk) == rng_len
         ), "Length of content in the chunk should be equal to chunk range length"
