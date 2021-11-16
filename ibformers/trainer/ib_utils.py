@@ -16,8 +16,6 @@ from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.trainer.train import run_train
 from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments
 
-
-from instabase.model_training_tasks.jobs import JobMetadataClient
 from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase, default_max_write_size
@@ -479,7 +477,7 @@ def run_train_annotator(
     )
 
 
-class DummyJobStatus(JobMetadataClient):
+class DummyJobStatus:
     def __init__(self):
         pass
 

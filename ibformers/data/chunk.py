@@ -111,7 +111,15 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
             [len(a) == 1 for a in pages_idx]
         ), "Chunks need to be single page to support images"
         pages_idx = np.array([a[0] for a in pages_idx])
-        chunked['images'] = example['images'][pages_idx][:, None]
+        images_page_nums = example['images_page_nums']
+        image_idx = []
+        for pg_id in pages_idx:
+            if pg_id not in images_page_nums:
+                raise ValueError("There is no required page number in the available list of images")
+            im_id = images_page_nums.index(pg_id)
+            image_idx.append(im_id)
+
+        chunked['images'] = example['images'][np.array(image_idx)][:, None]
 
     chunked["chunk_ranges"] = chunk_ranges
 
