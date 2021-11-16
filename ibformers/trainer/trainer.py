@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from datasets import IterableDataset
 from torch.utils.data import DataLoader, Dataset
-from transformers.integrations import WandbCallback
+from transformers.integrations import WandbCallback, is_wandb_available
 from transformers.trainer import Trainer
 from transformers import EvalPrediction, is_torch_tpu_available, AdamW
 from transformers.file_utils import (
@@ -70,9 +70,10 @@ class IbTrainer(Trainer):
         self._update_callbacks()
 
     def _update_callbacks(self) -> None:
-        old_callback = self.pop_callback(WandbCallback)
-        if old_callback is not None:
-            self.add_callback(ExtendedWandbCallback)
+        if is_wandb_available():
+            old_callback = self.pop_callback(WandbCallback)
+            if old_callback is not None:
+                self.add_callback(ExtendedWandbCallback)
 
     def create_optimizer(self) -> torch.optim.Optimizer:
         config = {"lr": self.args.learning_rate, "eps": self.args.adam_epsilon}

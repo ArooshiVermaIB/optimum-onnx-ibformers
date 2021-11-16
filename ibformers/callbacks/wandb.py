@@ -4,7 +4,6 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-import wandb
 from transformers import TrainingArguments, TrainerState, TrainerControl
 from transformers.integrations import WandbCallback
 
@@ -111,6 +110,8 @@ class ExtendedWandbCallback(WandbCallback):
     """
 
     def _log_summary_metrics(self, metrics_dict: Dict[str, Any]):
+        if self._wandb is None:
+            return
         metric_names = ['f1', 'precision', 'recall']
         table_rows = defaultdict(list)
         for metric in metric_names:
@@ -122,9 +123,11 @@ class ExtendedWandbCallback(WandbCallback):
                 table_rows[dp_name].append(metric_value)
         table = [[k] + v for k, v in table_rows.items()]
         columns = ['datapoint'] + metric_names
-        self._wandb.log({'metrics': wandb.Table(data=table, columns=columns)})
+        self._wandb.log({'metrics': self._wandb.Table(data=table, columns=columns)})
 
     def _log_predictions(self, predictions):
+        if self._wandb is None:
+            return
         columns = [
             'Document Name',
             'Entity Name',
@@ -150,7 +153,7 @@ class ExtendedWandbCallback(WandbCallback):
                     is_match,
                 ]
                 prediction_data.append(row)
-        self._wandb.log({'predictions': wandb.Table(data=prediction_data, columns=columns)})
+        self._wandb.log({'predictions': self._wandb.Table(data=prediction_data, columns=columns)})
 
     def setup(self, args, state, model, **kwargs):
         super().setup(args, state, model, **kwargs)
@@ -158,6 +161,8 @@ class ExtendedWandbCallback(WandbCallback):
     def on_evaluate(
         self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
     ):
+        if self._wandb is None:
+            return
         metrics = kwargs.get('metrics').copy()  # type: ignore
         if 'final_eval_predictions' in metrics:
             predictions = metrics.pop('final_eval_predictions')
