@@ -417,10 +417,12 @@ def process_parsedibocr(
     }
 
     if use_image:
-        page_nums = list(np.unique(word_pages_arr))
+        page_nums = np.unique(word_pages_arr)
+        page_nums.sort()
         images = get_images_from_layouts(layouts, image_processor, doc_id, open_fn, page_nums)
         # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
         features["images"] = images
+        features["images_page_nums"] = page_nums
 
     return features
 
@@ -519,6 +521,7 @@ class IbDs(datasets.GeneratorBasedBuilder):
             #     datasets.Sequence(datasets.Sequence(datasets.Value('uint8'), length=224), length=224), length=3))
             # for now support only 1-page documents
             ds_features["images"] = datasets.Array4D(shape=(None, 3, 224, 224), dtype="uint8")
+            ds_features["images_page_nums"] = datasets.Sequence(datasets.Value("int32"))
 
         return datasets.DatasetInfo(
             # This is the description that will appear on the datasets page.
