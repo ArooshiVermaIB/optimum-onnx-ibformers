@@ -21,24 +21,20 @@ def split_train_with_column(dataset: Dataset):
         raise exceptions.ValidationError("No column named split which is needed for splitting")
 
     split_lst = train_ds['split']
-
-    train_idx = []
-    val_idx = []
-    test_idx = []
+    indices = {'train': [], 'validation': [], 'test': []}
 
     for idx, split in enumerate(split_lst):
-        if 'train' in split:
-            train_idx.append(idx)
-        if 'val' in split:
-            val_idx.append(idx)
-        if 'test' in split:
-            test_idx.append(idx)
+        for k, v in indices.items():
+            if k in split:
+                indices[k].append(idx)
 
-    train_split = train_ds.select(indices=train_idx)
-    val_split = train_ds.select(indices=val_idx)
-    test_split = train_ds.select(indices=test_idx)
+    splitted_dataset = DatasetDict()
+    for k, v in indices.items():
+        if len(v) == 0:
+            raise ValueError(f"There is no document choosen for {k} set")
+        splitted_dataset[k] = train_ds.select(indices=indices[k])
 
-    return DatasetDict({"train": train_split, "validation": val_split, "test": test_split})
+    return splitted_dataset
 
 
 @dataclass
