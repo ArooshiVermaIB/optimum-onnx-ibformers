@@ -10,7 +10,7 @@ class TestTrainUtils(unittest.TestCase):
         # given
         dataset_mock = mock.MagicMock()
         train_ds_mock = mock.MagicMock()
-        split_lst = [['train'], ['val'], ['test']]
+        split_lst = [['train'], ['validation'], ['test']]
         dataset_mock.keys.return_value = ['train']
         train_ds_mock.features = ['split']
         dataset_mock.__getitem__.side_effect = dict(train=train_ds_mock).__getitem__
