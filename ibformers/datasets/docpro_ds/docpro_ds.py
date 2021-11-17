@@ -302,7 +302,7 @@ def get_docpro_ds_split(anno: Optional[Dict]):
     elif anno['is_test_file']:
         # instabase doesn't support yet separation of val and test sets.
         # TODO: we need to change that to have separate labeled sets for val and test
-        return True, "val+test"
+        return True, "validation+test"
     else:
         return False, "train"
 
