@@ -21,7 +21,7 @@ class ImageProcessor(ImageFeatureExtractionMixin):
             image = Image.open(f).convert("RGB")
         except:
             logger.warning(f'Failed to open image {f}. Replacing it with an empty image instead.')
-            image = Image.fromarray(np.ones((self.size, self.size, 3), dtype=np.uint8), mode='RGB')
+            image = Image.fromarray(np.ones((self.size, self.size, 3), dtype=np.uint8) * 255, mode='RGB')
 
         # transformations (resizing)
         if self.do_resize and self.size is not None:
