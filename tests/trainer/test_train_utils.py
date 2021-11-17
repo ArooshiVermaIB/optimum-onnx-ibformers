@@ -1,5 +1,9 @@
+import dataclasses
+import sys
 import unittest
 from unittest import mock
+from unittest.mock import patch
+
 from datasets import Dataset, DatasetDict
 from ibformers.trainer import train_utils
 from ibformers.utils import exceptions
@@ -50,6 +54,43 @@ class TestTrainUtils(unittest.TestCase):
 
         # verify
         self.assertIn("No column named split which is needed for splitting", str(context.exception))
+
+    def test_update_params_with_commandline_separate_classes(self):
+        # given
+        param_class_a = dataclasses.make_dataclass('A', [('a', int), ('b', int)])
+        param_class_b = dataclasses.make_dataclass('B', [('c', int), ('d', int)])
+
+        params_a = param_class_a(1, 2)
+        params_b = param_class_b(3, 4)
+
+        cli_args = [sys.argv[0], "--a", "2", "--d", "5"]
+
+        # then
+        with patch("sys.argv", cli_args):
+            new_params_a, new_params_b = train_utils.update_params_with_commandline((params_a, params_b))
+
+        # verify
+        self.assertIsInstance(new_params_a, param_class_a)
+        self.assertIsInstance(new_params_b, param_class_b)
+        self.assertEqual(new_params_a.a, 2)
+        self.assertEqual(new_params_b.d, 5)
+
+    def test_update_params_with_commandline_shared_params(self):
+        # given
+        param_class_a = dataclasses.make_dataclass('A', [('a', int), ('b', int)])
+        param_class_b = dataclasses.make_dataclass('B', [('b', int), ('c', int)])
+
+        params_a = param_class_a(1, 2)
+        params_b = param_class_b(3, 4)
+
+        cli_args = [sys.argv[0], "--b", "5"]
+
+        # then
+        with patch("sys.argv", cli_args):
+            new_params_a, new_params_b = train_utils.update_params_with_commandline((params_a, params_b))
+
+        # verify
+        self.assertEqual(new_params_a.b, 5)
 
 
 if __name__ == '__main__':
