@@ -14,7 +14,8 @@ from transformers import TrainerCallback, HfArgumentParser, TrainingArguments
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.trainer.train import run_train
-from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments
+from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments, \
+    update_params_with_commandline
 
 from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
@@ -425,6 +426,7 @@ def run_train_annotator(
     job_metadata_client: Optional["JobMetadataClient"] = None,
     mount_details: Optional[Dict] = None,
     model_name: Optional[str] = "CustomModel",
+    overwrite_arguments_with_cli: bool = False,
     **kwargs: Any,
 ):
     assert hyperparams is not None
@@ -449,6 +451,10 @@ def run_train_annotator(
         model_name,
     )
     model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hparams_dict)
+    if overwrite_arguments_with_cli:
+        model_args, data_args, training_args, ib_args, augmenter_args = update_params_with_commandline(
+            (model_args, data_args, training_args, ib_args, augmenter_args)
+        )
 
     if hasattr(file_client, "file_client") and file_client.file_client is None:
         # support for InstabaseSDKDummy - debugging only

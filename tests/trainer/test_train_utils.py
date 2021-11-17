@@ -5,6 +5,8 @@ from unittest import mock
 from unittest.mock import patch
 
 from datasets import Dataset, DatasetDict
+from transformers import TrainingArguments
+
 from ibformers.trainer import train_utils
 from ibformers.utils import exceptions
 
@@ -91,6 +93,38 @@ class TestTrainUtils(unittest.TestCase):
 
         # verify
         self.assertEqual(new_params_a.b, 5)
+
+    def test_update_params_with_commandline_non_init_field(self):
+        # given
+        param_class_a = dataclasses.make_dataclass('A', [('a', 'int', dataclasses.field(default=1, init=False))])
+
+        params_a = param_class_a()
+
+        cli_args = [sys.argv[0], '--a', '2']
+
+        # then
+        with patch("sys.argv", cli_args):
+            new_params_a, = train_utils.update_params_with_commandline((params_a, ))
+
+        # verify
+        # we expect that the CLI param is ignored, since the field is non-init
+
+        self.assertEqual(new_params_a.a, 1)
+
+    def test_update_with_training_arguments(self):
+        # this is a specific test case, since TrainingArguments is badly written dataclass - it overwrites
+        # some of the params in postinit, so you cannot re-initialize it with its current values.
+        # It does not work with `dataclasses.replace` because of that.
+
+        # given
+        training_arguments = TrainingArguments(output_dir='')
+
+        cli_args = [sys.argv[0], '--num_train_epochs', '1']
+
+        # then
+        # this shouldn't fail
+        with patch("sys.argv", cli_args):
+            _ = train_utils.update_params_with_commandline((training_arguments, ))
 
 
 if __name__ == '__main__':

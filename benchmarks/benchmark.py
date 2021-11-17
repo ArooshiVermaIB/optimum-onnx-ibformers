@@ -54,12 +54,14 @@ def run_single_benchmark(benchmark_id: str, model_name_or_path: str, output_path
             str(output_path),
             sdk,
             'user',
-            DummyJobStatus()
+            DummyJobStatus(),
+            overwrite_arguments_with_cli=True
         )
         wandb.finish()
     except Exception as e:
         logger.error(f'Encountered exception when running benchmark {benchmark_id} for model {model_name_or_path}.'
                      f'Full error: {e}')
+        raise e
 
 
 def run_benchmarks_for_single_model(
@@ -103,7 +105,7 @@ class BenchmarkArguments:
 
 if __name__ == '__main__':
     parser = HfArgumentParser(BenchmarkArguments)
-    benchmark_args, = parser.parse_args_into_dataclasses()
+    benchmark_args, _ = parser.parse_known_args()
     if benchmark_args.output_path is None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             run_benchmarks(benchmark_args.models_to_run, Path(tmp_dir),
