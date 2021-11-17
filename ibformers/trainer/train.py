@@ -122,11 +122,7 @@ def run_train(
 
     # Detecting last checkpoint.
     last_checkpoint = None
-    if (
-        os.path.isdir(training_args.output_dir)
-        and training_args.do_train
-        and not training_args.overwrite_output_dir
-    ):
+    if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
         if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
             raise ValueError(
@@ -185,9 +181,7 @@ def run_train(
     if 'split' in next(iter(raw_datasets.column_names.values())):
         raw_datasets = split_train_with_column(raw_datasets)
 
-    tokenizer_name_or_path = (
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
-    )
+    tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
 
     tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_name_or_path,
@@ -323,17 +317,11 @@ def run_train(
             checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         metrics = train_result.metrics
-        final_model_dir = (
-            ib_args.final_model_dir
-            if ib_args.final_model_dir is not None
-            else training_args.output_dir
-        )
+        final_model_dir = ib_args.final_model_dir if ib_args.final_model_dir is not None else training_args.output_dir
         trainer.save_model(final_model_dir)  # Saves the tokenizer too for easy upload
         data_args.save(final_model_dir)  # Saves the pipeline & data arguments
         max_train_samples = (
-            data_args.max_train_samples
-            if data_args.max_train_samples is not None
-            else len(train_dataset)
+            data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
         )
         metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
@@ -347,11 +335,7 @@ def run_train(
 
         metrics = trainer.evaluate(metric_key_prefix='final_eval')
 
-        max_eval_samples = (
-            data_args.max_eval_samples
-            if data_args.max_eval_samples is not None
-            else len(eval_dataset)
-        )
+        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["final_eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
         # trainer.log_metrics("eval", metrics)
