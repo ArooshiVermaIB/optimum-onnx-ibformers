@@ -11,7 +11,7 @@ _default:
     optimizer_type: AdamW
     scheduler_type: constant_schedule_with_warmup
     use_gpu: true
-    use_mixed_precision: false
+    use_mixed_precision: true
     warmup: 0.0
     weight_decay: 0
 
@@ -58,6 +58,6 @@ microsoft/layoutlmv2-large-uncased:
   name: layoutv2-base (single-page)
   hyperparams:
     <<: *defaults
-    batch_size: 4
-    gradient_accumulation_steps: 2
+    batch_size: 2
+    gradient_accumulation_steps: 4
 

@@ -81,6 +81,33 @@ class Instabase:
         self.logger.debug(f'{self.name}: Response was: {resp}')
         return resp
 
+    async def list_directory(self, ib_path: str) -> List[str]:
+
+        url = os.path.join(self.drive_api_url, self._root_path, ib_path)
+        self.logger.info(f'{self.name}: Listing directory {ib_path}')
+
+        headers = {
+            **self._make_headers(),
+            'Instabase-API-Args': json.dumps(dict(type='folder', if_exists='overwrite',
+                                                  get_content=True, get_metadata=False,
+                                                  start_page_token='')),
+        }
+        has_more = True
+        dir_content = []
+        while has_more:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, ) as r:
+                    resp = await r.json()
+            dir_content += [r['name'] for r in resp.get('nodes', [])]
+            has_more = resp['has_more']
+            if has_more:
+                next_page_token = resp['next_page_token']
+                headers['Instabase-API-Args'] = json.dumps(dict(
+                    type='folder', if_exists='overwrite', get_content=True,
+                    get_metadata=False, start_page_token=next_page_token))
+                self.logger.info(f'{self.name}: Listing further part of the directory {ib_path}')
+        return dir_content
+
     async def publish_solution(self, ib_path: str) -> bool:
         """Publishes the ibsolution located at ib_path on instabase.com to the marketplace
 

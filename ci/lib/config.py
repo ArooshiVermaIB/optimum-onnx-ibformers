@@ -33,6 +33,11 @@ class ModelTestConfig(TypedDict):
     metrics: Dict[str, Dict[str, float]]
 
 
+def load_environments_() -> Dict[str, Environment]:
+    with open(abspath('../res/environments.yml')) as f:
+        return yaml.load(f, Loader=yaml.FullLoader)
+
+
 async def load_environments() -> Dict[str, Environment]:
     with open(abspath('../res/environments.yml')) as f:
         return yaml.load(f, Loader=yaml.FullLoader)
