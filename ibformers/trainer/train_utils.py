@@ -1,9 +1,12 @@
+import argparse
 import json
 import os
+from copy import deepcopy
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, TypeVar, Tuple
 
 from datasets import Dataset, DatasetDict
+from transformers.hf_argparser import DataClass, HfArgumentParser
 
 from ibformers.utils import exceptions
 
@@ -233,3 +236,38 @@ class IbArguments:
             "help": "Where do you want to save final model, it can be different location than checkpoint files"
         },
     )
+
+
+T = TypeVar('T', bound=Tuple[DataClass, ...])
+
+
+def update_params_with_commandline(param_dataclasses: T) -> T:
+    """
+    Update the values of input dataclasses with the values passed in CLI.
+
+    Useful if the user want to overwrite base parameters from configuration with custom values.
+
+
+    Args:
+        param_dataclasses: Tuple of dataclasses to update
+
+    Returns:
+        Tuple of updated dataclasses, in the same order as the input ones.
+
+    """
+    outputs = []
+
+    for param_dataclass in param_dataclasses:
+        parser = HfArgumentParser(type(param_dataclass))
+
+        for action in parser._actions:
+            action.default = argparse.SUPPRESS
+            action.required = False
+
+        parsed, _ = parser.parse_known_args()
+        new_params = deepcopy(param_dataclass)
+        for key, value in vars(parsed).items():
+            setattr(new_params, key, value)
+
+        outputs.append(new_params)
+    return (*outputs, )
