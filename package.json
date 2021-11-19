@@ -122,7 +122,7 @@
           "warmup": 0.0,
           "weight_decay": 0,
           "pipeline_name": "plain_sl",
-          "model_name": "roberta-base"
+          "model_name": "bert-base-uncased"
         }
       }
     ]
