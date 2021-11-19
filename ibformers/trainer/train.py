@@ -25,9 +25,8 @@ from dataclasses import asdict
 from pathlib import Path
 
 import datasets
-from datasets import ClassLabel, load_dataset
-
 import transformers
+from datasets import ClassLabel, load_dataset
 from datasets.data_files import DataFilesDict
 from transformers import (
     AutoConfig,
@@ -43,14 +42,12 @@ from transformers.utils.versions import require_version
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
+from ibformers.trainer.arguments import ModelArguments, DataAndPipelineArguments, IbArguments
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.10.0.dev0")
 from ibformers.trainer.train_utils import (
     split_train_with_column,
-    ModelArguments,
-    DataAndPipelineArguments,
-    IbArguments,
 )
 from ibformers.trainer.trainer import IbTrainer
 

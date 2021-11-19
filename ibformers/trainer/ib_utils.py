@@ -14,7 +14,7 @@ from transformers import TrainerCallback, HfArgumentParser, TrainingArguments
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.trainer.train import run_train
-from ibformers.trainer.train_utils import (
+from ibformers.trainer.arguments import (
     ModelArguments,
     DataAndPipelineArguments,
     IbArguments,
