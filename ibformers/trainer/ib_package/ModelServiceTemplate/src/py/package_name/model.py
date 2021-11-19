@@ -46,12 +46,10 @@ class IbModel(Model):
         self.pipeline_config = self.load_pipeline_config(self.model_data_path)
         self.pipeline = PIPELINES[self.pipeline_config["pipeline_name"]]
         # add file client in case we would need to donwload images from instabase file system
-        self.ibsdk = self.get_ibsdk() if ibsdk is None else ibsdk
+        self.file_client = get_file_client()
 
-    @staticmethod
-    def get_ibsdk():
-        file_client = get_file_client()
-        return InstabaseSDK(file_client=file_client, username="ibformers_model")
+    def get_ibsdk(self, username):
+        return InstabaseSDK(file_client=self.file_client, username=username)
 
     @staticmethod
     def load_pipeline_config(path):
@@ -74,9 +72,7 @@ class IbModel(Model):
 
         # Initialize our Trainer, trainer class will be used only for prediction
         self.trainer = IbTrainer(
-            args=TrainingArguments(
-                output_dir=tempfile.TemporaryDirectory().name, per_device_eval_batch_size=8
-            ),
+            args=TrainingArguments(output_dir=tempfile.TemporaryDirectory().name, per_device_eval_batch_size=8),
             model=self.model,
             train_dataset=None,
             eval_dataset=None,
@@ -101,9 +97,7 @@ class IbModel(Model):
         mapper = WordPolyInputColMapper(record_joined)  # not good
         records = parsed_ibocr.get_ibocr_records()
         if len(records) > 1:
-            ValueError(
-                'Model should consume only single record. Check if you are passing only single class documents'
-            )
+            ValueError('Model should consume only single record. Check if you are passing only single class documents')
         record = records[0]
 
         word_polys: List["WordPolyDict"] = [i for j in record_joined.get_lines() for i in j]
@@ -121,11 +115,9 @@ class IbModel(Model):
 
         # pass single document and create in memory dataset
         ds_path = Path(DATASETS_PATH) / self.pipeline_config["dataset_name_or_path"]
-        name_to_use = (
-            str(ds_path) if ds_path.is_dir() else self.pipeline_config["dataset_name_or_path"]
-        )
+        name_to_use = str(ds_path) if ds_path.is_dir() else self.pipeline_config["dataset_name_or_path"]
         load_kwargs = self.pipeline["dataset_load_kwargs"]
-        load_kwargs['ibsdk'] = self.ibsdk
+        load_kwargs['ibsdk'] = self.get_ibsdk(request.context.username)
 
         if hasattr(self.model.config, "id2label"):
             load_kwargs["id2label"] = self.model.config.id2label
@@ -146,7 +138,7 @@ class IbModel(Model):
         )
 
         if len(predict_dataset) == 0:
-            raise ValueError("Something went wrong.")
+            raise ValueError("There is no documents processed for the inference. Check if record is correct")
 
         fn_kwargs = {**self.pipeline_config, **{"tokenizer": self.tokenizer}}
 
@@ -181,6 +173,4 @@ class IbModel(Model):
                     end_index=start + len(word["raw_word"]),
                 )
                 entities.append(ner_result)
-        return model_service_pb2.ModelResult(
-            ner_result=model_service_pb2.NERResult(entities=entities)
-        )
+        return model_service_pb2.ModelResult(ner_result=model_service_pb2.NERResult(entities=entities))
