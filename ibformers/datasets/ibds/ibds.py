@@ -311,8 +311,7 @@ def get_images_from_layouts(
             # try relative path - useful for debugging
             ocr_path = Path(ocr_path)
             img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
-            with open_fn(str(img_rel_path), "rb") as img_file:
-                img_arr = image_processor(img_file).astype(np.uint8)
+            img_arr = image_processor(img_rel_path).astype(np.uint8)
 
         img_lst.append(img_arr)
 

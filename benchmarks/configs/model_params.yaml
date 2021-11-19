@@ -1,39 +1,46 @@
 _default:
-  name:
+  name: Custom model
   hyperparams: &defaults
     adam_epsilon: 1.e-8
-    batch_size: 8
+    per_device_train_batch_size: 8
+    per_device_train_eval_size: 8
     gradient_accumulation_steps: 1
-    chunk_size: 512
-    stride: 64
-    epochs: 15
+    max_length: 512
+    chunk_overlap: 64
+    num_train_epochs: 15
     learning_rate: 5.e-5
     optimizer_type: AdamW
-    scheduler_type: constant_schedule_with_warmup
-    use_gpu: true
-    use_mixed_precision: true
-    warmup: 0.0
+    scheduler_type: constant_with_warmup
+    fp16: true
+    warmup_ratio: 0.0
     weight_decay: 0
+    do_train: true
+    do_eval: true
+    do_predict: true
 
 microsoft/layoutlm-base-uncased:
   name: layout-base
   hyperparams:
     <<: *defaults
+    pipeline_name: layoutlm_sl
 
 microsoft/layoutxlm-base:
-  name: layout-multilingual (single-page)
+  name: layout-multilingual
   hyperparams:
     <<: *defaults
+    pipeline_name: layoutxlm_sl
 
 microsoft/layoutlmv2-base-uncased:
-  name: layoutv2 (single-page)
+  name: layoutv2
   hyperparams:
     <<: *defaults
+    pipeline_name: layoutlmv2_sl
 
 instabase/laymqav1-base:
   name: LayoutMultiQA-base
   hyperparams:
     <<: *defaults
+    pipeline_name: laymqav1
 
 nlpaueb/legal-bert-base-uncased:
   name: legal natural language
@@ -51,13 +58,17 @@ microsoft/layoutlm-large-uncased:
   name: layout-large
   hyperparams:
     <<: *defaults
-    batch_size: 4
+    per_device_train_batch_size: 4
+    per_device_train_eval_size: 4
     gradient_accumulation_steps: 2
+    pipeline_name: layoutlm_sl
 
 microsoft/layoutlmv2-large-uncased:
   name: layoutv2-base (single-page)
   hyperparams:
     <<: *defaults
-    batch_size: 2
+    per_device_train_batch_size: 2
+    per_device_train_eval_size: 2
     gradient_accumulation_steps: 4
+    pipeline_name: layoutlmv2_sl
 

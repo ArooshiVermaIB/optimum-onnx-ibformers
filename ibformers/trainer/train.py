@@ -38,11 +38,17 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils.versions import require_version
+from typing import Dict, Any
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
-from ibformers.trainer.arguments import ModelArguments, DataAndPipelineArguments, IbArguments
+from ibformers.trainer.arguments import (
+    ModelArguments,
+    DataAndPipelineArguments,
+    IbArguments,
+    update_params_with_commandline,
+)
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.10.0.dev0")
@@ -57,6 +63,35 @@ require_version(
 )
 
 logger = logging.getLogger(__name__)
+
+
+def run_hyperparams_and_cmdline_train(
+    hyperparams: Dict,
+    file_client: Any,
+):
+    parser = HfArgumentParser(
+        (
+            ModelArguments,
+            DataAndPipelineArguments,
+            TrainingArguments,
+            IbArguments,
+            AugmenterArguments,
+        )
+    )
+    model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hyperparams)
+    model_args, data_args, training_args, ib_args, augmenter_args = update_params_with_commandline(
+        (model_args, data_args, training_args, ib_args, augmenter_args)
+    )
+
+    run_train(
+        model_args,
+        data_args,
+        training_args,
+        ib_args,
+        augmenter_args,
+        extra_callbacks=[],
+        extra_load_kwargs={"ibsdk": file_client, "extraction_class_name": data_args.extraction_class_name},
+    )
 
 
 def run_cmdline_train():

@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, TypeVar, Generic, Type, List
+from typing import Dict, TypeVar, Generic, Type, List, Any
 
 import yaml
 
@@ -42,7 +42,7 @@ class _ConfigRegistry(Generic[T], metaclass=ABCMeta):
 @dataclass
 class BenchmarkConfig:
     name: str
-    shared_path: Path
+    hyperparams: Dict[str, Any]
 
 
 class _BenchmarkRegistry(_ConfigRegistry[BenchmarkConfig]):
@@ -58,7 +58,7 @@ class _BenchmarkRegistry(_ConfigRegistry[BenchmarkConfig]):
 @dataclass
 class ModelParamConfig:
     name: str
-    hyperparams: Path
+    hyperparams: Dict[str, Any]
 
 
 class _ModelParamsRegistry(_ConfigRegistry[ModelParamConfig]):

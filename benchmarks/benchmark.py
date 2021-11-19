@@ -12,7 +12,7 @@ import wandb
 from transformers import HfArgumentParser
 
 from examples.run_annotator_train import InstabaseSDKDummy
-from ibformers.trainer.ib_utils import DummyJobStatus, run_train_annotator
+from ibformers.trainer.train import run_hyperparams_and_cmdline_train
 from .config import BENCHMARKS_REGISTRY, MODEL_PARAMS_REGISTRY
 
 logger = logging.getLogger(__name__)
@@ -40,20 +40,19 @@ def run_single_benchmark(benchmark_id: str, model_name_or_path: str, output_path
         model_config = MODEL_PARAMS_REGISTRY.get_config(model_name_or_path)
 
         hyperparams = model_config.hyperparams.copy()
-        hyperparams["report_to"] = "wandb"
-        hyperparams["model_name"] = model_name_or_path
+        hyperparams['report_to'] = 'wandb'
+        hyperparams['model_name_or_path'] = model_name_or_path
+
+        dataset_hyperparams = benchmark_config.hyperparams.copy()
+        hyperparams.update(**dataset_hyperparams)
+        hyperparams['output_dir'] = output_path
 
         output_path.mkdir(exist_ok=True, parents=True)
 
         sdk = InstabaseSDKDummy(None, "user")
-        run_train_annotator(
+        run_hyperparams_and_cmdline_train(
             hyperparams,
-            benchmark_config.shared_path,
-            str(output_path),
             sdk,
-            "user",
-            DummyJobStatus(),
-            overwrite_arguments_with_cli=True,
         )
     except Exception as e:
         logger.error(
