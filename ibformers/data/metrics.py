@@ -55,14 +55,26 @@ def join_chunks(
             content_mask_with_padding = content_mask + [False] * (len(chunk) - len(content_mask))
             content_chunk = chunk[content_mask_with_padding]
 
-        assert (
-            len(content_chunk) == rng_len
-        ), "Length of content in the chunk should be equal to chunk range length"
+        assert len(content_chunk) == rng_len, "Length of content in the chunk should be equal to chunk range length"
         doc_arr[i, rng[0] : rng[1]] = content_chunk
 
     doc_arr_mean = np.nanmean(doc_arr, axis=0)
 
     return doc_arr_mean.astype(first_chunk.dtype)
+
+
+def iou_score(y_true: Mapping[str, List], y_pred: Mapping[str, List], all_tags: List[str]) -> Dict[str, int]:
+    result = {}
+    for t in all_tags:
+        if t == 'O':
+            continue
+        if (t not in y_pred) or (t not in y_true):
+            result[t] = 0
+            continue
+        a = set(y_pred[t])
+        b = set(y_true[t])
+        result[t] = len(a.intersection(b)) / len(a.union(b))
+    return result
 
 
 def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None):
@@ -77,9 +89,7 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
 
     for doc_id, chunk_from_idx, chunk_to_idx in doc_chunk_iter(ids):
         doc = dataset[chunk_from_idx]
-        assert (
-            doc_id == doc["id"]
-        ), "Chunk doc_id and doc_id obtained from the dataset does not match"
+        assert doc_id == doc["id"], "Chunk doc_id and doc_id obtained from the dataset does not match"
 
         chunk_ranges_lst = chunk_ranges[chunk_from_idx:chunk_to_idx]
         content_mask_lst = dataset["content_tokens_mask"][chunk_from_idx:chunk_to_idx]
@@ -217,24 +227,18 @@ def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, float]:
     return average_results
 
 
-def compute_legacy_metrics_for_sl(
-    predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None
-):
+def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None):
 
     if label_list is None:
         label_list = dataset.features["labels"].feature.names
     # get prediction dict and print mismatches
     pred_dict = get_predictions_for_sl(predictions, dataset, label_list)
 
-    mismatches_text = "MISMATCH EXAMPLES\n"
     max_examples = 2
+    mismatches_text = f"MISMATCH EXAMPLES (max {max_examples} per label)\n"
     for lab in label_list[1:]:
         mismatches = [
-            "\tpred:\t'"
-            + v['entities'][lab]["text"]
-            + "'\n\tgold:\t'"
-            + v['entities'][lab]["gold_text"]
-            + "'\n"
+            "\tpred:\t'" + v['entities'][lab]["text"] + "'\n\tgold:\t'" + v['entities'][lab]["gold_text"] + "'\n"
             for k, v in pred_dict.items()
             if not v['entities'][lab]["is_match"]
         ]
@@ -254,9 +258,7 @@ def compute_legacy_metrics_for_sl(
     ]
 
     token_level: Mapping[str, Mapping[str, int]] = {
-        k: {"true_positives": 0, "total_positives": 0, "total_true": 0}
-        for k in label_list
-        if k != "O"
+        k: {"true_positives": 0, "total_positives": 0, "total_true": 0} for k in label_list if k != "O"
     }
 
     doc_level_results: List[Mapping[str, int]] = []
@@ -270,6 +272,8 @@ def compute_legacy_metrics_for_sl(
             token_level[t]["total_positives"] += len(a)
             token_level[t]["total_true"] += len(b)
             token_level[t]["true_positives"] += len(a.intersection(b))
+        iou = iou_score(y_true, y_pred, label_list)
+        doc_level_results.append(iou)
 
     df = pd.DataFrame(doc_level_results)
 
