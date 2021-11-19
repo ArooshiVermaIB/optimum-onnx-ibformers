@@ -22,9 +22,9 @@ def doc_chunk_iter(doc_ids: List[str]) -> Iterator[Tuple[str, int, int]]:
 
 
 def join_chunks(
-        chunks: Union[List[Sequence], np.ndarray],
-        chunk_ranges: List[Sequence[int]],
-        content_mask_lst: Optional[List[Sequence[int]]] = None,
+    chunks: Union[List[Sequence], np.ndarray],
+    chunk_ranges: List[Sequence[int]],
+    content_mask_lst: Optional[List[Sequence[int]]] = None,
 ) -> np.ndarray:
     """
     When we get predictions for overlapping chunks of an input sequence, we have to combine the predictions, doing
@@ -73,7 +73,9 @@ def iou_score(y_true: Mapping[str, List], y_pred: Mapping[str, List], all_tags: 
             continue
         a = set(y_pred[t])
         b = set(y_true[t])
-        result[t] = len(a.intersection(b)) / len(a.union(b))
+        _union = len(a.union(b))
+        _intersection = len(a.intersection(b))
+        result[t] = _intersection / _union if _union > 0 else 0.0
     return result
 
 
@@ -216,7 +218,7 @@ def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, float]:
     summed_df['micro_recall'] = summed_df['true_positives'] / summed_df['total_true']
     summed_df.fillna(0, inplace=True)
     summed_df['micro_f1'] = (2 * summed_df['micro_precision'] * summed_df['micro_recall']) / (
-            summed_df['micro_precision'] + summed_df['micro_recall'] + 1e-10
+        summed_df['micro_precision'] + summed_df['micro_recall'] + 1e-10
     )
 
     average_results = summed_df[['micro_precision', 'micro_recall', 'micro_f1']].to_dict()
@@ -292,10 +294,10 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_li
     token_level_df["precision"] = token_level_df.true_positives / token_level_df.total_positives
     token_level_df["recall"] = token_level_df.true_positives / token_level_df.total_true
     token_level_df["f1"] = (
-            2
-            * token_level_df.precision
-            * token_level_df.recall
-            / (token_level_df.precision + token_level_df.recall)
+        2
+        * token_level_df.precision
+        * token_level_df.recall
+        / (token_level_df.precision + token_level_df.recall)
         # Note that this is Pandas, so dividing by zero gives NAN
     )
 
