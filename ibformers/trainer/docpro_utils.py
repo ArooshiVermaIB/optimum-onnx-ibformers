@@ -95,10 +95,7 @@ def load_datasets(dataset_paths, ibsdk):
         if file_client is None:
             datasets_list = [LocalDatasetSDK(dataset_path) for dataset_path in dataset_paths]
         else:
-            datasets_list = [
-                RemoteDatasetSDK(dataset_path, file_client, username)
-                for dataset_path in dataset_paths
-            ]
+            datasets_list = [RemoteDatasetSDK(dataset_path, file_client, username) for dataset_path in dataset_paths]
 
     except Exception as e:
         logging.error(traceback.format_exc())
@@ -154,18 +151,14 @@ class DocProCallback(TrainerCallback):
         self.metrics_writer = ModelArtifactMetricsWriter(artifacts_context)
         self.prediction_writer = ModelArtifactPredictionsWriter(artifacts_context)
         self.save_folder = artifacts_context.tmp_dir.name
-        self.save_model_dir = os.path.join(
-            artifacts_context.artifact_path, f'src/py/{model_name}/model_data'
-        )
+        self.save_model_dir = os.path.join(artifacts_context.artifact_path, f'src/py/{model_name}/model_data')
         self.id_to_dataset = {dataset.metadata['id']: dataset for dataset in dataset_list}
 
     def copy_library_src_to_package(self):
         # copy ibformers lib into the package
 
         ibformers_path = Path(_abspath('')).parent
-        assert (
-            ibformers_path.name == 'ibformers'
-        ), f'ibformers_path is wrong. Path: {ibformers_path}'
+        assert ibformers_path.name == 'ibformers', f'ibformers_path is wrong. Path: {ibformers_path}'
         # TODO(rafal): once ibformers is converted to relative imports copy ibformers into py/package_name/ibformers dir
         # py directory location
         py_directory = Path(self.artifacts_context.artifact_path) / 'src' / 'py'
@@ -210,12 +203,11 @@ class DocProCallback(TrainerCallback):
                 self.on_predict(args, state, control, **kwargs)
             elif 'eval_loss' in kwargs["metrics"]:
                 metrics = {}
+                metrics['exact_match'] = kwargs["metrics"]['eval_exact_match']
                 metrics['precision'] = kwargs["metrics"]['eval_precision']
                 metrics['recall'] = kwargs["metrics"]['eval_recall']
                 metrics['f1'] = kwargs["metrics"]['eval_f1']
-                self.set_status(
-                    {"evaluation_results": metrics, "progress": state.global_step / state.max_steps}
-                )
+                self.set_status({"evaluation_results": metrics, "progress": state.global_step / state.max_steps})
 
                 self.evaluation_results.append(metrics)
             else:
@@ -240,9 +232,7 @@ class DocProCallback(TrainerCallback):
 
                 rows = []
                 for row_key in sorted_rows:
-                    rows.append(
-                        [row_key, *[evaluation_metrics[c].get(row_key, '') for c in headers]]
-                    )
+                    rows.append([row_key, *[evaluation_metrics[c].get(row_key, '') for c in headers]])
 
                 metrics_writer.add_table_metric(
                     TableMetric(
@@ -255,13 +245,9 @@ class DocProCallback(TrainerCallback):
 
                 # Then add high-level metrics
                 f1_scores = [x for x in evaluation_metrics['f1'].values() if x != 'NAN']
-                avg_f1 = (
-                    "{:.3f}".format(sum(f1_scores) / float(len(f1_scores))) if f1_scores else 'N/A'
-                )
+                avg_f1 = "{:.3f}".format(sum(f1_scores) / float(len(f1_scores))) if f1_scores else 'N/A'
                 overall_accuracy = (
-                    "{:.2f}%".format(sum(f1_scores) * 100.0 / float(len(f1_scores)))
-                    if f1_scores
-                    else 'Unknown'
+                    "{:.2f}%".format(sum(f1_scores) * 100.0 / float(len(f1_scores))) if f1_scores else 'Unknown'
                 )
                 metrics_writer.add_high_level_metric(
                     ValueMetric(
@@ -274,9 +260,7 @@ class DocProCallback(TrainerCallback):
                 )
                 precisions = [x for x in evaluation_metrics['precision'].values() if x != 'NAN']
                 avg_precision = (
-                    "{:.2f}%".format(sum(precisions) * 100.0 / float(len(precisions)))
-                    if precisions
-                    else 'N/A'
+                    "{:.2f}%".format(sum(precisions) * 100.0 / float(len(precisions))) if precisions else 'N/A'
                 )
                 metrics_writer.add_high_level_metric(
                     ValueMetric(
@@ -288,11 +272,7 @@ class DocProCallback(TrainerCallback):
                     )
                 )
                 recalls = [x for x in evaluation_metrics['recall'].values() if x != 'NAN']
-                avg_recall = (
-                    "{:.2f}%".format(sum(recalls) * 100.0 / float(len(recalls)))
-                    if recalls
-                    else 'N/A'
-                )
+                avg_recall = "{:.2f}%".format(sum(recalls) * 100.0 / float(len(recalls))) if recalls else 'N/A'
                 metrics_writer.add_high_level_metric(
                     ValueMetric(
                         title='Average Recall',
@@ -329,9 +309,7 @@ class DocProCallback(TrainerCallback):
                 # This is because the first 37 chars [0]-[36] are reserved for the UUID (36), and a dash (-)
                 ibdoc_filename = record_name[37 : record_name.index('.ibdoc') + len('.ibdoc')]
                 # This grabs the record index at the end of the file name
-                record_idx = int(
-                    record_name[len(dataset_id) + len(ibdoc_filename) + 2 : -1 * len('.json')]
-                )
+                record_idx = int(record_name[len(dataset_id) + len(ibdoc_filename) + 2 : -1 * len('.json')])
                 logging.info(f'Saving prediction for {dataset_id}, {ibdoc_filename}, {record_idx}')
 
                 # Currently, our models only outputs a single entity
@@ -341,9 +319,7 @@ class DocProCallback(TrainerCallback):
                 record_entities = record_value['entities']
                 for field_name, field_value in record_entities.items():
                     indexed_words = [
-                        IndexedWordDict(
-                            line_index=w['word_line_idx'], word_index=w['word_in_line_idx']
-                        )
+                        IndexedWordDict(line_index=w['word_line_idx'], word_index=w['word_in_line_idx'])
                         for w in field_value['words']
                     ]
                     predictions = (
@@ -358,16 +334,12 @@ class DocProCallback(TrainerCallback):
                         else []
                     )
 
-                    fields.append(
-                        PredictionFieldDict(field_name=field_name, annotations=predictions)
-                    )
+                    fields.append(PredictionFieldDict(field_name=field_name, annotations=predictions))
                 prediction_writer.add_prediction(
                     dataset,
                     ibdoc_filename,
                     record_idx,
-                    PredictionResultDict(
-                        annotated_class_name=self.extraction_class_name, fields=fields
-                    ),
+                    PredictionResultDict(annotated_class_name=self.extraction_class_name, fields=fields),
                     is_test_file,
                 )
         except Exception as e:
@@ -385,12 +357,8 @@ class DocProCallback(TrainerCallback):
 
         try:
             ib_model_path = os.path.join(self.ib_save_path, 'artifact')
-            dev_path = os.path.join(
-                self.dataset_list[0].dataset_path, self.dataset_list[0].metadata['docs_path']
-            )
-            write_refiner_program(
-                self.artifacts_context, ib_model_path, label_names, self.model_name, dev_path
-            )
+            dev_path = os.path.join(self.dataset_list[0].dataset_path, self.dataset_list[0].metadata['docs_path'])
+            write_refiner_program(self.artifacts_context, ib_model_path, label_names, self.model_name, dev_path)
             logging.info("Finished generating the Refiner module")
         except Exception as e:
             logging.error(traceback.format_exc())

@@ -26,9 +26,7 @@ def fuzzy_tag_in_document(example, **kwargs):
         detected_answer = tag_answer_in_doc(words=words, answer=answer)
         if len(detected_answer) == 0:
             continue
-        token_spans = get_tokens_spans(
-            [[m['start'], m['end']] for m in detected_answer], word_offsets
-        )
+        token_spans = get_tokens_spans([[m['start'], m['end']] for m in detected_answer], word_offsets)
         entity = {
             "name": question,
             "text": detected_answer[0]['text'],
@@ -86,9 +84,9 @@ def _norm_bboxes_for_layoutlm(
     norm_bboxes = np.array(bboxes)
     norm_page_bboxes = np.array(page_bboxes)
     for (_, _, _, page_height), (page_start_i, page_end_i) in zip(page_bboxes, page_spans):
-        norm_bboxes[page_start_i:page_end_i, [1, 3]] = norm_bboxes[
-            page_start_i:page_end_i, [1, 3]
-        ] / (page_height / 1000)
+        norm_bboxes[page_start_i:page_end_i, [1, 3]] = norm_bboxes[page_start_i:page_end_i, [1, 3]] / (
+            page_height / 1000
+        )
 
     norm_page_bboxes[:, 3] = 1000
 
@@ -136,15 +134,17 @@ def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=False, **kwarg
         used_mqa_ids.append(mqa_id)
 
     prefix = entities["name"]
+    if len(prefix) > mqa_size - 1:
+        raise ValueError(f"There are {len(prefix)} entities detected. Thats too much for MQA model")
     # if shuffle_mqa_ids:
     #     shuffle(prefix)
+    # make it sound like a natural question
+    prefix = [f"what is the {ent.replace('_', ' ')}?" for ent in prefix]
     prefix = prefix + [tokenizer.sep_token]
     mqa_ids = used_mqa_ids + [1]
 
     # check if for each entity we chose unique token
-    assert len(used_mqa_ids) == len(
-        set(used_mqa_ids)
-    ), "mqa_id was re-used for more than one entity class"
+    assert len(used_mqa_ids) == len(set(used_mqa_ids)), "mqa_id was re-used for more than one entity class"
 
     entities["used_label_id"] = used_mqa_ids
 

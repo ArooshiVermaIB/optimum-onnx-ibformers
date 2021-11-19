@@ -25,6 +25,8 @@
           "stride": 64,
           "epochs": 10,
           "learning_rate": 5e-05,
+          "scheduler_type": "constant_schedule_with_warmup",
+          "use_mixed_precision": true,
           "warmup": 0.0,
           "weight_decay": 0,
           "model_name": "microsoft/layoutlm-base-uncased"
@@ -38,32 +40,38 @@
           "stride": 64,
           "epochs": 10,
           "learning_rate": 5e-05,
+          "scheduler_type": "constant_schedule_with_warmup",
+          "use_mixed_precision": true,
           "warmup": 0.0,
           "weight_decay": 0,
           "model_name": "microsoft/layoutlm-large-uncased"
         }
       },
       {
-        "name": "layout-multilingual (single-page)",
+        "name": "layout-multilingual",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
           "learning_rate": 5e-05,
+          "scheduler_type": "constant_schedule_with_warmup",
+          "use_mixed_precision": true,
           "warmup": 0.0,
           "weight_decay": 0,
           "model_name": "microsoft/layoutxlm-base"
         }
       },
       {
-        "name": "layoutv2 (single-page)",
+        "name": "layoutv2",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
           "learning_rate": 5e-05,
+          "scheduler_type": "constant_schedule_with_warmup",
+          "use_mixed_precision": true,
           "warmup": 0.0,
           "weight_decay": 0,
           "model_name": "microsoft/layoutlmv2-base-uncased"
@@ -77,6 +85,8 @@
           "stride": 64,
           "epochs": 10,
           "learning_rate": 5e-05,
+          "scheduler_type": "constant_schedule_with_warmup",
+          "use_mixed_precision": true,
           "warmup": 0.0,
           "weight_decay": 0,
           "model_name":"instabase/laymqav1-base",
@@ -91,6 +101,8 @@
           "stride": 64,
           "epochs": 10,
           "learning_rate": 5e-05,
+          "scheduler_type": "constant_schedule_with_warmup",
+          "use_mixed_precision": true,
           "warmup": 0.0,
           "weight_decay": 0,
           "pipeline_name": "plain_sl",
@@ -105,6 +117,8 @@
           "stride": 64,
           "epochs": 10,
           "learning_rate": 5e-05,
+          "scheduler_type": "constant_schedule_with_warmup",
+          "use_mixed_precision": true,
           "warmup": 0.0,
           "weight_decay": 0,
           "pipeline_name": "plain_sl",
