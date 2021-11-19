@@ -243,8 +243,22 @@ class DocProCallback(TrainerCallback):
                     )
                 )
 
+                raw_recalls = evaluation_metrics['recall'].values()
+                recalls = [x for x in raw_recalls if x != 'NAN']
+                f1_scores = [
+                    f1 if f1 != 'NAN' else 0.0
+                    for (f1, recall)
+                    in zip(evaluation_metrics['f1'].values(), raw_recalls)
+                    if recall != 'NAN'
+                ]
+                precisions = [
+                    pr if pr != 'NAN' else 0.0
+                    for (pr, recall)
+                    in zip(evaluation_metrics['precision'].values(), raw_recalls)
+                    if recall != 'NAN'
+                ]
+
                 # Then add high-level metrics
-                f1_scores = [x for x in evaluation_metrics['f1'].values() if x != 'NAN']
                 avg_f1 = "{:.3f}".format(sum(f1_scores) / float(len(f1_scores))) if f1_scores else 'N/A'
                 overall_accuracy = (
                     "{:.2f}%".format(sum(f1_scores) * 100.0 / float(len(f1_scores))) if f1_scores else 'Unknown'
@@ -258,7 +272,6 @@ class DocProCallback(TrainerCallback):
                         tag_type='INFO',
                     )
                 )
-                precisions = [x for x in evaluation_metrics['precision'].values() if x != 'NAN']
                 avg_precision = (
                     "{:.2f}%".format(sum(precisions) * 100.0 / float(len(precisions))) if precisions else 'N/A'
                 )
@@ -271,7 +284,6 @@ class DocProCallback(TrainerCallback):
                         tag_type='INFO',
                     )
                 )
-                recalls = [x for x in evaluation_metrics['recall'].values() if x != 'NAN']
                 avg_recall = "{:.2f}%".format(sum(recalls) * 100.0 / float(len(recalls))) if recalls else 'N/A'
                 metrics_writer.add_high_level_metric(
                     ValueMetric(
