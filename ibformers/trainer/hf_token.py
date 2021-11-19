@@ -1,1 +1,1 @@
-HF_TOKEN = "api_AYGJoxZMBtWlYODoAQgLKAuNVRXaGfQtjX"
+HF_TOKEN = "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"
