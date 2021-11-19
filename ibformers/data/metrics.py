@@ -75,7 +75,7 @@ def iou_score(y_true: Mapping[str, List], y_pred: Mapping[str, List], all_tags: 
         b = set(y_true[t])
         _union = len(a.union(b))
         _intersection = len(a.intersection(b))
-        result[t] = _intersection / _union if _union > 0 else 0.0
+        result[t] = (_intersection / _union) if _union > 0 else 0.0
     return result
 
 
