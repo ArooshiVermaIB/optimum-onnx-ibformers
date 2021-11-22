@@ -59,10 +59,7 @@ def load_datasets(dataset_paths, ibsdk):
         if file_client is None:
             datasets_list = [LocalDatasetSDK(dataset_path) for dataset_path in dataset_paths]
         else:
-            datasets_list = [
-                RemoteDatasetSDK(dataset_path, file_client, username)
-                for dataset_path in dataset_paths
-            ]
+            datasets_list = [RemoteDatasetSDK(dataset_path, file_client, username) for dataset_path in dataset_paths]
 
     except Exception as e:
         logging.error(traceback.format_exc())
@@ -123,9 +120,7 @@ def process_labels_from_annotation(
                 label_indexes = []
                 for idx_word in extraction_ann_dict.get('words', []):
                     # get global position
-                    word_id_global = position_map.get(
-                        (idx_word['line_index'], idx_word['word_index'])
-                    )
+                    word_id_global = position_map.get((idx_word['line_index'], idx_word['word_index']))
                     if word_id_global is None:
                         raise ValueError(f'Cannot find indexed_word in the document - {idx_word}')
 
@@ -215,23 +210,16 @@ class DocProBuilderConfig(BuilderConfig):
         config_kwargs_to_add_to_suffix.pop("ibsdk", None)
         # data files are handled differently
         config_kwargs_to_add_to_suffix.pop("data_files", None)
-        if (
-            "data_dir" in config_kwargs_to_add_to_suffix
-            and config_kwargs_to_add_to_suffix["data_dir"] is None
-        ):
+        if "data_dir" in config_kwargs_to_add_to_suffix and config_kwargs_to_add_to_suffix["data_dir"] is None:
             del config_kwargs_to_add_to_suffix["data_dir"]
         if config_kwargs_to_add_to_suffix:
             # we don't care about the order of the kwargs
             config_kwargs_to_add_to_suffix = {
                 k: config_kwargs_to_add_to_suffix[k] for k in sorted(config_kwargs_to_add_to_suffix)
             }
-            if all(
-                isinstance(v, (str, bool, int, float))
-                for v in config_kwargs_to_add_to_suffix.values()
-            ):
+            if all(isinstance(v, (str, bool, int, float)) for v in config_kwargs_to_add_to_suffix.values()):
                 suffix = ",".join(
-                    str(k) + "=" + urllib.parse.quote_plus(str(v))
-                    for k, v in config_kwargs_to_add_to_suffix.items()
+                    str(k) + "=" + urllib.parse.quote_plus(str(v)) for k, v in config_kwargs_to_add_to_suffix.items()
                 )
                 if len(suffix) > 32:  # hash if too long
                     suffix = Hasher.hash(config_kwargs_to_add_to_suffix)
@@ -282,9 +270,7 @@ class DocProConfig(DocProBuilderConfig):
     :param kwargs: keyword arguments forwarded to super.
     """
 
-    def __init__(
-        self, use_image=False, ibsdk=None, id2label=None, extraction_class_name=None, **kwargs
-    ):
+    def __init__(self, use_image=False, ibsdk=None, id2label=None, extraction_class_name=None, **kwargs):
         super(DocProConfig, self).__init__(**kwargs)
         self.use_image = use_image
         self.ibsdk = ibsdk
@@ -299,12 +285,17 @@ def get_docpro_ds_split(anno: Optional[Dict]):
     """
     if anno is None:
         return False, "test"
-    elif anno['is_test_file']:
+    exist_any_annotations = any(
+        [len(ann.get('words', [])) > 0 for fld in anno.get('fields', []) for ann in fld['annotations']]
+    )
+    if not exist_any_annotations:
+        return False, "test"
+    if anno['is_test_file']:
         # instabase doesn't support yet separation of val and test sets.
         # TODO: we need to change that to have separate labeled sets for val and test
         return True, "validation+test"
-    else:
-        return False, "train"
+
+    return False, "train"
 
 
 def validate_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes):
@@ -333,27 +324,18 @@ def assert_valid_record(ibocr_record: IBOCRRecord) -> Optional[str]:
     len_split_text = len(split_text)
     len_lines = len(lines)
     if len_split_text != len_lines:
-        return (
-            f"Number of lines mismatched. Record "
-            f"`text` had {len_split_text} lines, and `lines` had {len_lines}."
-        )
+        return f"Number of lines mismatched. Record " f"`text` had {len_split_text} lines, and `lines` had {len_lines}."
 
     for i, (text_line, line) in enumerate(zip(split_text, lines)):
         j = 0
         for word_dict in line:
             word = word_dict['word']
             if word.strip() == "":
-                return (
-                    f"Line {i} (\"{line}\") had a word that was just whitespace at"
-                    f" index {j} (\"{word}\")"
-                )
+                return f"Line {i} (\"{line}\") had a word that was just whitespace at" f" index {j} (\"{word}\")"
             try:
                 start = text_line.index(word)
             except:
-                return (
-                    f"Line {i} (\"{line}\") did not contain 0-indexed word"
-                    f" number {j} (\"{word}\")"
-                )
+                return f"Line {i} (\"{line}\") did not contain 0-indexed word" f" number {j} (\"{word}\")"
             j += 1
             text_line = text_line[start + len(word) :]
 
@@ -375,9 +357,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
     def __init__(self, *args, **kwargs):
         super(DocProDs, self).__init__(*args, **kwargs)
-        self.image_processor = (
-            ImageProcessor(do_resize=True, size=224) if self.config.use_image else None
-        )
+        self.image_processor = ImageProcessor(do_resize=True, size=224) if self.config.use_image else None
         self.extraction_class_name = self.config.extraction_class_name
 
     def get_class_id(self, dataset_classes):
@@ -401,14 +381,10 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             classes = ["O"] + [lab["name"] for lab in schema]
         elif "test" in data_files:
             # inference input is a list of parsedibocr files
-            assert (
-                self.config.id2label is not None
-            ), "Need to pass directly infromation about labels for the inference"
+            assert self.config.id2label is not None, "Need to pass directly infromation about labels for the inference"
             classes = [self.config.id2label[i] for i in range(len(self.config.id2label))]
             if classes[0] != "O":
-                raise logging.error(
-                    f"loaded classes does not have required format. No O class: {classes}"
-                )
+                raise logging.error(f"loaded classes does not have required format. No O class: {classes}")
         else:
             raise ValueError("data_file argument should be either in train or test mode")
 
@@ -421,9 +397,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             "words": datasets.Sequence(datasets.Value("string")),
             "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
             # needed to generate prediction file, after evaluation
-            "word_original_bboxes": datasets.Sequence(
-                datasets.Sequence(datasets.Value("float32"), length=4)
-            ),
+            "word_original_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("float32"), length=4)),
             "word_page_nums": datasets.Sequence(datasets.Value("int32")),
             "word_line_idx": datasets.Sequence(datasets.Value("int32")),
             "word_in_line_idx": datasets.Sequence(datasets.Value("int32")),
@@ -434,16 +408,10 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             "entities": datasets.Sequence(
                 {
                     "name": datasets.Value("string"),  # change to id?
-                    "order_id": datasets.Value(
-                        "int64"
-                    ),  # not supported yet, annotation app need to implement it
+                    "order_id": datasets.Value("int64"),  # not supported yet, annotation app need to implement it
                     "text": datasets.Value("string"),
-                    "char_spans": datasets.Sequence(
-                        datasets.Sequence(datasets.Value("int32"), length=2)
-                    ),
-                    "token_spans": datasets.Sequence(
-                        datasets.Sequence(datasets.Value("int32"), length=2)
-                    ),
+                    "char_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
+                    "token_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
                     "token_label_id": datasets.Value("int64"),
                 }
             ),
@@ -462,9 +430,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         )
 
     def _get_annotation_generator(self, datasets_list):
-        logging.info(
-            f"Reading from Instabase datasets, extracting class name: {self.extraction_class_name}"
-        )
+        logging.info(f"Reading from Instabase datasets, extracting class name: {self.extraction_class_name}")
 
         for dataset in datasets_list:
             # first determine the class name's corresponding id.
@@ -504,11 +470,8 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         :return:
         """
         full_path, record_index, record, anno = ann_item
-        logging.info('----------------------------------')
-        logging.info(full_path)
-        logging.info(record_index)
+        logging.info(f"Processing record_idx={record_index}\t path={full_path}")
 
-        is_test_file, split = get_docpro_ds_split(anno)
         if anno is None:
             anno = {}
         anno_fields = anno.get('fields', [])
@@ -583,6 +546,9 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             position_map=line_position_to_global_position_map,
         )
 
+        a = sadfafsd
+        is_test_file, split = get_docpro_ds_split(anno)
+
         doc_id = f'{dataset_id}-{os.path.basename(full_path)}-{record_index}.json'
 
         features = {
@@ -605,9 +571,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             open_fn = get_open_fn(self.config.ibsdk)
             page_nums = np.unique(word_pages_arr)
             page_nums.sort()
-            images = get_images_from_layouts(
-                layouts, self.image_processor, full_path, open_fn, page_nums
-            )
+            images = get_images_from_layouts(layouts, self.image_processor, full_path, open_fn, page_nums)
             # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
             features["images"] = images
             features["images_page_nums"] = page_nums
@@ -646,9 +610,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             annotation_items = self.get_annotation_from_model_service(test_files)
 
             return [
-                datasets.SplitGenerator(
-                    name=datasets.Split.TEST, gen_kwargs={"annotation_items": annotation_items}
-                ),
+                datasets.SplitGenerator(name=datasets.Split.TEST, gen_kwargs={"annotation_items": annotation_items}),
             ]
 
     def _generate_examples(self, annotation_items):
@@ -656,9 +618,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
         label2id = self.info.features["token_label_ids"].feature._str2int
         for annotation_item, label2ann_label_id, dataset_id, class_id in annotation_items:
-            doc_dict = self.process_annotation_item(
-                annotation_item, dataset_id, class_id, label2ann_label_id, label2id
-            )
+            doc_dict = self.process_annotation_item(annotation_item, dataset_id, class_id, label2ann_label_id, label2id)
 
             if doc_dict is not None:
                 yield doc_dict["id"], doc_dict
