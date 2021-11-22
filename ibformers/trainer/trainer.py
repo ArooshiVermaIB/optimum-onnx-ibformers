@@ -8,7 +8,7 @@ from datasets import IterableDataset
 from torch.utils.data import DataLoader, Dataset
 from transformers.integrations import WandbCallback, is_wandb_available
 from transformers.trainer import Trainer
-from transformers import EvalPrediction, is_torch_tpu_available, AdamW, ProgressCallback
+from transformers import EvalPrediction, is_torch_tpu_available, AdamW
 from transformers.file_utils import (
     is_in_notebook,
     is_apex_available,
@@ -27,7 +27,6 @@ from transformers.trainer_pt_utils import (
 from transformers.trainer_utils import EvalLoopOutput, denumpify_detensorize, PredictionOutput
 from transformers.utils import logging
 
-from ibformers.callbacks.progress import CustomProgressCallback
 from ibformers.callbacks.wandb import ExtendedWandbCallback
 
 logger = logging.get_logger(__name__)
@@ -75,8 +74,6 @@ class IbTrainer(Trainer):
             old_callback = self.pop_callback(WandbCallback)
             if old_callback is not None:
                 self.add_callback(ExtendedWandbCallback)
-        self.remove_callback(ProgressCallback)
-        self.add_callback(CustomProgressCallback)
 
     def evaluation_loop(
         self,
