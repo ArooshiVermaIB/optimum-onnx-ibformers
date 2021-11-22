@@ -546,7 +546,6 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             position_map=line_position_to_global_position_map,
         )
 
-        a = sadfafsd
         is_test_file, split = get_docpro_ds_split(anno)
 
         doc_id = f'{dataset_id}-{os.path.basename(full_path)}-{record_index}.json'
