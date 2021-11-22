@@ -10,3 +10,6 @@ receipts:
 w2:
   name: W2
   shared_path: /home/ib/datasets/w2/W2_Marketplace.ibannotator
+kleister-nda:
+  name: kleister-nda
+  shared_path: /home/ib/datasets/nda/Kleister_NDA.ibannotator

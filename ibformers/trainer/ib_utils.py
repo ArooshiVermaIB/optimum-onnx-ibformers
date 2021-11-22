@@ -402,7 +402,7 @@ def prepare_ib_params(
             elif 'layoutxlm' in model_name.lower():
                 pipeline_name = 'layoutxlm_sl'
             elif 'laymqav1' in model_name.lower():
-                pipeline_name = 'layoutv1_mqa'
+                pipeline_name = 'laymqav1'
             else:
                 pipeline_name = 'layoutlm_sl'
         out_dict['pipeline_name'] = pipeline_name
