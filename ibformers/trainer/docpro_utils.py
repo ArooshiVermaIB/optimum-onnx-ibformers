@@ -81,6 +81,8 @@ def prepare_docpro_params(
     out_dict["train_file"] = dataset_list
     out_dict["extraction_class_name"] = extraction_class_name
     out_dict["final_model_dir"] = final_model_dir
+    out_dict["report_to"] = "none"
+    out_dict["disable_tqdm"] = True
 
     return out_dict
 
@@ -247,14 +249,12 @@ class DocProCallback(TrainerCallback):
                 recalls = [x for x in raw_recalls if x != 'NAN']
                 f1_scores = [
                     f1 if f1 != 'NAN' else 0.0
-                    for (f1, recall)
-                    in zip(evaluation_metrics['f1'].values(), raw_recalls)
+                    for (f1, recall) in zip(evaluation_metrics['f1'].values(), raw_recalls)
                     if recall != 'NAN'
                 ]
                 precisions = [
                     pr if pr != 'NAN' else 0.0
-                    for (pr, recall)
-                    in zip(evaluation_metrics['precision'].values(), raw_recalls)
+                    for (pr, recall) in zip(evaluation_metrics['precision'].values(), raw_recalls)
                     if recall != 'NAN'
                 ]
 

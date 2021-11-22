@@ -164,13 +164,20 @@ class IbModel(Model):
                 start = mapper.get_index(original_word_poly)
                 if start is None:
                     raise ValueError(f'start index not found. Word polly: {original_word_poly}')
-                assert word["raw_word"] == original_word_poly["raw_word"]
+                if (
+                    word["raw_word"] != original_word_poly["raw_word"]
+                    and word["raw_word"] != original_word_poly["word"]
+                ):
+                    raise ValueError(
+                        f'Word obtained from the cache ({word["raw_word"]}) '
+                        f'and original word polly ({original_word_poly["raw_word"]}) does not match'
+                    )
                 ner_result = model_service_pb2.NERTokenResult(
-                    content=word["raw_word"],
+                    content=original_word_poly["raw_word"],
                     label=field,
                     score=word["conf"],
                     start_index=start,
-                    end_index=start + len(word["raw_word"]),
+                    end_index=start + len(original_word_poly["raw_word"]),
                 )
                 entities.append(ner_result)
         return model_service_pb2.ModelResult(ner_result=model_service_pb2.NERResult(entities=entities))
