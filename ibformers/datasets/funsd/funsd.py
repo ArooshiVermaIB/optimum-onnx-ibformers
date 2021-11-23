@@ -9,6 +9,7 @@ import numpy as np
 from typing import Any, Dict, Tuple
 
 from ibformers.data.utils import ImageProcessor
+from ibformers.datasets.utils import create_features_from_file_content, enrich_features_with_images
 
 logger = datasets.logging.get_logger(__name__)
 _CITATION = """\
@@ -30,15 +31,6 @@ def load_image(image_path):
     image = Image.open(image_path).convert("RGB")
     w, h = image.size
     return image, (w, h)
-
-
-def normalize_bbox(bbox, size):
-    return [
-        int(1000 * bbox[0] / size[0]),
-        int(1000 * bbox[1] / size[1]),
-        int(1000 * bbox[2] / size[0]),
-        int(1000 * bbox[3] / size[1]),
-    ]
 
 
 class FunsdConfig(datasets.BuilderConfig):
@@ -123,76 +115,6 @@ class Funsd(datasets.GeneratorBasedBuilder):
             ),
         ]
 
-    def _create_features_from_file_content(
-        self, file_content: Dict[str, Any], image_size: Tuple[int, int]
-    ) -> Dict[str, Any]:
-        label2id = self.info.features["token_label_ids"].feature._str2int
-
-        features = defaultdict(list)
-        features['page_bboxes'].append([0, 0, *image_size])
-
-        entity_dicts = {
-            label: {
-                'name': label,
-                'order_id': 0,
-                'text': '',
-                'char_spans': [],
-                'token_label_id': label2id[label],
-                'token_spans': [],
-            }
-            for label in label2id.keys()
-            if label != 'O'
-        }
-
-        word_id_counter = 0
-        for item in file_content["form"]:
-            words_example, label = item["words"], item["label"]
-            label = label.upper()
-            words_example = [w for w in words_example if w["text"].strip() != ""]
-            if len(words_example) == 0:
-                continue
-            if label == "OTHER":
-                for w in words_example:
-                    features['words'].append(w["text"])
-                    features['token_label_ids'].append("O")
-                    features['bio_token_label_ids'].append("O")
-                    features['bboxes'].append(normalize_bbox(w["box"], image_size))
-                    features['word_original_bboxes'].append(w["box"])
-                    features['word_page_nums'].append(0)
-                    word_id_counter += 1
-            else:
-                entity_dict = entity_dicts[label]
-                entity_text = ' '.join([w['text'] for w in words_example])
-                start_word_id = word_id_counter
-                features['words'].append(words_example[0]["text"])
-                features['token_label_ids'].append(label)
-                features['bio_token_label_ids'].append("B-" + label)
-                features['bboxes'].append(normalize_bbox(words_example[0]["box"], image_size))
-                features['word_original_bboxes'].append(words_example[0]["box"])
-                features['word_page_nums'].append(0)
-                word_id_counter += 1
-                for w in words_example[1:]:
-                    features['words'].append(w["text"])
-                    features['token_label_ids'].append(label)
-                    features['bio_token_label_ids'].append("I-" + label)
-                    features['bboxes'].append(normalize_bbox(w["box"], image_size))
-                    features['word_original_bboxes'].append(w["box"])
-                    features['word_page_nums'].append(0)
-                    word_id_counter += 1
-                entity_dict['token_spans'].append([start_word_id, word_id_counter])
-                entity_dict['text'] += f' {entity_text}'
-        features['entities'] = list(entity_dicts.values())
-        return features
-
-    def _enrich_features_with_images(self, features, image):
-        word_pages_arr = features['word_page_nums']
-        page_nums = np.unique(word_pages_arr)
-        page_nums.sort()
-        image_postprocessed = self.image_processor.postprocess(image)
-        # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
-        features["images"] = [image_postprocessed]
-        features["images_page_nums"] = page_nums
-
     def _generate_examples(self, filepath):
         logger.info("⏳ Generating examples from = %s", filepath)
         ann_dir = os.path.join(filepath, "annotations")
@@ -204,9 +126,11 @@ class Funsd(datasets.GeneratorBasedBuilder):
             image_path = os.path.join(img_dir, file)
             image_path = image_path.replace("json", "png")
             image, size = load_image(image_path)
-            features = self._create_features_from_file_content(data, size)
+            features = create_features_from_file_content(
+                data['form'], size, self.info.features["token_label_ids"].feature._str2int
+            )
             features['id'] = guid
             if self.config.use_image:
-                self._enrich_features_with_images(features, image)
+                enrich_features_with_images(features, image, self.image_processor)
 
             yield guid, features

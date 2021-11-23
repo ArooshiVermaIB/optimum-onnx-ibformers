@@ -26,7 +26,7 @@ from pathlib import Path
 
 import datasets
 import transformers
-from datasets import ClassLabel, load_dataset
+from datasets import ClassLabel, load_dataset, DownloadConfig
 from datasets.data_files import DataFilesDict
 from transformers import (
     AutoConfig,
@@ -94,7 +94,11 @@ def run_hyperparams_and_cmdline_train(
         ib_args,
         augmenter_args,
         extra_callbacks=[],
-        extra_load_kwargs={"ibsdk": file_client, "extraction_class_name": data_args.extraction_class_name},
+        extra_load_kwargs={
+            "ibsdk": file_client,
+            "extraction_class_name": data_args.extraction_class_name,
+            "download_config": DownloadConfig(max_retries=3),
+        },
     )
 
 

@@ -41,9 +41,14 @@ receipts-ml-studio:
     train_file: /home/ib/datasets/receipts-ml-studio
     extraction_class_name: Receipts
 
-
 funsd:
   name: FUNSD
   hyperparams:
     dataset_name_or_path: funsd
     dataset_config_name: funsd
+
+xfund:
+  name: XFUND
+  hyperparams:
+    dataset_name_or_path: xfund
+    dataset_config_name: xfund
