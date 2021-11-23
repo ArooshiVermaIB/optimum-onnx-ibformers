@@ -32,3 +32,18 @@ kleister-nda:
     dataset_name_or_path: ibds
     dataset_config_name: ibds
     train_file: /home/ib/datasets/nda/Kleister_NDA.ibannotator
+
+receipts-ml-studio:
+  name: Receipts (ML Studio)
+  hyperparams:
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/datasets/receipts-ml-studio
+    extraction_class_name: Receipts
+
+
+funsd:
+  name: FUNSD
+  hyperparams:
+    dataset_name_or_path: funsd
+    dataset_config_name: funsd

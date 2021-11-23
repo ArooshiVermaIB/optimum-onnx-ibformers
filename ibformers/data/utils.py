@@ -16,6 +16,15 @@ class ImageProcessor(ImageFeatureExtractionMixin):
         self.size = size
         self.resample = resample
 
+    def postprocess(self, image: Image):
+        # transformations (resizing)
+        if self.do_resize and self.size is not None:
+            image = self.resize(image=image, size=self.size, resample=self.resample)
+
+        image = self.to_numpy_array(image, rescale=False)
+        # flip color channels from RGB to BGR (as Detectron2 requires this)
+        return image[::-1, :, :]
+
     def __call__(self, f):
         try:
             image = Image.open(f).convert("RGB")
@@ -23,15 +32,7 @@ class ImageProcessor(ImageFeatureExtractionMixin):
             logger.warning(f"Failed to open image {f}. Replacing it with an empty image instead.")
             image = Image.fromarray(np.ones((self.size, self.size, 3), dtype=np.uint8) * 255, mode="RGB")
 
-        # transformations (resizing)
-        if self.do_resize and self.size is not None:
-            image = self.resize(image=image, size=self.size, resample=self.resample)
-
-        image = self.to_numpy_array(image, rescale=False)
-        # flip color channels from RGB to BGR (as Detectron2 requires this)
-        image = image[::-1, :, :]
-
-        return image
+        return self.postprocess(image)
 
 
 def feed_single_example(fn):
