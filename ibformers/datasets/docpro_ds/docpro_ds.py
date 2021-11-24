@@ -52,8 +52,12 @@ def load_datasets(dataset_paths, ibsdk):
         logging.error(f"SDK not found: {err}")
     assert isinstance(dataset_paths, list)
 
-    file_client = ibsdk.file_client
-    username = ibsdk.username
+    if ibsdk is None:
+        file_client = None
+        username = None
+    else:
+        file_client = ibsdk.file_client
+        username = ibsdk.username
     try:
         # load from doc pro
         if file_client is None:

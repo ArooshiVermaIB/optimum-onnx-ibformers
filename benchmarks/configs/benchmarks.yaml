@@ -1,15 +1,54 @@
 invoices-non-tabular:
   name: Invoices - non tabular
-  shared_path: /home/ib/datasets/invoices-non-tabular/Invoices.ibannotator
+  hyperparams:
+    dataset_name_or_path: ibds
+    dataset_config_name: ibds
+    train_file: /home/ib/datasets/invoices-non-tabular/Invoices.ibannotator
+
 invoices-tabular:
   name: Invoices - tabular
-  shared_path: /home/ib/datasets/invoices-tabular/Invoices-Tabular fields.ibannotator
+  hyperparams:
+    dataset_name_or_path: ibds
+    dataset_config_name: ibds
+    train_file: /home/ib/datasets/invoices-tabular/Invoices-Tabular fields.ibannotator
+
 receipts:
   name: Receipts
-  shared_path: /home/ib/datasets/receipts/Receipts.ibannotator
+  hyperparams:
+    dataset_name_or_path: ibds
+    dataset_config_name: ibds
+    train_file: /home/ib/datasets/receipts/Receipts.ibannotator
+
 w2:
   name: W2
-  shared_path: /home/ib/datasets/w2/W2_Marketplace.ibannotator
+  hyperparams:
+    dataset_name_or_path: ibds
+    dataset_config_name: ibds
+    train_file: /home/ib/datasets/w2/W2_Marketplace.ibannotator
+
 kleister-nda:
   name: kleister-nda
-  shared_path: /home/ib/datasets/nda/Kleister_NDA.ibannotator
+  hyperparams:
+    dataset_name_or_path: ibds
+    dataset_config_name: ibds
+    train_file: /home/ib/datasets/nda/Kleister_NDA.ibannotator
+
+receipts-ml-studio:
+  name: Receipts (ML Studio)
+  hyperparams:
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/datasets/receipts-ml-studio
+    extraction_class_name: Receipts
+
+funsd:
+  name: FUNSD
+  hyperparams:
+    dataset_name_or_path: funsd
+    dataset_config_name: funsd
+
+xfund:
+  name: XFUND
+  hyperparams:
+    dataset_name_or_path: xfund
+    dataset_config_name: xfund

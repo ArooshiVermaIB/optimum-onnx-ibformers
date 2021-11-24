@@ -20,7 +20,7 @@ from ibformers.trainer.ib_utils import (
 )
 from ibformers.trainer.refiner_module_generator import write_refiner_program
 from ibformers.trainer.train import run_train
-from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments
+from ibformers.trainer.arguments import ModelArguments, DataAndPipelineArguments, IbArguments
 from instabase.dataset_utils.sdk import LocalDatasetSDK, RemoteDatasetSDK, DatasetSDK
 from instabase.dataset_utils.shared_types import (
     PredictionResultDict,
