@@ -66,7 +66,7 @@ def join_chunks(
 def iou_score(y_true: Mapping[str, List], y_pred: Mapping[str, List], all_tags: List[str]) -> Dict[str, int]:
     result = {}
     for t in all_tags:
-        if t == 'O':
+        if t == "O":
             continue
         if (t not in y_pred) or (t not in y_true):
             result[t] = 0
@@ -111,9 +111,9 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
 
         # get word level predictions
         if "word_line_idx" in doc:
-            word_line_idx = doc['word_line_idx']
-        if 'word_in_line_idx' in doc:
-            word_in_line_idx = doc['word_in_line_idx']
+            word_line_idx = doc["word_line_idx"]
+        if "word_in_line_idx" in doc:
+            word_in_line_idx = doc["word_in_line_idx"]
 
         doc_conf = doc_conf[word_indices]
         doc_class_index = doc_class_index[word_indices]
@@ -146,9 +146,9 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
                 idx=idx,
             )
             if "word_line_idx" in doc:
-                word['word_line_idx'] = word_line_idx[idx]
-            if 'word_in_line_idx' in doc:
-                word['word_in_line_idx'] = word_in_line_idx[idx]
+                word["word_line_idx"] = word_line_idx[idx]
+            if "word_in_line_idx" in doc:
+                word["word_in_line_idx"] = word_in_line_idx[idx]
 
             doc_words_dict[tag_name].append(word)
 
@@ -195,8 +195,8 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
                 "is_match": pred_text == gold_text,
             }
 
-        is_test_file = doc['is_test_file'] if 'is_test_file' in doc else False
-        pred_dict[doc["id"]] = {'is_test_file': is_test_file, 'entities': doc_dict}
+        is_test_file = doc["is_test_file"] if "is_test_file" in doc else False
+        pred_dict[doc["id"]] = {"is_test_file": is_test_file, "entities": doc_dict}
 
     return pred_dict
 
@@ -214,23 +214,23 @@ def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, float]:
     """
 
     summed_df = token_level_df.sum(axis=0)
-    summed_df['micro_precision'] = summed_df['true_positives'] / summed_df['total_positives']
-    summed_df['micro_recall'] = summed_df['true_positives'] / summed_df['total_true']
+    summed_df["micro_precision"] = summed_df["true_positives"] / summed_df["total_positives"]
+    summed_df["micro_recall"] = summed_df["true_positives"] / summed_df["total_true"]
     summed_df.fillna(0, inplace=True)
-    summed_df['micro_f1'] = (2 * summed_df['micro_precision'] * summed_df['micro_recall']) / (
-        summed_df['micro_precision'] + summed_df['micro_recall'] + 1e-10
+    summed_df["micro_f1"] = (2 * summed_df["micro_precision"] * summed_df["micro_recall"]) / (
+        summed_df["micro_precision"] + summed_df["micro_recall"] + 1e-10
     )
 
-    average_results = summed_df[['micro_precision', 'micro_recall', 'micro_f1']].to_dict()
+    average_results = summed_df[["micro_precision", "micro_recall", "micro_f1"]].to_dict()
 
     # ignore fields with no gold values
-    macro_metrics_df = token_level_df[token_level_df['total_positives'] > 0].fillna(0)
+    macro_metrics_df = token_level_df[token_level_df["total_positives"] > 0].fillna(0)
     if macro_metrics_df.shape[0] == 0:
-        average_results['macro_f1'] = average_results['macro_precision'] = average_results['macro_recall'] = 'NAN'
+        average_results["macro_f1"] = average_results["macro_precision"] = average_results["macro_recall"] = "NAN"
     else:
-        average_results['macro_f1'] = macro_metrics_df['f1'].mean()
-        average_results['macro_precision'] = macro_metrics_df['precision'].mean()
-        average_results['macro_recall'] = macro_metrics_df['recall'].mean()
+        average_results["macro_f1"] = macro_metrics_df["f1"].mean()
+        average_results["macro_precision"] = macro_metrics_df["precision"].mean()
+        average_results["macro_recall"] = macro_metrics_df["recall"].mean()
     return average_results
 
 
@@ -245,9 +245,9 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_li
     mismatches_text = f"MISMATCH EXAMPLES (max {max_examples} per label)\n"
     for lab in label_list[1:]:
         mismatches = [
-            "\tpred:\t'" + v['entities'][lab]["text"] + "'\n\tgold:\t'" + v['entities'][lab]["gold_text"] + "'\n"
+            "\tpred:\t'" + v["entities"][lab]["text"] + "'\n\tgold:\t'" + v["entities"][lab]["gold_text"] + "'\n"
             for k, v in pred_dict.items()
-            if not v['entities'][lab]["is_match"]
+            if not v["entities"][lab]["is_match"]
         ]
         label_mismatch_text = "  ".join(mismatches[:max_examples])
         if len(mismatches) > 0:
@@ -256,11 +256,11 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_li
 
     # get list of document gold labels - List[Dict[List]]
     ground_truths: List[Dict[List]] = [
-        {k: [wrd["idx"] for wrd in v["gold_words"]] for k, v in doc_lab['entities'].items()}
+        {k: [wrd["idx"] for wrd in v["gold_words"]] for k, v in doc_lab["entities"].items()}
         for doc_lab in pred_dict.values()
     ]
     pred_words: List[Dict[List]] = [
-        {k: [wrd["idx"] for wrd in v["words"]] for k, v in doc_lab['entities'].items()}
+        {k: [wrd["idx"] for wrd in v["words"]] for k, v in doc_lab["entities"].items()}
         for doc_lab in pred_dict.values()
     ]
 
@@ -347,6 +347,6 @@ def compute_metrics_for_qa_task(predictions: Tuple, dataset: Dataset):
     :return:
     """
     num_labels = predictions[0].shape[-1]
-    dummy_label_list = [f'class_{i}' for i in range(num_labels)]
+    dummy_label_list = [f"class_{i}" for i in range(num_labels)]
 
     return compute_legacy_metrics_for_sl(predictions, dataset, dummy_label_list)

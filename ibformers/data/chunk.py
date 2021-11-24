@@ -62,18 +62,14 @@ def produce_chunks(
     assert chunk_overlap >= 0
     assert chunk_overlap < max_length
     if chunk_overlap + prefix_len > (max_length // 2):
-        logging.warning(
-            f"Extra tokens occupies too much space. Prefix tokens: {prefix_len}, overlap: {chunk_overlap}"
-        )
+        logging.warning(f"Extra tokens occupies too much space. Prefix tokens: {prefix_len}, overlap: {chunk_overlap}")
 
     if chunking_strategy == "ALL_CHUNKS":
         chunk_ranges = get_chunk_ranges(input_len, max_length - prefix_len - 2, chunk_overlap)
         return get_chunks(example, tokenizer, chunk_ranges)
     elif chunking_strategy == "SINGLE_PAGES":
         page_nums = example.get("token_page_nums")
-        chunk_ranges = get_single_page_chunk_ranges(
-            input_len, max_length - prefix_len - 2, chunk_overlap, page_nums
-        )
+        chunk_ranges = get_single_page_chunk_ranges(input_len, max_length - prefix_len - 2, chunk_overlap, page_nums)
         return get_chunks(example, tokenizer, chunk_ranges)
     else:
         raise ValueError(f"{chunking_strategy} is not implemented")
@@ -99,19 +95,15 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
     ]
 
     # TODO: check how many tokens are added and remove hardcoded "2"
-    chunked = {
-        k: _split_by_ranges(example[k], ranges=chunk_ranges) for k in keys_to_chunk if k in example
-    }
+    chunked = {k: _split_by_ranges(example[k], ranges=chunk_ranges) for k in keys_to_chunk if k in example}
 
     # add images to chunks
     # get pages
-    if 'images' in example:
-        pages_idx = [sorted(set(pg)) for pg in chunked['token_page_nums']]
-        assert all(
-            [len(a) == 1 for a in pages_idx]
-        ), "Chunks need to be single page to support images"
+    if "images" in example:
+        pages_idx = [sorted(set(pg)) for pg in chunked["token_page_nums"]]
+        assert all([len(a) == 1 for a in pages_idx]), "Chunks need to be single page to support images"
         pages_idx = np.array([a[0] for a in pages_idx])
-        images_page_nums = example['images_page_nums']
+        images_page_nums = example["images_page_nums"]
         image_idx = []
         for pg_id in pages_idx:
             if pg_id not in images_page_nums:
@@ -119,14 +111,12 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
             im_id = images_page_nums.index(pg_id)
             image_idx.append(im_id)
 
-        chunked['images'] = example['images'][np.array(image_idx)][:, None]
+        chunked["images"] = example["images"][np.array(image_idx)][:, None]
 
     chunked["chunk_ranges"] = chunk_ranges
 
     # This includes things like the document's ID
-    other_keys = [
-        i for i in list(example.keys()) if i not in set(keys_to_chunk).union(chunked.keys())
-    ]
+    other_keys = [i for i in list(example.keys()) if i not in set(keys_to_chunk).union(chunked.keys())]
 
     # We're transposing now to make it easier to "flatten" the document into essentially independent examples
     transposed = [{k: v[i] for k, v in chunked.items()} for i, _ in enumerate(chunked["input_ids"])]
@@ -143,9 +133,7 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
         chunk_processed = {**chunk, **chunk_processed}
 
         special_mask = np.array(
-            tokenizer.get_special_tokens_mask(
-                chunk_processed["input_ids"], already_has_special_tokens=True
-            )
+            tokenizer.get_special_tokens_mask(chunk_processed["input_ids"], already_has_special_tokens=True)
         )
         # do not treat UNK token as special
         unk_id = getattr(tokenizer, "unk_token_id", -1)
@@ -170,23 +158,19 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
 
         if len(chunk["input_ids"]) != content_tokens_mask.sum():
             raise ValueError(
-                f'Number of non special tokens should be equal to number of chunk tokens. '
+                f"Number of non special tokens should be equal to number of chunk tokens. "
                 f'chunk_input={chunk["input_ids"]}, special_mask={special_mask}'
             )
 
         chunk_processed["content_tokens_mask"] = content_tokens_mask
-        chunk_processed["bboxes"] = fill_special_tokens(
-            chunk["bboxes"], content_tokens_mask, 0
-        ).tolist()
+        chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], content_tokens_mask, 0).tolist()
         # if "prefix_input_ids" in example:
         #     prefix_bboxes = np.array(
         #         [[[i * 20, 10, i * 20 + 10, 20] for i in range(1, len_prefix + 1)]]
         #     )
         #     chunk_processed["bboxes"][prefix_start : prefix_start + len_prefix] = prefix_bboxes
 
-        chunk_processed["token_label_ids"] = fill_special_tokens(
-            chunk["token_label_ids"], content_tokens_mask, -100
-        )
+        chunk_processed["token_label_ids"] = fill_special_tokens(chunk["token_label_ids"], content_tokens_mask, -100)
 
         yield chunk_processed
 

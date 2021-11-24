@@ -10,7 +10,6 @@ from ibformers.data.collators.collators.universal import safe_dataclass_init
 
 
 class AugmenterABC(ABC):
-
     @abstractmethod
     def augment(self, batch: Dict[str, torch.Tensor]):
         pass
@@ -21,6 +20,7 @@ class BaseAugmenter(AugmenterABC, metaclass=ABCMeta):
     """
     Base class for augmenters.
     """
+
     tokenizer: PreTrainedTokenizerBase
     model: PreTrainedModel
     augmenters: ClassVar[List["BaseAugmenter"]] = []
@@ -35,8 +35,13 @@ class AugmenterManager(AugmenterABC):
     Handles augmentation using multiple augmenters.
     """
 
-    def __init__(self, tokenizer: PreTrainedTokenizerBase, model: PreTrainedModel,
-                 augmenters_to_use: List[Type[BaseAugmenter]], **augmenter_kwargs):
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
+        augmenters_to_use: List[Type[BaseAugmenter]],
+        **augmenter_kwargs
+    ):
         """
 
         Args:

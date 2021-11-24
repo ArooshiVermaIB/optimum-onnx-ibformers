@@ -50,9 +50,7 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
             for i in range(len(prefix_encodings.encodings)):
                 pref_word_map = np.array(prefix_encodings.encodings[i].word_ids)
                 batch_prefix_word_map.append(pref_word_map)
-            encodings["prefix_mqa_ids"] = spread_with_mapping(
-                example_batch["prefix_mqa_ids"], batch_prefix_word_map
-            )
+            encodings["prefix_mqa_ids"] = spread_with_mapping(example_batch["prefix_mqa_ids"], batch_prefix_word_map)
 
     # bboxes need to be spread
     if "bboxes" in example_batch:
@@ -60,9 +58,7 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
 
     # page_nums need to be spread
     if "word_page_nums" in example_batch:
-        encodings["token_page_nums"] = spread_with_mapping(
-            example_batch["word_page_nums"], encodings["word_map"]
-        )
+        encodings["token_page_nums"] = spread_with_mapping(example_batch["word_page_nums"], encodings["word_map"])
 
     # token labels as well - use only first token of the word as a label
     if "token_label_ids" in example_batch:
@@ -74,9 +70,7 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
 
     # page spans need to be adjusted for new token ranges
     if "page_spans" in example_batch:
-        new_token_spans_batch = recalculate_spans(
-            example_batch["page_spans"], encodings["word_map"]
-        )
+        new_token_spans_batch = recalculate_spans(example_batch["page_spans"], encodings["word_map"])
         encodings["page_spans"] = new_token_spans_batch
 
     if "entities" in example_batch:
@@ -141,21 +135,15 @@ def tokenize_layoutlmv2(example_batch, tokenizer, padding=False, **kwargs):
             for i in range(len(prefix_encodings.encodings)):
                 pref_word_map = np.array(prefix_encodings.encodings[i].word_ids)
                 batch_prefix_word_map.append(pref_word_map)
-            encodings["prefix_mqa_ids"] = spread_with_mapping(
-                example_batch["prefix_input_ids"], batch_prefix_word_map
-            )
+            encodings["prefix_mqa_ids"] = spread_with_mapping(example_batch["prefix_input_ids"], batch_prefix_word_map)
 
     # page_nums need to be spread
     if "word_page_nums" in example_batch:
-        encodings["token_page_nums"] = spread_with_mapping(
-            example_batch["word_page_nums"], encodings["word_map"]
-        )
+        encodings["token_page_nums"] = spread_with_mapping(example_batch["word_page_nums"], encodings["word_map"])
 
     # page spans need to be adjusted for new token ranges
     if "page_spans" in example_batch:
-        new_token_spans_batch = recalculate_spans(
-            example_batch["page_spans"], encodings["word_map"]
-        )
+        new_token_spans_batch = recalculate_spans(example_batch["page_spans"], encodings["word_map"])
         encodings["page_spans"] = new_token_spans_batch
 
     if "entities" in example_batch:

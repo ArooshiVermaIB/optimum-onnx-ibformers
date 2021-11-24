@@ -122,9 +122,7 @@ class Docvqa(datasets.GeneratorBasedBuilder):
     """TODO(docvqa): Short description of my dataset."""
 
     BUILDER_CONFIGS = [
-        DocvqaConfig(
-            name="docvqa", version=datasets.Version("1.0.0"), description="DocVQA dataset"
-        ),
+        DocvqaConfig(name="docvqa", version=datasets.Version("1.0.0"), description="DocVQA dataset"),
     ]
 
     def _info(self):
@@ -137,15 +135,9 @@ class Docvqa(datasets.GeneratorBasedBuilder):
                     "id": datasets.Value("string"),
                     "doc_id": datasets.Value("string"),
                     "words": datasets.Sequence(datasets.Value("string")),
-                    "bboxes": datasets.Sequence(
-                        datasets.Sequence(datasets.Value("int32"), length=4)
-                    ),
-                    "page_bboxes": datasets.Sequence(
-                        datasets.Sequence(datasets.Value("int32"), length=4)
-                    ),
-                    "page_spans": datasets.Sequence(
-                        datasets.Sequence(datasets.Value("int32"), length=2)
-                    ),
+                    "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+                    "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+                    "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
                     "question": datasets.Sequence(datasets.Value("string")),
                     "answer": datasets.Sequence(datasets.Value("string")),
                     # These are the features of your dataset like images, labels ...
@@ -167,9 +159,7 @@ class Docvqa(datasets.GeneratorBasedBuilder):
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
-                gen_kwargs={
-                    "filepath": Path(downloaded_files["train"]) / "train" / "train_v1.0.json"
-                },
+                gen_kwargs={"filepath": Path(downloaded_files["train"]) / "train" / "train_v1.0.json"},
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.VALIDATION,

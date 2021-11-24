@@ -178,7 +178,7 @@ def run_train(
 
     # workaround currently only for docpro dataset which require loading into single dataset as information about split
     # could be obtained after loading a record
-    if 'split' in next(iter(raw_datasets.column_names.values())):
+    if "split" in next(iter(raw_datasets.column_names.values())):
         raw_datasets = split_train_with_column(raw_datasets)
 
     tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
@@ -333,7 +333,7 @@ def run_train(
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
-        metrics = trainer.evaluate(metric_key_prefix='final_eval')
+        metrics = trainer.evaluate(metric_key_prefix="final_eval")
 
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["final_eval_samples"] = min(max_eval_samples, len(eval_dataset))

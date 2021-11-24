@@ -45,8 +45,8 @@ class BaseCollator(CollatorABC):
         cls.extra_collators.append(cls)
 
     def __post_init__(self):
-        if self.tokenizer.padding_side != 'right':
-            raise ValueError('Only right padding is supported')
+        if self.tokenizer.padding_side != "right":
+            raise ValueError("Only right padding is supported")
 
     @staticmethod
     def _get_feature_keys(features) -> List[str]:

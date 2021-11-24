@@ -94,9 +94,9 @@ class UniversalDataCollator:
             return self.field_to_collator[field_name][0]
         except KeyError:
             raise KeyError(
-                f'Could not find a collator for field {field_name}. '
-                f'Make sure that the field name is correct, and define a subclass of '
-                f'BaseCollator if it is not yet covered.'
+                f"Could not find a collator for field {field_name}. "
+                f"Make sure that the field name is correct, and define a subclass of "
+                f"BaseCollator if it is not yet covered."
             )
 
     def __call__(self, features: [List[Dict[str, Any]]]) -> Dict[str, torch.Tensor]:

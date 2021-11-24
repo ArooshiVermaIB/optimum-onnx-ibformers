@@ -27,14 +27,18 @@ class CollatorWithAugmentation(Callable[[List[InputDataClass]], Dict[str, Any]])
     This creates a subclass with selected augmenters saved into `augmenters_to_use` class attribute. Then,
     the instance is initialized in the training loop.
     """
+
     augmenters_to_use: List[Type[BaseAugmenter]]
 
-    def __init__(self, tokenizer: PreTrainedTokenizerBase,
-                 model: PreTrainedModel,
-                 padding: Union[bool, str, PaddingStrategy] = True,
-                 max_length: Optional[int] = None,
-                 pad_to_multiple_of: Optional[int] = None,
-                 augmenter_kwargs: Optional[Dict] = None):
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        model: PreTrainedModel,
+        padding: Union[bool, str, PaddingStrategy] = True,
+        max_length: Optional[int] = None,
+        pad_to_multiple_of: Optional[int] = None,
+        augmenter_kwargs: Optional[Dict] = None,
+    ):
         """
         Args:
             tokenizer: Tokenizer for the model that the data is augmented for.
@@ -46,17 +50,11 @@ class CollatorWithAugmentation(Callable[[List[InputDataClass]], Dict[str, Any]])
             augmenter_kwargs: Additional arguments to pass to the augmenters.
         """
         self.collator = UniversalDataCollator(
-            tokenizer=tokenizer,
-            padding=padding,
-            max_length=max_length,
-            pad_to_multiple_of=pad_to_multiple_of
+            tokenizer=tokenizer, padding=padding, max_length=max_length, pad_to_multiple_of=pad_to_multiple_of
         )
         augmenter_kwargs = {} if augmenter_kwargs is None else augmenter_kwargs
         self.augmenter = AugmenterManager(
-            tokenizer=tokenizer,
-            model=model,
-            augmenters_to_use=self.augmenters_to_use,
-            **augmenter_kwargs
+            tokenizer=tokenizer, model=model, augmenters_to_use=self.augmenters_to_use, **augmenter_kwargs
         )
 
     def __call__(self, features) -> Dict[str, Any]:
@@ -65,5 +63,4 @@ class CollatorWithAugmentation(Callable[[List[InputDataClass]], Dict[str, Any]])
 
 
 def get_collator_class(*augmenters_to_use: Type[BaseAugmenter]):
-    return type("CustomCollatorAugmenter", (CollatorWithAugmentation, ),
-                {'augmenters_to_use': list(augmenters_to_use)})
+    return type("CustomCollatorAugmenter", (CollatorWithAugmentation,), {"augmenters_to_use": list(augmenters_to_use)})

@@ -177,6 +177,6 @@ PIPELINES = {
     "laymqav1": laymqav1,
     "from_docvqa_to_mqa": from_docvqa_to_mqa,
     "plain_sl": plain_sl,
-    'plain_mlm': plain_mlm,
-    'layoutlm_mlm': layoutlm_mlm,
+    "plain_mlm": plain_mlm,
+    "layoutlm_mlm": layoutlm_mlm,
 }

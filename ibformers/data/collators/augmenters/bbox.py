@@ -21,6 +21,7 @@ class BboxAugmenter(BaseAugmenter):
         for bbox coordinates for layoutlm models is 1000
         bbox_augmenter_max_scale: param for scale factor range. The actual range is (1-max_scale, 1+max_scale).
     """
+
     bbox_augmenter_max_offset: int = 20
     bbox_augmenter_max_scale: float = 0.05
 
@@ -37,12 +38,8 @@ class BboxAugmenter(BaseAugmenter):
             x_scale = random.uniform(1 - scale, 1 + scale)
             y_scale = random.uniform(1 - scale, 1 + scale)
 
-            bbox[:, :, [0, 2]] = (
-                (bbox[:, :, [0, 2]] * x_scale + x_offset).clamp(1, 999).to(dtype=bbox.dtype)
-            )
-            bbox[:, :, [1, 3]] = (
-                (bbox[:, :, [1, 3]] * y_scale + y_offset).clamp(1, 999).to(dtype=bbox.dtype)
-            )
+            bbox[:, :, [0, 2]] = (bbox[:, :, [0, 2]] * x_scale + x_offset).clamp(1, 999).to(dtype=bbox.dtype)
+            bbox[:, :, [1, 3]] = (bbox[:, :, [1, 3]] * y_scale + y_offset).clamp(1, 999).to(dtype=bbox.dtype)
             bbox = bbox * non_zeros_idx[:, :, None]
             batch["bbox"] = bbox
         return batch

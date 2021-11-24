@@ -44,25 +44,24 @@ class DefaultValueCollator(BaseCollator):
                 target_length = max(len(feature) for feature in feature_batch)
 
             batch[feature_name] = [
-                feature + [self._default_value] * (target_length - len(feature))
-                for feature in feature_batch
+                feature + [self._default_value] * (target_length - len(feature)) for feature in feature_batch
             ]
         return batch
 
 
 @dataclass
 class BboxCollator(DefaultValueCollator):
-    _supported_fields: ClassVar[List[str]] = ['bbox', 'bboxes']
+    _supported_fields: ClassVar[List[str]] = ["bbox", "bboxes"]
     _default_value: ClassVar[Any] = [0, 0, 0, 0]
 
 
 @dataclass
 class TokenClassLabelCollator(DefaultValueCollator):
-    _supported_fields: ClassVar[List[str]] = ['label', 'labels']
+    _supported_fields: ClassVar[List[str]] = ["label", "labels"]
     _default_value: ClassVar[Any] = -100
 
 
 @dataclass
 class MqaIdsCollator(DefaultValueCollator):
-    _supported_fields: ClassVar[List[str]] = ['mqa_ids']
+    _supported_fields: ClassVar[List[str]] = ["mqa_ids"]
     _default_value: ClassVar[Any] = 1

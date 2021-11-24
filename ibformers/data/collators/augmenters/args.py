@@ -17,10 +17,7 @@ def _get_augmenter_param_fields() -> List[Tuple[str, Type, Field]]:
         param_fields.update(fields(augmenter))
     for base_field_name in fields(BaseAugmenter):
         param_fields.remove(base_field_name)
-    return [
-        (field.name, field.type, field)
-        for field in param_fields
-    ]
+    return [(field.name, field.type, field) for field in param_fields]
 
 
-AugmenterArguments = make_dataclass('AugmenterArguments', _get_augmenter_param_fields())
+AugmenterArguments = make_dataclass("AugmenterArguments", _get_augmenter_param_fields())

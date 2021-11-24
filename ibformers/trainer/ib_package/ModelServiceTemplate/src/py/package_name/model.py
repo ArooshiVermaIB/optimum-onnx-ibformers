@@ -97,7 +97,7 @@ class IbModel(Model):
         mapper = WordPolyInputColMapper(record_joined)  # not good
         records = parsed_ibocr.get_ibocr_records()
         if len(records) > 1:
-            ValueError('Model should consume only single record. Check if you are passing only single class documents')
+            ValueError("Model should consume only single record. Check if you are passing only single class documents")
         record = records[0]
 
         word_polys: List["WordPolyDict"] = [i for j in record_joined.get_lines() for i in j]
@@ -117,7 +117,7 @@ class IbModel(Model):
         ds_path = Path(DATASETS_PATH) / self.pipeline_config["dataset_name_or_path"]
         name_to_use = str(ds_path) if ds_path.is_dir() else self.pipeline_config["dataset_name_or_path"]
         load_kwargs = self.pipeline["dataset_load_kwargs"]
-        load_kwargs['ibsdk'] = self.get_ibsdk(request.context.username)
+        load_kwargs["ibsdk"] = self.get_ibsdk(request.context.username)
 
         if hasattr(self.model.config, "id2label"):
             load_kwargs["id2label"] = self.model.config.id2label
@@ -157,13 +157,13 @@ class IbModel(Model):
         doc_pred = list(predictions.values())[0]
 
         entities = []
-        for field, field_pred in doc_pred['entities'].items():
+        for field, field_pred in doc_pred["entities"].items():
             for word in field_pred["words"]:
                 token_idx = word["idx"]
                 original_word_poly = word_polys[token_idx]
                 start = mapper.get_index(original_word_poly)
                 if start is None:
-                    raise ValueError(f'start index not found. Word polly: {original_word_poly}')
+                    raise ValueError(f"start index not found. Word polly: {original_word_poly}")
                 if (
                     word["raw_word"] != original_word_poly["raw_word"]
                     and word["raw_word"] != original_word_poly["word"]

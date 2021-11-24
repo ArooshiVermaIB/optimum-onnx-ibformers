@@ -13,18 +13,16 @@ from ibformers.utils import exceptions
 
 def split_train_with_column(dataset: Dataset):
     # dataset should contain only train set
-    if list(dataset.keys()) != ['train']:
-        raise exceptions.ValidationError(
-            f"Dataset: {dataset} for splitting should contain only train set"
-        )
+    if list(dataset.keys()) != ["train"]:
+        raise exceptions.ValidationError(f"Dataset: {dataset} for splitting should contain only train set")
 
-    train_ds = dataset['train']
+    train_ds = dataset["train"]
 
-    if 'split' not in train_ds.features:
+    if "split" not in train_ds.features:
         raise exceptions.ValidationError("No column named split which is needed for splitting")
 
-    split_lst = train_ds['split']
-    indices = {'train': [], 'validation': [], 'test': []}
+    split_lst = train_ds["split"]
+    indices = {"train": [], "validation": [], "test": []}
 
     for idx, split in enumerate(split_lst):
         for k, v in indices.items():
@@ -59,15 +57,11 @@ class ModelArguments:
     )
     cache_dir: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "Where do you want to store the pretrained models downloaded from huggingface.co"
-        },
+        metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
     model_revision: str = field(
         default="main",
-        metadata={
-            "help": "The specific model version to use (can be a branch name, tag name or commit id)."
-        },
+        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
     )
     use_auth_token: bool = field(
         default=False,
@@ -84,35 +78,27 @@ class DataAndPipelineArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
 
-    task_name: Optional[str] = field(
-        default="ner", metadata={"help": "The name of the task (ner, pos...)."}
-    )
+    task_name: Optional[str] = field(default="ner", metadata={"help": "The name of the task (ner, pos...)."})
     dataset_name_or_path: Optional[str] = field(
         default=None,
         metadata={"help": "The name of the dataset to use (via the datasets library)."},
     )
     dataset_config_name: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "The configuration name of the dataset to use (via the datasets library)."
-        },
+        metadata={"help": "The configuration name of the dataset to use (via the datasets library)."},
     )
     train_file: Optional[str] = field(
         default=None, metadata={"help": "The input training data file (a csv or JSON file)."}
     )
     validation_file: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."
-        },
+        metadata={"help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."},
     )
     test_file: Optional[str] = field(
         default=None,
         metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
     )
-    overwrite_cache: bool = field(
-        default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
-    )
+    overwrite_cache: bool = field(default=False, metadata={"help": "Overwrite the cached training and evaluation sets"})
     preprocessing_num_workers: Optional[int] = field(
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
@@ -159,9 +145,7 @@ class DataAndPipelineArguments:
     )
     return_entity_level_metrics: bool = field(
         default=False,
-        metadata={
-            "help": "Whether to return all the entity levels during evaluation or just the overall ones."
-        },
+        metadata={"help": "Whether to return all the entity levels during evaluation or just the overall ones."},
     )
     pipeline_name: str = field(
         default=None,
@@ -179,18 +163,14 @@ class DataAndPipelineArguments:
     )
 
     def __post_init__(self):
-        if (
-            self.dataset_name_or_path is None
-            and self.train_file is None
-            and self.validation_file is None
-        ):
+        if self.dataset_name_or_path is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
 
     def save(self, save_path, filename="pipeline.json"):
         save_dict = asdict(self)
-        save_dict.pop('train_file')
-        save_dict.pop('validation_file')
-        save_dict.pop('test_file')
+        save_dict.pop("train_file")
+        save_dict.pop("validation_file")
+        save_dict.pop("test_file")
         with open(os.path.join(save_path, filename), "w", encoding="utf-8") as writer:
             json.dump(save_dict, writer, indent=2, sort_keys=True)
 
@@ -207,11 +187,9 @@ class IbArguments:
     file_client: Optional[Any] = field(
         default=None, metadata={"help": "File client object which support different file systems"}
     )
-    job_metadata_client: Optional['JobMetadataClient'] = field(
+    job_metadata_client: Optional["JobMetadataClient"] = field(
         default=None,
-        metadata={
-            "help": "Job metadata client. Used for collecting information of training progress"
-        },
+        metadata={"help": "Job metadata client. Used for collecting information of training progress"},
     )
     mount_details: Optional[Dict] = field(
         default=None,
@@ -219,26 +197,20 @@ class IbArguments:
     )
     model_name: Optional[str] = field(
         default="CustomModel",
-        metadata={
-            "help": "The model name which will be appear in the model management dashboard ??"
-        },
+        metadata={"help": "The model name which will be appear in the model management dashboard ??"},
     )
     ib_save_path: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to save ib_package on the IB space"},
     )
-    upload: Optional[bool] = field(
-        default=None, metadata={"help": "Whether to upload model files to ib_save_path"}
-    )
+    upload: Optional[bool] = field(default=None, metadata={"help": "Whether to upload model files to ib_save_path"})
     final_model_dir: Optional[str] = field(
         default=None,
-        metadata={
-            "help": "Where do you want to save final model, it can be different location than checkpoint files"
-        },
+        metadata={"help": "Where do you want to save final model, it can be different location than checkpoint files"},
     )
 
 
-T = TypeVar('T', bound=Tuple[DataClass, ...])
+T = TypeVar("T", bound=Tuple[DataClass, ...])
 
 
 def update_params_with_commandline(param_dataclasses: T) -> T:
@@ -270,4 +242,4 @@ def update_params_with_commandline(param_dataclasses: T) -> T:
             setattr(new_params, key, value)
 
         outputs.append(new_params)
-    return (*outputs, )
+    return (*outputs,)
