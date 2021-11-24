@@ -20,6 +20,7 @@ class LayV2NoImgModel(LayoutLMv2PreTrainedModel):
     One could also run base model with empty page, but version without image encoder is faster
     as it is not processing even empty page
     """
+
     def __init__(self, config):
         super().__init__(config)
         self.config = config
@@ -35,9 +36,7 @@ class LayV2NoImgModel(LayoutLMv2PreTrainedModel):
     def set_input_embeddings(self, value):
         self.embeddings.word_embeddings = value
 
-    def _calc_text_embeddings(
-        self, input_ids, bbox, position_ids, token_type_ids, inputs_embeds=None
-    ):
+    def _calc_text_embeddings(self, input_ids, bbox, position_ids, token_type_ids, inputs_embeds=None):
         if input_ids is not None:
             input_shape = input_ids.size()
         else:
@@ -57,19 +56,12 @@ class LayV2NoImgModel(LayoutLMv2PreTrainedModel):
         spatial_position_embeddings = self.embeddings._calc_spatial_position_embeddings(bbox)
         token_type_embeddings = self.embeddings.token_type_embeddings(token_type_ids)
 
-        embeddings = (
-            inputs_embeds
-            + position_embeddings
-            + spatial_position_embeddings
-            + token_type_embeddings
-        )
+        embeddings = inputs_embeds + position_embeddings + spatial_position_embeddings + token_type_embeddings
         embeddings = self.embeddings.LayerNorm(embeddings)
         embeddings = self.embeddings.dropout(embeddings)
         return embeddings
 
-    @add_start_docstrings_to_model_forward(
-        LAYOUTLMV2_INPUTS_DOCSTRING.format("(batch_size, sequence_length)")
-    )
+    @add_start_docstrings_to_model_forward(LAYOUTLMV2_INPUTS_DOCSTRING.format("(batch_size, sequence_length)"))
     @replace_return_docstrings(output_type=BaseModelOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
@@ -87,13 +79,9 @@ class LayV2NoImgModel(LayoutLMv2PreTrainedModel):
         r"""
         Returns:
         """
-        output_attentions = (
-            output_attentions if output_attentions is not None else self.config.output_attentions
-        )
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
-            output_hidden_states
-            if output_hidden_states is not None
-            else self.config.output_hidden_states
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 

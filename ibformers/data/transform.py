@@ -26,10 +26,10 @@ def fuzzy_tag_in_document(example, **kwargs):
         detected_answer = tag_answer_in_doc(words=words, answer=answer)
         if len(detected_answer) == 0:
             continue
-        token_spans = get_tokens_spans([[m['start'], m['end']] for m in detected_answer], word_offsets)
+        token_spans = get_tokens_spans([[m["start"], m["end"]] for m in detected_answer], word_offsets)
         entity = {
             "name": question,
-            "text": detected_answer[0]['text'],
+            "text": detected_answer[0]["text"],
             "token_spans": token_spans,
             "token_label_id": dummy_tok_lab_id,
         }

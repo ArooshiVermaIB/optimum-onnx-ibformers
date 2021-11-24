@@ -14,8 +14,12 @@ from transformers import TrainerCallback, HfArgumentParser, TrainingArguments
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.trainer.train import run_train
-from ibformers.trainer.train_utils import ModelArguments, DataAndPipelineArguments, IbArguments, \
-    update_params_with_commandline
+from ibformers.trainer.train_utils import (
+    ModelArguments,
+    DataAndPipelineArguments,
+    IbArguments,
+    update_params_with_commandline,
+)
 
 from instabase.storage.fileservice import FileService
 from instabase.content.filehandle import ibfile
@@ -30,23 +34,19 @@ _PARALLEL_UPLOAD_WORKERS = 5
 
 
 class InstabaseSDK:
-    def __init__(
-        self, file_client: FileService.Iface, username: str, use_write_multipart: bool = True
-    ):
+    def __init__(self, file_client: FileService.Iface, username: str, use_write_multipart: bool = True):
         self.file_client = file_client
         self.username = username
         self._CHUNK_SIZE = min(default_max_write_size, _IBFILE_CHUNK_SIZE_IN_MB * 1024 * 1024)
 
         self.use_multipart = use_write_multipart and isinstance(file_client, ThriftGRPCFileClient)
 
-    def ibopen(self, path: str, mode: str = 'r') -> IBFileBase:
+    def ibopen(self, path: str, mode: str = "r") -> IBFileBase:
         result = ibfile.ibopen(path, mode, file_client=self.file_client, username=self.username)
         return result
 
     def read_file(self, file_path: str) -> bytes:
-        result, error = ibfile.read_file(
-            file_path, username=self.username, file_client=self.file_client
-        )
+        result, error = ibfile.read_file(file_path, username=self.username, file_client=self.file_client)
         if error:
             raise IOError(error)
         return result
@@ -55,18 +55,18 @@ class InstabaseSDK:
         chunk_size = self._CHUNK_SIZE
         total_chunks = math.ceil(len(content) / chunk_size)
 
-        with self.ibopen(file_path, 'wb') as f:
+        with self.ibopen(file_path, "wb") as f:
             for i, chunk in enumerate(range(0, len(content), chunk_size)):
                 chunk_bytes = content[chunk : chunk + chunk_size]
                 cur_chunk_size_mb = len(chunk_bytes) / 1024 / 1024
                 logging.info(
-                    f'[InstabaseSDK._chunked_write_file] Writing chunk# {i+1}/{total_chunks}, {cur_chunk_size_mb:.3f} MB'
+                    f"[InstabaseSDK._chunked_write_file] Writing chunk# {i+1}/{total_chunks}, {cur_chunk_size_mb:.3f} MB"
                 )
                 f.write(chunk_bytes)  # raises Exception
 
     def write_file(self, file_path: str, content: bytes):
         if self.use_multipart and (len(content) > 0):
-            logging.info(f'[InstabaseSDK.write_file] Uploading {file_path} with multipart.')
+            logging.info(f"[InstabaseSDK.write_file] Uploading {file_path} with multipart.")
             ibfile.write_file_multipart(
                 file_path,
                 content,
@@ -75,7 +75,7 @@ class InstabaseSDK:
                 max_workers=_PARALLEL_UPLOAD_WORKERS,
             )
         else:
-            logging.info(f'[InstabaseSDK.write_file] Uploading {file_path} with chunked write.')
+            logging.info(f"[InstabaseSDK.write_file] Uploading {file_path} with chunked write.")
             self._chunked_write_file(file_path, content)
 
 
@@ -119,13 +119,13 @@ class IbCallback(TrainerCallback):
 
         out_dir = Path(output_dir)
         # get ib_package location
-        template_dir_path = _abspath('ib_package/ModelServiceTemplate')
-        ibformers_path = Path(_abspath('')).parent
-        dir_to_be_copied = out_dir / 'package'
-        save_model_dir = dir_to_be_copied / 'saved_model'
+        template_dir_path = _abspath("ib_package/ModelServiceTemplate")
+        ibformers_path = Path(_abspath("")).parent
+        dir_to_be_copied = out_dir / "package"
+        save_model_dir = dir_to_be_copied / "saved_model"
         shutil.copytree(template_dir_path, save_model_dir)
-        package_dir = save_model_dir / 'src' / 'py' / package_name
-        shutil.move(str(package_dir.parent / 'package_name'), str(package_dir))
+        package_dir = save_model_dir / "src" / "py" / package_name
+        shutil.move(str(package_dir.parent / "package_name"), str(package_dir))
         prepare_package_json(
             save_model_dir / "package.json",
             model_name=model_name,
@@ -137,28 +137,28 @@ class IbCallback(TrainerCallback):
         # TODO will this have an issue without mkdir?
         shutil.copytree(
             ibformers_path,
-            package_dir.parent / 'ibformers' / 'ibformers',
+            package_dir.parent / "ibformers" / "ibformers",
             ignore=lambda x, y: self.ibformers_do_not_copy,
         )
 
         # copy model files
-        model_src_path = out_dir / 'model'
-        assert model_src_path.is_dir(), 'Missing model files in output directory'
-        model_dest_path = package_dir / 'model_data'
+        model_src_path = out_dir / "model"
+        assert model_src_path.is_dir(), "Missing model files in output directory"
+        model_dest_path = package_dir / "model_data"
         if self.upload:
             for fl_path in model_src_path.iterdir():
                 shutil.move(str(fl_path), str(model_dest_path))
 
         # save evaluation results
         if self.evaluation_results is not None:
-            eval_path = dir_to_be_copied / 'evaluation.json'
-            with open(eval_path, 'w') as f:
+            eval_path = dir_to_be_copied / "evaluation.json"
+            with open(eval_path, "w") as f:
                 json.dump(self.evaluation_results, f)
 
         # save prediction results
         if self.prediction_results is not None:
-            pred_path = dir_to_be_copied / 'predictions.json'
-            with open(pred_path, 'w') as f:
+            pred_path = dir_to_be_copied / "predictions.json"
+            with open(pred_path, "w") as f:
                 json.dump(self.prediction_results, f)
 
         return dir_to_be_copied
@@ -166,14 +166,14 @@ class IbCallback(TrainerCallback):
     def move_data_to_ib(self, output_dir):
         dir_to_be_copied = self.build_local_package_directory(output_dir)
         # copy data to ib
-        self.set_status({'task_state': 'UPLOADING FILES TO IB'})
+        self.set_status({"task_state": "UPLOADING FILES TO IB"})
         upload_dir(
             sdk=self.ibsdk,
             local_folder=dir_to_be_copied,
             remote_folder=self.ib_save_path,
             mount_details=self.mount_details,
         )
-        self.set_status({'task_state': 'UPOLADING FINISHED'})
+        self.set_status({"task_state": "UPOLADING FINISHED"})
 
     def set_status(self, new_status: Dict):
         self.job_status.update(new_status)
@@ -190,16 +190,14 @@ class IbCallback(TrainerCallback):
     def on_evaluate(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
             # workaround for missing on_predict callback in the transformers TrainerCallback
-            if 'predict_loss' in kwargs["metrics"]:
+            if "predict_loss" in kwargs["metrics"]:
                 self.on_predict(args, state, control, **kwargs)
-            elif 'eval_loss' in kwargs["metrics"]:
+            elif "eval_loss" in kwargs["metrics"]:
                 metrics = {}
-                metrics['precision'] = kwargs["metrics"]['eval_precision']
-                metrics['recall'] = kwargs["metrics"]['eval_recall']
-                metrics['f1'] = kwargs["metrics"]['eval_f1']
-                self.set_status(
-                    {"evaluation_results": metrics, "progress": state.global_step / state.max_steps}
-                )
+                metrics["precision"] = kwargs["metrics"]["eval_precision"]
+                metrics["recall"] = kwargs["metrics"]["eval_recall"]
+                metrics["f1"] = kwargs["metrics"]["eval_f1"]
+                self.set_status({"evaluation_results": metrics, "progress": state.global_step / state.max_steps})
 
                 self.evaluation_results = metrics
             else:
@@ -207,13 +205,13 @@ class IbCallback(TrainerCallback):
                 pass
 
     def on_predict(self, args, state, control, **kwargs):
-        predictions = kwargs["metrics"]['predict_predictions']
+        predictions = kwargs["metrics"]["predict_predictions"]
         self.prediction_results = predictions
         # as prediction is the last step of the training - use this event to save the predictions to ib
         self.move_data_to_ib(args.output_dir)
 
         # This is a hacky way to let the frontend know that there are new preds available
-        self.set_status({'predictions_uuid': uuid.uuid4().hex})
+        self.set_status({"predictions_uuid": uuid.uuid4().hex})
 
 
 class MountDetails(TypedDict):
@@ -225,20 +223,18 @@ class MountDetails(TypedDict):
 
 def prepare_package_json(path: str, model_name: str, model_class_name: str, package_name: str):
     # replace content with model details
-    with open(path, 'r') as f_read:
+    with open(path, "r") as f_read:
         content = f_read.read()
-        content = content.replace('{{model_package}}', package_name)
-        content = content.replace('{{model_class_name}}', model_class_name)
-        content = content.replace('{{model_name}}', model_name)
+        content = content.replace("{{model_package}}", package_name)
+        content = content.replace("{{model_class_name}}", model_class_name)
+        content = content.replace("{{model_name}}", model_name)
 
-    with open(path, 'w+') as f_write:
+    with open(path, "w+") as f_write:
         f_write.write(content)
 
 
-def upload_dir(
-    sdk: InstabaseSDK, local_folder: str, remote_folder: str, mount_details: Optional[MountDetails]
-):
-    s3 = get_s3_client() if mount_details and mount_details['client_type'] == "S3" else None
+def upload_dir(sdk: InstabaseSDK, local_folder: str, remote_folder: str, mount_details: Optional[MountDetails]):
+    s3 = get_s3_client() if mount_details and mount_details["client_type"] == "S3" else None
     logging.info(f"Uploading using " + ("S3" if s3 else "IB Filesystem"))
     for local, remote in map_directory_remote(local_folder, remote_folder):
         success = False
@@ -247,15 +243,13 @@ def upload_dir(
                 client=s3,
                 local_file=local,
                 remote_file=remote,
-                bucket_name=mount_details['bucket_name'],
-                prefix=mount_details['prefix'],
+                bucket_name=mount_details["bucket_name"],
+                prefix=mount_details["prefix"],
             )
             if not success:
-                logging.warning(
-                    "Upload with S3 was not successful. Falling back to using Instabase API."
-                )
+                logging.warning("Upload with S3 was not successful. Falling back to using Instabase API.")
         if not s3 or not success:
-            with open(local, 'rb') as f:
+            with open(local, "rb") as f:
                 sdk.write_file(remote, f.read())
         os.remove(local)
     logging.info("Finished uploading")
@@ -270,25 +264,25 @@ def map_directory_remote(local_folder, remote_folder) -> Iterable[Tuple[str, str
 
 
 def get_s3_client() -> Optional[boto3.session.Session.client]:
-    aws_access_key_id = os.environ.get('aws_access_key_id', None)
-    aws_secret_access_key = os.environ.get('aws_secret_access_key', None)
+    aws_access_key_id = os.environ.get("aws_access_key_id", None)
+    aws_secret_access_key = os.environ.get("aws_secret_access_key", None)
 
     if aws_access_key_id and aws_secret_access_key:
         return boto3.client(
-            's3',
+            "s3",
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
         )
 
-    logging.warning('[get_s3_client] AWS credentials not found in environment!')
+    logging.warning("[get_s3_client] AWS credentials not found in environment!")
     return None
 
 
 def s3_write(client, local_file: str, remote_file: str, bucket_name: str, prefix: str) -> bool:
     # Returns True if successful; else False
     try:
-        fs_index = remote_file.index('/fs/')
-        start_index = remote_file.index('/', fs_index + 4)
+        fs_index = remote_file.index("/fs/")
+        start_index = remote_file.index("/", fs_index + 4)
         remote_file = remote_file[start_index:]
         client.upload_file(local_file, bucket_name, prefix + remote_file)
         return True
@@ -308,9 +302,9 @@ def prepare_ib_params(
     save_path: str,
     file_client: Any,
     username: str,
-    job_metadata_client: 'JobMetadataClient',
+    job_metadata_client: "JobMetadataClient",
     mount_details: Optional[Dict] = None,
-    model_name: str = 'CustomModel',
+    model_name: str = "CustomModel",
 ) -> Dict:
     """
     Map parameters used by model service to names used in the Trainer
@@ -331,16 +325,16 @@ def prepare_ib_params(
         do_train=True,
         do_eval=True,
         do_predict=True,
-        log_level='info',
-        report_to='none',
-        logging_strategy='epoch',
-        evaluation_strategy='epoch',
-        save_strategy='no',
+        log_level="info",
+        report_to="none",
+        logging_strategy="epoch",
+        evaluation_strategy="epoch",
+        save_strategy="no",
         disable_tqdm=False,
         logging_steps=10,
         adafactor=False,
-        dataset_name_or_path='ibds',
-        dataset_config_name='ibds',
+        dataset_name_or_path="ibds",
+        dataset_config_name="ibds",
         train_file=dataset_filename,
         output_dir=temp_dir,
         ib_save_path=save_path,
@@ -354,65 +348,61 @@ def prepare_ib_params(
         final_model_dir=os.path.join(temp_dir, "model"),
     )
 
-    if 'epochs' in hyperparams:
-        out_dict['num_train_epochs'] = hyperparams.pop('epochs')
-    if 'batch_size' in hyperparams:
-        out_dict['per_device_train_batch_size'] = int(hyperparams.pop('batch_size'))
-    if 'gradient_accumulation_steps' in hyperparams:
-        out_dict['gradient_accumulation_steps'] = int(
-            hyperparams.pop('gradient_accumulation_steps')
-        )
-    if 'learning_rate' in hyperparams:
-        out_dict['learning_rate'] = hyperparams.pop('learning_rate')
-    if 'max_grad_norm' in hyperparams:
-        out_dict['max_grad_norm'] = hyperparams.pop('max_grad_norm')
-    if 'use_mixed_precision' in hyperparams:
-        out_dict['fp16'] = hyperparams.pop('use_mixed_precision')
-    if 'use_gpu' in hyperparams:
-        out_dict['no_cuda'] = not hyperparams.pop('use_gpu')
-    if 'warmup' in hyperparams:
-        out_dict['warmup_ratio'] = hyperparams.pop('warmup')
-    if 'weight_decay' in hyperparams:
-        out_dict['weight_decay'] = hyperparams.pop('weight_decay')
-    if 'chunk_size' in hyperparams:
-        out_dict['max_length'] = int(hyperparams.pop('chunk_size'))
-    if 'stride' in hyperparams:
-        out_dict['chunk_overlap'] = int(hyperparams.pop('stride'))
-    if 'upload' in hyperparams:
-        out_dict['upload'] = hyperparams.pop('upload')
+    if "epochs" in hyperparams:
+        out_dict["num_train_epochs"] = hyperparams.pop("epochs")
+    if "batch_size" in hyperparams:
+        out_dict["per_device_train_batch_size"] = int(hyperparams.pop("batch_size"))
+    if "gradient_accumulation_steps" in hyperparams:
+        out_dict["gradient_accumulation_steps"] = int(hyperparams.pop("gradient_accumulation_steps"))
+    if "learning_rate" in hyperparams:
+        out_dict["learning_rate"] = hyperparams.pop("learning_rate")
+    if "max_grad_norm" in hyperparams:
+        out_dict["max_grad_norm"] = hyperparams.pop("max_grad_norm")
+    if "use_mixed_precision" in hyperparams:
+        out_dict["fp16"] = hyperparams.pop("use_mixed_precision")
+    if "use_gpu" in hyperparams:
+        out_dict["no_cuda"] = not hyperparams.pop("use_gpu")
+    if "warmup" in hyperparams:
+        out_dict["warmup_ratio"] = hyperparams.pop("warmup")
+    if "weight_decay" in hyperparams:
+        out_dict["weight_decay"] = hyperparams.pop("weight_decay")
+    if "chunk_size" in hyperparams:
+        out_dict["max_length"] = int(hyperparams.pop("chunk_size"))
+    if "stride" in hyperparams:
+        out_dict["chunk_overlap"] = int(hyperparams.pop("stride"))
+    if "upload" in hyperparams:
+        out_dict["upload"] = hyperparams.pop("upload")
 
-    if 'scheduler_type' in hyperparams:
-        scheduler_type = hyperparams.pop('scheduler_type')
+    if "scheduler_type" in hyperparams:
+        scheduler_type = hyperparams.pop("scheduler_type")
         if scheduler_type == "constant_schedule_with_warmup":
-            out_dict['lr_scheduler_type'] = 'constant_with_warmup'
-        elif scheduler_type == 'linear_schedule_with_warmup':
-            out_dict['lr_scheduler_type'] = 'linear'
+            out_dict["lr_scheduler_type"] = "constant_with_warmup"
+        elif scheduler_type == "linear_schedule_with_warmup":
+            out_dict["lr_scheduler_type"] = "linear"
         else:
-            out_dict['lr_scheduler_type'] = scheduler_type
+            out_dict["lr_scheduler_type"] = scheduler_type
 
     pipeline_name = None
-    if 'pipeline_name' in hyperparams:
-        pipeline_name = hyperparams.pop('pipeline_name')
-    if 'model_name' in hyperparams:
-        model_name = hyperparams.pop('model_name')
-        out_dict['model_name_or_path'] = model_name
+    if "pipeline_name" in hyperparams:
+        pipeline_name = hyperparams.pop("pipeline_name")
+    if "model_name" in hyperparams:
+        model_name = hyperparams.pop("model_name")
+        out_dict["model_name_or_path"] = model_name
         if not pipeline_name:
-            if 'layoutlmv2' in model_name.lower():
-                pipeline_name = 'layoutlmv2_sl'
-            elif 'layoutxlm' in model_name.lower():
-                pipeline_name = 'layoutxlm_sl'
-            elif 'laymqav1' in model_name.lower():
-                pipeline_name = 'laymqav1'
+            if "layoutlmv2" in model_name.lower():
+                pipeline_name = "layoutlmv2_sl"
+            elif "layoutxlm" in model_name.lower():
+                pipeline_name = "layoutxlm_sl"
+            elif "laymqav1" in model_name.lower():
+                pipeline_name = "laymqav1"
             else:
-                pipeline_name = 'layoutlm_sl'
-        out_dict['pipeline_name'] = pipeline_name
-    if 'report_to' in hyperparams:
-        out_dict['report_to'] = hyperparams.pop('report_to')
+                pipeline_name = "layoutlm_sl"
+        out_dict["pipeline_name"] = pipeline_name
+    if "report_to" in hyperparams:
+        out_dict["report_to"] = hyperparams.pop("report_to")
 
     if hyperparams:
-        logging.info(
-            f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}"
-        )
+        logging.info(f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}")
 
     return out_dict
 
@@ -422,7 +412,7 @@ def run_train_annotator(
     dataset_filename: str,
     save_path: str,
     file_client: Any,
-    username: Optional[str] = 'user',
+    username: Optional[str] = "user",
     job_metadata_client: Optional["JobMetadataClient"] = None,
     mount_details: Optional[Dict] = None,
     model_name: Optional[str] = "CustomModel",

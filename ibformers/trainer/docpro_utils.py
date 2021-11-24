@@ -48,7 +48,7 @@ def prepare_docpro_params(
     username: str,
     job_metadata_client: Any,
     mount_details: Optional[MountDetails] = None,
-    model_name: str = 'CustomModel',
+    model_name: str = "CustomModel",
 ):
     """
     Handles defaults for doc-pro and set up special parameters
@@ -112,7 +112,7 @@ class DocProCallback(TrainerCallback):
     """
 
     # list of files/dirs which will not be copied into the package
-    ibformers_do_not_copy = ['hf_token.py']
+    ibformers_do_not_copy = ["hf_token.py"]
 
     def __init__(
         self,
@@ -153,20 +153,20 @@ class DocProCallback(TrainerCallback):
         self.metrics_writer = ModelArtifactMetricsWriter(artifacts_context)
         self.prediction_writer = ModelArtifactPredictionsWriter(artifacts_context)
         self.save_folder = artifacts_context.tmp_dir.name
-        self.save_model_dir = os.path.join(artifacts_context.artifact_path, f'src/py/{model_name}/model_data')
-        self.id_to_dataset = {dataset.metadata['id']: dataset for dataset in dataset_list}
+        self.save_model_dir = os.path.join(artifacts_context.artifact_path, f"src/py/{model_name}/model_data")
+        self.id_to_dataset = {dataset.metadata["id"]: dataset for dataset in dataset_list}
 
     def copy_library_src_to_package(self):
         # copy ibformers lib into the package
 
-        ibformers_path = Path(_abspath('')).parent
-        assert ibformers_path.name == 'ibformers', f'ibformers_path is wrong. Path: {ibformers_path}'
+        ibformers_path = Path(_abspath("")).parent
+        assert ibformers_path.name == "ibformers", f"ibformers_path is wrong. Path: {ibformers_path}"
         # TODO(rafal): once ibformers is converted to relative imports copy ibformers into py/package_name/ibformers dir
         # py directory location
-        py_directory = Path(self.artifacts_context.artifact_path) / 'src' / 'py'
+        py_directory = Path(self.artifacts_context.artifact_path) / "src" / "py"
         shutil.copytree(
             ibformers_path,
-            py_directory / 'ibformers',
+            py_directory / "ibformers",
             ignore=lambda x, y: self.ibformers_do_not_copy,
         )
 
@@ -177,7 +177,7 @@ class DocProCallback(TrainerCallback):
         _print_dir(self.save_folder)
 
         logging.info("Uploading")
-        self.job_metadata_client.update_message('UPLOADING MODEL')
+        self.job_metadata_client.update_message("UPLOADING MODEL")
         upload_dir(
             sdk=self.ibsdk,
             local_folder=self.save_folder,
@@ -201,14 +201,14 @@ class DocProCallback(TrainerCallback):
     def on_evaluate(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
             # workaround for missing on_predict callback in the transformers TrainerCallback
-            if 'predict_loss' in kwargs["metrics"]:
+            if "predict_loss" in kwargs["metrics"]:
                 self.on_predict(args, state, control, **kwargs)
-            elif 'eval_loss' in kwargs["metrics"]:
+            elif "eval_loss" in kwargs["metrics"]:
                 metrics = {}
-                metrics['exact_match'] = kwargs["metrics"]['eval_exact_match']
-                metrics['precision'] = kwargs["metrics"]['eval_precision']
-                metrics['recall'] = kwargs["metrics"]['eval_recall']
-                metrics['f1'] = kwargs["metrics"]['eval_f1']
+                metrics["exact_match"] = kwargs["metrics"]["eval_exact_match"]
+                metrics["precision"] = kwargs["metrics"]["eval_precision"]
+                metrics["recall"] = kwargs["metrics"]["eval_recall"]
+                metrics["f1"] = kwargs["metrics"]["eval_f1"]
                 self.set_status({"evaluation_results": metrics, "progress": state.global_step / state.max_steps})
 
                 self.evaluation_results.append(metrics)
@@ -221,7 +221,7 @@ class DocProCallback(TrainerCallback):
         metrics_writer = self.metrics_writer
         overall_accuracy = "Unknown"
         try:
-            evaluation_metrics = self.job_status.get('evaluation_results')
+            evaluation_metrics = self.job_status.get("evaluation_results")
             if evaluation_metrics:
 
                 # First add the table
@@ -234,64 +234,64 @@ class DocProCallback(TrainerCallback):
 
                 rows = []
                 for row_key in sorted_rows:
-                    rows.append([row_key, *[evaluation_metrics[c].get(row_key, '') for c in headers]])
+                    rows.append([row_key, *[evaluation_metrics[c].get(row_key, "") for c in headers]])
 
                 metrics_writer.add_table_metric(
                     TableMetric(
-                        title='Field-level Metrics',
-                        subtitle='Accuracy scores for individual fields learned by the model',
+                        title="Field-level Metrics",
+                        subtitle="Accuracy scores for individual fields learned by the model",
                         headers=["Field Name"] + headers,
                         rows=rows,
                     )
                 )
 
-                raw_recalls = evaluation_metrics['recall'].values()
-                recalls = [x for x in raw_recalls if x != 'NAN']
+                raw_recalls = evaluation_metrics["recall"].values()
+                recalls = [x for x in raw_recalls if x != "NAN"]
                 f1_scores = [
-                    f1 if f1 != 'NAN' else 0.0
-                    for (f1, recall) in zip(evaluation_metrics['f1'].values(), raw_recalls)
-                    if recall != 'NAN'
+                    f1 if f1 != "NAN" else 0.0
+                    for (f1, recall) in zip(evaluation_metrics["f1"].values(), raw_recalls)
+                    if recall != "NAN"
                 ]
                 precisions = [
-                    pr if pr != 'NAN' else 0.0
-                    for (pr, recall) in zip(evaluation_metrics['precision'].values(), raw_recalls)
-                    if recall != 'NAN'
+                    pr if pr != "NAN" else 0.0
+                    for (pr, recall) in zip(evaluation_metrics["precision"].values(), raw_recalls)
+                    if recall != "NAN"
                 ]
 
                 # Then add high-level metrics
-                avg_f1 = "{:.3f}".format(sum(f1_scores) / float(len(f1_scores))) if f1_scores else 'N/A'
+                avg_f1 = "{:.3f}".format(sum(f1_scores) / float(len(f1_scores))) if f1_scores else "N/A"
                 overall_accuracy = (
-                    "{:.2f}%".format(sum(f1_scores) * 100.0 / float(len(f1_scores))) if f1_scores else 'Unknown'
+                    "{:.2f}%".format(sum(f1_scores) * 100.0 / float(len(f1_scores))) if f1_scores else "Unknown"
                 )
                 metrics_writer.add_high_level_metric(
                     ValueMetric(
-                        title='Macro F1',
-                        subtitle='Average F1 score across all fields',
+                        title="Macro F1",
+                        subtitle="Average F1 score across all fields",
                         value=avg_f1,
-                        tag_text='ACCURACY',
-                        tag_type='INFO',
+                        tag_text="ACCURACY",
+                        tag_type="INFO",
                     )
                 )
                 avg_precision = (
-                    "{:.2f}%".format(sum(precisions) * 100.0 / float(len(precisions))) if precisions else 'N/A'
+                    "{:.2f}%".format(sum(precisions) * 100.0 / float(len(precisions))) if precisions else "N/A"
                 )
                 metrics_writer.add_high_level_metric(
                     ValueMetric(
-                        title='Macro Precision',
-                        subtitle='The average precision across all fields',
+                        title="Macro Precision",
+                        subtitle="The average precision across all fields",
                         value=avg_precision,
-                        tag_text='ACCURACY',
-                        tag_type='INFO',
+                        tag_text="ACCURACY",
+                        tag_type="INFO",
                     )
                 )
-                avg_recall = "{:.2f}%".format(sum(recalls) * 100.0 / float(len(recalls))) if recalls else 'N/A'
+                avg_recall = "{:.2f}%".format(sum(recalls) * 100.0 / float(len(recalls))) if recalls else "N/A"
                 metrics_writer.add_high_level_metric(
                     ValueMetric(
-                        title='Average Recall',
-                        subtitle='The average recall across all fields',
+                        title="Average Recall",
+                        subtitle="The average recall across all fields",
                         value=avg_recall,
-                        tag_text='ACCURACY',
-                        tag_type='INFO',
+                        tag_text="ACCURACY",
+                        tag_type="INFO",
                     )
                 )
         except Exception as e:
@@ -305,7 +305,7 @@ class DocProCallback(TrainerCallback):
             logging.error(traceback.format_exc())
 
         # Set the overall accuracy of the model
-        self.set_status({'accuracy': overall_accuracy})
+        self.set_status({"accuracy": overall_accuracy})
 
     def write_predictions(self, predictions_dict):
         # Now write the predictions
@@ -319,26 +319,26 @@ class DocProCallback(TrainerCallback):
                 dataset_id = record_name[:36]
                 dataset = self.id_to_dataset[dataset_id]
                 # This is because the first 37 chars [0]-[36] are reserved for the UUID (36), and a dash (-)
-                ibdoc_filename = record_name[37 : record_name.index('.ibdoc') + len('.ibdoc')]
+                ibdoc_filename = record_name[37 : record_name.index(".ibdoc") + len(".ibdoc")]
                 # This grabs the record index at the end of the file name
-                record_idx = int(record_name[len(dataset_id) + len(ibdoc_filename) + 2 : -1 * len('.json')])
-                logging.info(f'Saving prediction for {dataset_id}, {ibdoc_filename}, {record_idx}')
+                record_idx = int(record_name[len(dataset_id) + len(ibdoc_filename) + 2 : -1 * len(".json")])
+                logging.info(f"Saving prediction for {dataset_id}, {ibdoc_filename}, {record_idx}")
 
                 # Currently, our models only outputs a single entity
                 # Predictions, however, can support multiple
                 fields = []
-                is_test_file = record_value['is_test_file']
-                record_entities = record_value['entities']
+                is_test_file = record_value["is_test_file"]
+                record_entities = record_value["entities"]
                 for field_name, field_value in record_entities.items():
                     indexed_words = [
-                        IndexedWordDict(line_index=w['word_line_idx'], word_index=w['word_in_line_idx'])
-                        for w in field_value['words']
+                        IndexedWordDict(line_index=w["word_line_idx"], word_index=w["word_in_line_idx"])
+                        for w in field_value["words"]
                     ]
                     predictions = (
                         [
                             PredictionInstanceDict(
-                                avg_confidence=field_value['avg_confidence'],
-                                value=field_value['text'],
+                                avg_confidence=field_value["avg_confidence"],
+                                value=field_value["text"],
                                 words=indexed_words,
                             )
                         ]
@@ -362,14 +362,14 @@ class DocProCallback(TrainerCallback):
         except Exception as e:
             logging.error("Could not write prediction")
             logging.error(traceback.format_exc())
-        self.set_status({'predictions_uuid': uuid.uuid4().hex})
+        self.set_status({"predictions_uuid": uuid.uuid4().hex})
 
     def generate_refiner(self, label_names):
         logging.info("Generating the Refiner module for this model...")
 
         try:
-            ib_model_path = os.path.join(self.ib_save_path, 'artifact')
-            dev_path = os.path.join(self.dataset_list[0].dataset_path, self.dataset_list[0].metadata['docs_path'])
+            ib_model_path = os.path.join(self.ib_save_path, "artifact")
+            dev_path = os.path.join(self.dataset_list[0].dataset_path, self.dataset_list[0].metadata["docs_path"])
             write_refiner_program(self.artifacts_context, ib_model_path, label_names, self.model_name, dev_path)
             logging.info("Finished generating the Refiner module")
         except Exception as e:
@@ -379,19 +379,19 @@ class DocProCallback(TrainerCallback):
     def write_epoch_summary(self):
         logging.info("Metrics over Epochs")
         for epoch, metrics in enumerate(self.evaluation_results):
-            logging.info(f'Epoch {epoch} ^')
+            logging.info(f"Epoch {epoch} ^")
             logging.info(pd.DataFrame(metrics))
 
     def on_predict(self, args, state, control, **kwargs):
         # called after the training finish
-        predictions = kwargs["metrics"]['predict_predictions']
+        predictions = kwargs["metrics"]["predict_predictions"]
         # FINALIZE STEPS
         self.write_metrics()
         self.write_predictions(predictions)
 
         id2label = kwargs["model"].config.id2label
         if id2label[0] != "O":
-            logging.error(f'0 index for label should be asigned to O class. Got: {id2label[0]}')
+            logging.error(f"0 index for label should be asigned to O class. Got: {id2label[0]}")
         label_names = [id2label[idx] for idx in range(1, len(id2label))]
         self.generate_refiner(label_names)
         self.move_data_to_ib()
@@ -418,7 +418,7 @@ def run_train_doc_pro(
     username: str,
     job_metadata_client: Any,
     mount_details: Optional[MountDetails] = None,
-    model_name: str = 'CustomModel',
+    model_name: str = "CustomModel",
     **kwargs: Any,
 ):
     """
@@ -436,17 +436,17 @@ def run_train_doc_pro(
     :param kwargs:
     :return:
     """
-    logging.info('Starting Doc Pro Extraction Model Training ----------')
-    logging.info('Arguments to this training session:')
-    logging.info(f'Hyperparameters: {hyperparams}')
-    logging.info(f'Dataset Paths: {dataset_paths}')
-    logging.info(f'Model Name: {model_name}')
-    logging.info(f'Save Path: {save_path}')
-    logging.info(f'Extraction Class Name: {extraction_class_name}')
+    logging.info("Starting Doc Pro Extraction Model Training ----------")
+    logging.info("Arguments to this training session:")
+    logging.info(f"Hyperparameters: {hyperparams}")
+    logging.info(f"Dataset Paths: {dataset_paths}")
+    logging.info(f"Model Name: {model_name}")
+    logging.info(f"Save Path: {save_path}")
+    logging.info(f"Extraction Class Name: {extraction_class_name}")
 
     # Generate local folder to save in
     logging.info("Creating Model Service Model template...")
-    template_path = _abspath('ib_package/ModelServiceTemplate')
+    template_path = _abspath("ib_package/ModelServiceTemplate")
     if not Path(template_path).is_dir():
         logging.error(f"Directory with template files ({template_path}) does not exist")
 
@@ -457,10 +457,10 @@ def run_train_doc_pro(
         model_name,
         model_name,
         model_name,
-        {'training_job_id': job_metadata_client.job_id},
+        {"training_job_id": job_metadata_client.job_id},
     ).generate()
     save_folder = context.tmp_dir.name
-    save_model_dir = os.path.join(context.artifact_path, f'src/py/{model_name}/model_data')
+    save_model_dir = os.path.join(context.artifact_path, f"src/py/{model_name}/model_data")
 
     # Debug folder structure
     logging.info("Copied Model Service Model template to local file system")
@@ -523,4 +523,4 @@ def run_train_doc_pro(
         extra_load_kwargs={"ibsdk": ibsdk, "extraction_class_name": extraction_class_name},
     )
 
-    return {'results': 'Finished'}
+    return {"results": "Finished"}

@@ -139,23 +139,16 @@ class IbDsBuilderConfig(BuilderConfig):
         config_kwargs_to_add_to_suffix.pop("ibsdk", None)
         # data files are handled differently
         config_kwargs_to_add_to_suffix.pop("data_files", None)
-        if (
-            "data_dir" in config_kwargs_to_add_to_suffix
-            and config_kwargs_to_add_to_suffix["data_dir"] is None
-        ):
+        if "data_dir" in config_kwargs_to_add_to_suffix and config_kwargs_to_add_to_suffix["data_dir"] is None:
             del config_kwargs_to_add_to_suffix["data_dir"]
         if config_kwargs_to_add_to_suffix:
             # we don't care about the order of the kwargs
             config_kwargs_to_add_to_suffix = {
                 k: config_kwargs_to_add_to_suffix[k] for k in sorted(config_kwargs_to_add_to_suffix)
             }
-            if all(
-                isinstance(v, (str, bool, int, float))
-                for v in config_kwargs_to_add_to_suffix.values()
-            ):
+            if all(isinstance(v, (str, bool, int, float)) for v in config_kwargs_to_add_to_suffix.values()):
                 suffix = ",".join(
-                    str(k) + "=" + urllib.parse.quote_plus(str(v))
-                    for k, v in config_kwargs_to_add_to_suffix.items()
+                    str(k) + "=" + urllib.parse.quote_plus(str(v)) for k, v in config_kwargs_to_add_to_suffix.items()
                 )
                 if len(suffix) > 32:  # hash if too long
                     suffix = Hasher.hash(config_kwargs_to_add_to_suffix)
@@ -172,9 +165,7 @@ class IbDsBuilderConfig(BuilderConfig):
             open_fn = get_open_fn(self.ibsdk)
             with open_fn(self.data_files["train"], "r") as annotation_file:
                 content = json.load(annotation_file)
-                fingerprint_content = {
-                    k: v for k, v in content.items() if k in ("files", "labels", "testFiles")
-                }
+                fingerprint_content = {k: v for k, v in content.items() if k in ("files", "labels", "testFiles")}
             m.update(self.data_files["train"])
             m.update(fingerprint_content)
             suffix = m.hexdigest()
@@ -207,9 +198,7 @@ def _read_parsedibocr(builder: ParsedIBOCR) -> Tuple[List[WordPolyDict], List[IB
         l = record.get_metadata_list()
         layouts.extend([i.get_layout() for i in l])
 
-    assert all(
-        word["page"] in range(len(layouts)) for word in words
-    ), "Something with the page numbers went wrong"
+    assert all(word["page"] in range(len(layouts)) for word in words), "Something with the page numbers went wrong"
 
     return words, layouts
 
@@ -226,14 +215,10 @@ def process_labels_from_annotation(
     if annotation_file is not None:
         label2ann_label_id = {v: k for k, v in ann_label_id2label.items()}
 
-    key_to_words = {
-        _SearchKey(x["start_x"], x["start_y"], x["page"], x["raw_word"]): i
-        for i, x in enumerate(words)
-    }
+    key_to_words = {_SearchKey(x["start_x"], x["start_y"], x["page"], x["raw_word"]): i for i, x in enumerate(words)}
     if len(key_to_words) != len(words):
         logging.error(
-            f"Issue with assumption that _SearchKey(x, y, page, word) is unique. "
-            f"{len(key_to_words)}!={len(words)}"
+            f"Issue with assumption that _SearchKey(x, y, page, word) is unique. " f"{len(key_to_words)}!={len(words)}"
         )
     annotation: Annotation
     for label_name, lab_id in label2id.items():
@@ -252,9 +237,7 @@ def process_labels_from_annotation(
 
         else:
             ann_label_id = label2ann_label_id[label_name]
-            annotation = annotation_file["annotations"].get(
-                ann_label_id, {"value": "", "metadata": []}
-            )
+            annotation = annotation_file["annotations"].get(ann_label_id, {"value": "", "metadata": []})
 
             metadata = annotation["metadata"]
             word_metadata: AnnotationWordMetadata
@@ -267,9 +250,7 @@ def process_labels_from_annotation(
                 rect: AnnotationRect = pos["rect"]
                 key = _SearchKey(rect["x"], rect["y"], pos["page"], word_metadata["rawWord"])
                 if key not in key_to_words:
-                    raise RuntimeError(
-                        f"Couldn't find word {repr(key)} in document {annotation_file['ocrPath']}."
-                    )
+                    raise RuntimeError(f"Couldn't find word {repr(key)} in document {annotation_file['ocrPath']}.")
                 word_id_global = key_to_words[key]
 
                 word_text = word_metadata["rawWord"]
@@ -282,9 +263,7 @@ def process_labels_from_annotation(
             # TODO: information about multi-item entity separation should be obtained during annotation
             # group consecutive words as the same entity occurrence
             label_words.sort(key=lambda x: x["id"])
-            label_groups = [
-                list(group) for group in consecutive_groups(label_words, ordering=lambda x: x["id"])
-            ]
+            label_groups = [list(group) for group in consecutive_groups(label_words, ordering=lambda x: x["id"])]
             # create spans for groups, span will be created by getting id for first and last word in the group
             label_token_spans = [[group[0]["id"], group[-1]["id"] + 1] for group in label_groups]
 
@@ -362,15 +341,9 @@ def process_parsedibocr(
     """
 
     words, layouts = _read_parsedibocr(parsedibocr)
-    doc_id = (
-        parsedibocr.get_document_path(0)[0]
-        if doc_annotations is None
-        else doc_annotations["ocrPath"]
-    )
+    doc_id = parsedibocr.get_document_path(0)[0] if doc_annotations is None else doc_annotations["ocrPath"]
 
-    assert (
-        doc_id is not None and doc_id != ""
-    ), "An issue occured while obtaining a document path from an ibocr"
+    assert doc_id is not None and doc_id != "", "An issue occured while obtaining a document path from an ibocr"
     record: IBOCRRecord
 
     # get content of the WordPolys
@@ -450,16 +423,12 @@ class IbDs(datasets.GeneratorBasedBuilder):
     """
 
     BUILDER_CONFIGS = [
-        IbDsConfig(
-            name="ibds", version=datasets.Version("1.0.0"), description="Instabase Format Datasets"
-        ),
+        IbDsConfig(name="ibds", version=datasets.Version("1.0.0"), description="Instabase Format Datasets"),
     ]
 
     def __init__(self, *args, **kwargs):
         super(IbDs, self).__init__(*args, **kwargs)
-        self.image_processor = (
-            ImageProcessor(do_resize=True, size=224) if self.config.use_image else None
-        )
+        self.image_processor = ImageProcessor(do_resize=True, size=224) if self.config.use_image else None
         self.ann_label_id2label = None
 
     def _info(self):
@@ -476,9 +445,7 @@ class IbDs(datasets.GeneratorBasedBuilder):
                 labels = json.load(annotation_file)["labels"]
             classes = ["O"] + [lab["name"] for lab in labels]
         elif "test" in data_files:
-            raise NotImplementedError(
-                "Inference mode for ibds is not longer supported. Use docpro_ds."
-            )
+            raise NotImplementedError("Inference mode for ibds is not longer supported. Use docpro_ds.")
         else:
             raise ValueError("data_file argument should be either in train or test mode")
 
@@ -487,9 +454,7 @@ class IbDs(datasets.GeneratorBasedBuilder):
             "words": datasets.Sequence(datasets.Value("string")),
             "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
             # needed to generate prediction file, after evaluation
-            "word_original_bboxes": datasets.Sequence(
-                datasets.Sequence(datasets.Value("float32"), length=4)
-            ),
+            "word_original_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("float32"), length=4)),
             "word_page_nums": datasets.Sequence(datasets.Value("int32")),
             "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
             "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
@@ -498,16 +463,10 @@ class IbDs(datasets.GeneratorBasedBuilder):
             "entities": datasets.Sequence(
                 {
                     "name": datasets.Value("string"),  # change to id?
-                    "order_id": datasets.Value(
-                        "int64"
-                    ),  # not supported yet, annotation app need to implement it
+                    "order_id": datasets.Value("int64"),  # not supported yet, annotation app need to implement it
                     "text": datasets.Value("string"),
-                    "char_spans": datasets.Sequence(
-                        datasets.Sequence(datasets.Value("int32"), length=2)
-                    ),
-                    "token_spans": datasets.Sequence(
-                        datasets.Sequence(datasets.Value("int32"), length=2)
-                    ),
+                    "char_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
+                    "token_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
                     "token_label_id": datasets.Value("int64"),
                 }
             ),
@@ -532,7 +491,7 @@ class IbDs(datasets.GeneratorBasedBuilder):
 
     def _fix_file_path(self, file_data: Dict[str, str], annotation_path_str: str) -> Dict[str, str]:
         annotation_dir = Path(annotation_path_str).parent
-        file_path = Path(file_data['ocrPath'])
+        file_path = Path(file_data["ocrPath"])
         file_path_parts = file_path.parts
 
         current_suffix = file_path_parts[-1]
@@ -543,12 +502,12 @@ class IbDs(datasets.GeneratorBasedBuilder):
             if candidate.exists():
                 break
         else:
-            logging.warning(f'No alternative file found for {file_path}!')
+            logging.warning(f"No alternative file found for {file_path}!")
             return file_data
 
         corrected_file_path = str(candidate)
         corrected_data = file_data.copy()
-        corrected_data['ocrPath'] = corrected_file_path
+        corrected_data["ocrPath"] = corrected_file_path
         return corrected_data
 
     def _split_generators(self, dl_manager):
@@ -588,16 +547,12 @@ class IbDs(datasets.GeneratorBasedBuilder):
                     name=datasets.Split.VALIDATION,
                     gen_kwargs={"files": val_files, "open_fn": open_fn},
                 ),
-                datasets.SplitGenerator(
-                    name=datasets.Split.TEST, gen_kwargs={"files": test_files, "open_fn": open_fn}
-                ),
+                datasets.SplitGenerator(name=datasets.Split.TEST, gen_kwargs={"files": test_files, "open_fn": open_fn}),
             ]
 
         elif "test" in data_files:
             # inference input is a list of parsedibocr files
-            raise NotImplementedError(
-                "Inference mode for ibds is not longer supported. Use docpro_ds."
-            )
+            raise NotImplementedError("Inference mode for ibds is not longer supported. Use docpro_ds.")
         else:
             raise ValueError("data_file argument should be either in train or test mode")
 
@@ -617,15 +572,11 @@ class IbDs(datasets.GeneratorBasedBuilder):
                         data = f.read()
                 except FileNotFoundError:
                     # change to relative path to annotation path
-                    logging.warning(
-                        f'Didnt find absolute path from ibannotator. Trying relative path'
-                    )
-                    annotator_path = Path(self.config.data_files['train'])
+                    logging.warning(f"Didnt find absolute path from ibannotator. Trying relative path")
+                    annotator_path = Path(self.config.data_files["train"])
                     fallback_path = annotator_path.parent / Path(*Path(ocr_path).parts[-4:])
                     if not fallback_path.is_file():
-                        logging.error(
-                            f"Both absolute path {ocr_path} and relative path {fallback_path} not found"
-                        )
+                        logging.error(f"Both absolute path {ocr_path} and relative path {fallback_path} not found")
                     with open_fn(fallback_path, "rb") as f:
                         data = f.read()
 

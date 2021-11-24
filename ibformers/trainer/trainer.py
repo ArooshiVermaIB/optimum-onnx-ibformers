@@ -226,7 +226,7 @@ class IbTrainer(Trainer):
             # MODIFICATION - pass eval_dataset to metric computing in order to get document level predictions
             metrics = self.compute_metrics(
                 EvalPrediction(predictions=all_preds, label_ids=all_labels),
-                self.eval_dataset if metric_key_prefix in {'eval', 'final_eval'} else self.test_dataset,
+                self.eval_dataset if metric_key_prefix in {"eval", "final_eval"} else self.test_dataset,
             )
         else:
             metrics = {}
@@ -264,5 +264,5 @@ class IbTrainer(Trainer):
         """ "
         Method removes predictions from logging
         """
-        logs_mod = {k: v for k, v in logs.items() if not k.endswith('predictions')}
+        logs_mod = {k: v for k, v in logs.items() if not k.endswith("predictions")}
         super().log(logs_mod)

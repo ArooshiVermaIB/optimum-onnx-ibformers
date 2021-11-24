@@ -6,7 +6,7 @@ from ibformers.data.collators.collators.base import BaseCollator
 
 @dataclass
 class ImageCollator(BaseCollator):
-    _supported_fields: ClassVar[List[str]] = ['image']
+    _supported_fields: ClassVar[List[str]] = ["image"]
 
     @property
     def supported_fields(self) -> List[str]:

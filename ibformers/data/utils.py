@@ -20,8 +20,8 @@ class ImageProcessor(ImageFeatureExtractionMixin):
         try:
             image = Image.open(f).convert("RGB")
         except:
-            logger.warning(f'Failed to open image {f}. Replacing it with an empty image instead.')
-            image = Image.fromarray(np.ones((self.size, self.size, 3), dtype=np.uint8) * 255, mode='RGB')
+            logger.warning(f"Failed to open image {f}. Replacing it with an empty image instead.")
+            image = Image.fromarray(np.ones((self.size, self.size, 3), dtype=np.uint8) * 255, mode="RGB")
 
         # transformations (resizing)
         if self.do_resize and self.size is not None:
@@ -61,9 +61,7 @@ def feed_single_example(fn):
     return split_batch
 
 
-def feed_single_example_and_flatten(
-    fn: Callable[[Mapping[str, List[Any]]], Sequence[Mapping[str, List[Any]]]]
-):
+def feed_single_example_and_flatten(fn: Callable[[Mapping[str, List[Any]]], Sequence[Mapping[str, List[Any]]]]):
     """
     Examples processed by map method of hf/datasets are processed in batches.
     This is a helper function/decorator to use if you want to get single examples instead of
@@ -146,9 +144,7 @@ def find_matches_in_text(text, answer, only_best=True):
 
     # convert to list of dicts
     # correct text with original casing
-    matches_dict = [
-        {"text": text[m.start : m.end], "start": m.start, "end": m.end} for m in selected
-    ]
+    matches_dict = [{"text": text[m.start : m.end], "start": m.start, "end": m.end} for m in selected]
 
     return matches_dict
 

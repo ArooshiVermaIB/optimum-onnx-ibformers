@@ -49,7 +49,7 @@ def load_datasets(dataset_paths, ibsdk):
     try:
         from instabase.dataset_utils.sdk import RemoteDatasetSDK, LocalDatasetSDK
     except ImportError as err:
-        logging.error(f'SDK not found: {err}')
+        logging.error(f"SDK not found: {err}")
     assert isinstance(dataset_paths, list)
 
     file_client = ibsdk.file_client
@@ -94,9 +94,9 @@ def process_labels_from_annotation(
 
         ann_label_id = label2ann_label_id[label_name]
 
-        entity_annotations = [ann for ann in annotations if ann['id'] == ann_label_id]
+        entity_annotations = [ann for ann in annotations if ann["id"] == ann_label_id]
         if len(entity_annotations) > 1:
-            raise ValueError('More than one ExtractionFieldDict for given entity')
+            raise ValueError("More than one ExtractionFieldDict for given entity")
 
         if len(entity_annotations) == 0:
             # add empty entity
@@ -110,19 +110,19 @@ def process_labels_from_annotation(
             )
 
         else:
-            extraction_field_ann = entity_annotations[0]['annotations']
+            extraction_field_ann = entity_annotations[0]["annotations"]
             if len(extraction_field_ann) > 1:
                 # raise error as multi item annotations need to be supported by modelling part
                 raise ValueError("Mulitple item annotations are not supported yet")
 
             for order_id, extraction_ann_dict in enumerate(extraction_field_ann):
-                value = extraction_ann_dict['value']
+                value = extraction_ann_dict["value"]
                 label_indexes = []
-                for idx_word in extraction_ann_dict.get('words', []):
+                for idx_word in extraction_ann_dict.get("words", []):
                     # get global position
-                    word_id_global = position_map.get((idx_word['line_index'], idx_word['word_index']))
+                    word_id_global = position_map.get((idx_word["line_index"], idx_word["word_index"]))
                     if word_id_global is None:
-                        raise ValueError(f'Cannot find indexed_word in the document - {idx_word}')
+                        raise ValueError(f"Cannot find indexed_word in the document - {idx_word}")
 
                     label_indexes.append(word_id_global)
 
@@ -286,11 +286,11 @@ def get_docpro_ds_split(anno: Optional[Dict]):
     if anno is None:
         return False, "test"
     exist_any_annotations = any(
-        [len(ann.get('words', [])) > 0 for fld in anno.get('fields', []) for ann in fld['annotations']]
+        [len(ann.get("words", [])) > 0 for fld in anno.get("fields", []) for ann in fld["annotations"]]
     )
     if not exist_any_annotations:
         return False, "test"
-    if anno['is_test_file']:
+    if anno["is_test_file"]:
         # instabase doesn't support yet separation of val and test sets.
         # TODO: we need to change that to have separate labeled sets for val and test
         return True, "validation+test"
@@ -305,7 +305,7 @@ def validate_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes):
             example_idx = tokens_outside_dim[0][0]
             ex_bbox = bbox_arr[example_idx]
             ex_page = page_bboxes[word_pages_arr[example_idx]]
-            raise ValueError(f'found bbox {ex_bbox} outside of the page. bbox {ex_page}')
+            raise ValueError(f"found bbox {ex_bbox} outside of the page. bbox {ex_page}")
 
 
 # https://github.com/instabase/instabase/pull/22443/files
@@ -317,7 +317,7 @@ def assert_valid_record(ibocr_record: IBOCRRecord) -> Optional[str]:
     None if the record is well-formed.
     """
     text = ibocr_record.get_text()
-    split_text = text.split('\n')
+    split_text = text.split("\n")
 
     lines = ibocr_record.get_lines()
 
@@ -329,13 +329,13 @@ def assert_valid_record(ibocr_record: IBOCRRecord) -> Optional[str]:
     for i, (text_line, line) in enumerate(zip(split_text, lines)):
         j = 0
         for word_dict in line:
-            word = word_dict['word']
+            word = word_dict["word"]
             if word.strip() == "":
-                return f"Line {i} (\"{line}\") had a word that was just whitespace at" f" index {j} (\"{word}\")"
+                return f'Line {i} ("{line}") had a word that was just whitespace at' f' index {j} ("{word}")'
             try:
                 start = text_line.index(word)
             except:
-                return f"Line {i} (\"{line}\") did not contain 0-indexed word" f" number {j} (\"{word}\")"
+                return f'Line {i} ("{line}") did not contain 0-indexed word' f' number {j} ("{word}")'
             j += 1
             text_line = text_line[start + len(word) :]
 
@@ -364,10 +364,10 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         matching_class_ids = [
             class_id
             for class_id, class_def in dataset_classes.items()
-            if class_def['name'] == self.config.extraction_class_name
+            if class_def["name"] == self.config.extraction_class_name
         ]
         if len(matching_class_ids) == 0:
-            raise ValueError('extraction_class_name not found in dataset')
+            raise ValueError("extraction_class_name not found in dataset")
         return matching_class_ids[0]
 
     def _info(self):
@@ -375,9 +375,9 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         assert isinstance(data_files, dict), "data_files argument should be a dict for this dataset"
         if "train" in data_files:
             datasets_list = load_datasets(data_files["train"], self.config.ibsdk)
-            dataset_classes = datasets_list[0].metadata['classes_spec']['classes']
+            dataset_classes = datasets_list[0].metadata["classes_spec"]["classes"]
             class_id = self.get_class_id(dataset_classes)
-            schema = dataset_classes[class_id]['schema']
+            schema = dataset_classes[class_id]["schema"]
             classes = ["O"] + [lab["name"] for lab in schema]
         elif "test" in data_files:
             # inference input is a list of parsedibocr files
@@ -434,13 +434,13 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
         for dataset in datasets_list:
             # first determine the class name's corresponding id.
-            dataset_classes = dataset.metadata['classes_spec']['classes']
+            dataset_classes = dataset.metadata["classes_spec"]["classes"]
             class_id = self.get_class_id(dataset_classes)
-            dataset_id = dataset.metadata['id']
+            dataset_id = dataset.metadata["id"]
 
             # then get all records with this class id and their annotations
-            class_schema = dataset_classes[class_id]['schema']
-            label2ann_label_id = {field['name']: field['id'] for field in class_schema}
+            class_schema = dataset_classes[class_id]["schema"]
+            label2ann_label_id = {field["name"]: field["id"] for field in class_schema}
 
             for record_anno in dataset.iterator_over_annotations():
                 yield record_anno, label2ann_label_id, dataset_id, class_id
@@ -474,8 +474,8 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
         if anno is None:
             anno = {}
-        anno_fields = anno.get('fields', [])
-        annotated_class_id = anno.get('annotated_class_id')
+        anno_fields = anno.get("fields", [])
+        annotated_class_id = anno.get("annotated_class_id")
         # We do include docs that dont have annotations, but we still only include
         # those that are at least of the correct class
         # The logic for including docs is as follows:
@@ -502,9 +502,9 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         line_position_to_global_position_map = {}
         for line_idx, line in enumerate(lines):
             for word_idx, word in enumerate(line):
-                word['line_index'] = line_idx
-                word['word_index'] = word_idx
-                word['word_global_idx'] = word_global_idx
+                word["line_index"] = line_idx
+                word["word_index"] = word_idx
+                word["word_global_idx"] = word_global_idx
                 line_position_to_global_position_map[(line_idx, word_idx)] = word_global_idx
                 words.append(word)
                 word_global_idx += 1
@@ -548,7 +548,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
         is_test_file, split = get_docpro_ds_split(anno)
 
-        doc_id = f'{dataset_id}-{os.path.basename(full_path)}-{record_index}.json'
+        doc_id = f"{dataset_id}-{os.path.basename(full_path)}-{record_index}.json"
 
         features = {
             "id": doc_id,

@@ -5,11 +5,10 @@ from typing import Dict, TypeVar, Generic, Type, List
 
 import yaml
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class _ConfigRegistry(Generic[T], metaclass=ABCMeta):
-
     @property
     @abstractmethod
     def _config_class(self) -> Type[T]:
@@ -32,12 +31,12 @@ class _ConfigRegistry(Generic[T], metaclass=ABCMeta):
     def get_config(self, id_: str) -> T:
         config = self._registry.get(id_, None)
         if config is None:
-            raise KeyError(f'No such configuration as {id_}')
+            raise KeyError(f"No such configuration as {id_}")
         return config
 
     @property
     def available_configs(self) -> List[str]:
-        return [k for k in self._registry.keys() if not k.startswith('_')]
+        return [k for k in self._registry.keys() if not k.startswith("_")]
 
 
 @dataclass
@@ -53,7 +52,7 @@ class _BenchmarkRegistry(_ConfigRegistry[BenchmarkConfig]):
 
     @property
     def _config_path(self) -> Path:
-        return Path(__file__).absolute().parent / 'configs' / 'benchmarks.yaml'
+        return Path(__file__).absolute().parent / "configs" / "benchmarks.yaml"
 
 
 @dataclass
@@ -63,7 +62,7 @@ class ModelParamConfig:
 
 
 class _ModelParamsRegistry(_ConfigRegistry[ModelParamConfig]):
-    DEFAULT_CONFIG_ID = '_default'
+    DEFAULT_CONFIG_ID = "_default"
 
     @property
     def _config_class(self) -> Type[ModelParamConfig]:
@@ -71,7 +70,7 @@ class _ModelParamsRegistry(_ConfigRegistry[ModelParamConfig]):
 
     @property
     def _config_path(self) -> Path:
-        return Path(__file__).absolute().parent / 'configs' / 'model_params.yaml'
+        return Path(__file__).absolute().parent / "configs" / "model_params.yaml"
 
     def get_config(self, id_: str) -> ModelParamConfig:
         try:

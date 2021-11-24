@@ -2,12 +2,12 @@ import logging
 from copy import deepcopy
 from typing import Dict, Any, Optional
 
-VALID_PREFIXES = ['train', 'eval', 'final_eval']
+VALID_PREFIXES = ["train", "eval", "final_eval"]
 
 
 def _is_metric(logs: Dict[str, Any]) -> bool:
     for key in logs.keys():
-        if key.endswith('_predictions'):
+        if key.endswith("_predictions"):
             return True
     return False
 
@@ -19,7 +19,7 @@ def prepare_metrics(metrics_dict: Dict[str, Any], prefix: str) -> None:
     By default, everything is logged to wandb. This includes model predictions in their unstructured
     form.
     """
-    metrics_dict.pop(f'{prefix}_predictions')
+    metrics_dict.pop(f"{prefix}_predictions")
 
 
 def get_key_prefix(logs: Dict[str, Any]) -> Optional[str]:
@@ -38,7 +38,7 @@ def get_key_prefix(logs: Dict[str, Any]) -> Optional[str]:
         for key in log_items:
             if key.startswith(prefix):
                 return prefix
-    logging.debug(f'No prefix was found for logs with keys {log_items}!')
+    logging.debug(f"No prefix was found for logs with keys {log_items}!")
     return None
 
 
@@ -58,11 +58,11 @@ def rename_keys(logs_dict: Dict, prefix: str) -> None:
     keys = list(logs_dict.keys())
     for k in keys:
         if k.startswith(prefix):
-            cut_key = k.replace(f'{prefix}_', '')
-            new_key = f'{prefix}/{cut_key}'
+            cut_key = k.replace(f"{prefix}_", "")
+            new_key = f"{prefix}/{cut_key}"
             logs_dict[new_key] = logs_dict.pop(k)
         else:
-            logs_dict[f'{prefix}/{k}'] = logs_dict.pop(k)
+            logs_dict[f"{prefix}/{k}"] = logs_dict.pop(k)
 
 
 def rewrite_logs(logs_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -81,11 +81,10 @@ def rewrite_logs(logs_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     logs_dict = deepcopy(logs_dict)
     is_metric = _is_metric(logs_dict)
-    prefix = get_key_prefix(logs_dict) or 'train'
+    prefix = get_key_prefix(logs_dict) or "train"
 
     if is_metric:
         prepare_metrics(logs_dict, prefix)
 
     rename_keys(logs_dict, prefix)
     return logs_dict
-

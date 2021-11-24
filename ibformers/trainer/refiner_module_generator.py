@@ -5,22 +5,20 @@ from instabase.protos.ibprog import ibrefiner_prog_pb2
 
 from instabase.training_utils.model_artifact import ModelArtifactContext
 
-_MIN_CONFIDENCE_FIELD_NAME = '__MIN_CONFIDENCE_VALIDATION'
-_MIN_CONFIDENCE_DEFAULT_VALUE = '0.90'
+_MIN_CONFIDENCE_FIELD_NAME = "__MIN_CONFIDENCE_VALIDATION"
+_MIN_CONFIDENCE_DEFAULT_VALUE = "0.90"
 
-_PUBLISHED_MODEL_COL_NAME = '__PUBLISHED_MODEL_VERSION'
-_PUBLISHED_MODEL_VALUE = '\'{{published_model_version}}\''
+_PUBLISHED_MODEL_COL_NAME = "__PUBLISHED_MODEL_VERSION"
+_PUBLISHED_MODEL_VALUE = "'{{published_model_version}}'"
 
 
 def _make_refiner_field(label: str, function: str) -> ibrefiner_prog_pb2.RefinerField:
     return ibrefiner_prog_pb2.RefinerField(
         desc=ibrefiner_prog_pb2.RefinerFieldDescription(
-            output_type='',
+            output_type="",
             label=label,
         ),
-        req=ibrefiner_prog_pb2.RefinerRequest(
-            expression=function, type=ibrefiner_prog_pb2.REFINER_FUNC
-        ),
+        req=ibrefiner_prog_pb2.RefinerRequest(expression=function, type=ibrefiner_prog_pb2.REFINER_FUNC),
     )
 
 
@@ -206,26 +204,26 @@ def write_refiner_program(
     into a Flow. Returns the local path to the Refiner program.
     """
 
-    refiner_module_path = os.path.join(context.tmp_dir.name, 'refiner_mod')
-    refiner_prog_folder = os.path.join(refiner_module_path, 'prog')
-    refiner_path = os.path.join(refiner_prog_folder, f'{model_name}_refiner.ibrefiner')
-    refiner_scripts_path = os.path.join(refiner_module_path, 'scripts')
+    refiner_module_path = os.path.join(context.tmp_dir.name, "refiner_mod")
+    refiner_prog_folder = os.path.join(refiner_module_path, "prog")
+    refiner_path = os.path.join(refiner_prog_folder, f"{model_name}_refiner.ibrefiner")
+    refiner_scripts_path = os.path.join(refiner_module_path, "scripts")
 
     os.makedirs(refiner_module_path, exist_ok=True)
     os.makedirs(refiner_scripts_path, exist_ok=True)
     os.makedirs(refiner_prog_folder, exist_ok=True)
 
     # write script that can load model
-    script_path = os.path.join(refiner_scripts_path, 'run_model.py')
+    script_path = os.path.join(refiner_scripts_path, "run_model.py")
     script_content = _make_run_model_script_contents(model_name)
-    with open(script_path, 'w+') as f:
+    with open(script_path, "w+") as f:
         f.write(script_content)
 
     ibrefiner = ibrefiner_prog_pb2.IBRefinerProg(
         options=ibrefiner_prog_pb2.RefinerProgOptions(
             provenance_tracking=True,
             auto_provenance=False,
-            scripts_path='../scripts',
+            scripts_path="../scripts",
         ),
         dev_input=ibrefiner_prog_pb2.DevelopmentInput(
             input_path=dev_input_path,
@@ -234,37 +232,29 @@ def write_refiner_program(
     )
 
     # create constant field for minimum confidence
-    min_confidence_field = _make_refiner_field(
-        _MIN_CONFIDENCE_FIELD_NAME, _MIN_CONFIDENCE_DEFAULT_VALUE
+    min_confidence_field = _make_refiner_field(_MIN_CONFIDENCE_FIELD_NAME, _MIN_CONFIDENCE_DEFAULT_VALUE)
+    min_confidence_field.desc.description = (
+        "Set a confidence between 0-1 that all fields must exceed to pass validation. Set to 0 for no validation."
     )
-    min_confidence_field.desc.description = "Set a confidence between 0-1 that all fields must exceed to pass validation. Set to 0 for no validation."
     ibrefiner.fields.append(min_confidence_field)
 
     # Create constant for the published model version to use
     model_version_field = _make_refiner_field(_PUBLISHED_MODEL_COL_NAME, _PUBLISHED_MODEL_VALUE)
-    model_version_field.desc.description = (
-        "Set the model version published in Marketplace to use in this Refiner."
-    )
+    model_version_field.desc.description = "Set the model version published in Marketplace to use in this Refiner."
     ibrefiner.fields.append(model_version_field)
 
     # create hidden field for model result
-    ibrefiner.fields.append(
-        _make_refiner_field('__model_result', f'run_model(INPUT_COL, {_PUBLISHED_MODEL_COL_NAME})')
-    )
+    ibrefiner.fields.append(_make_refiner_field("__model_result", f"run_model(INPUT_COL, {_PUBLISHED_MODEL_COL_NAME})"))
 
     # create fields for each of extracted_fields
     for label in labels:
         label_no_spaces = label.replace(" ", "_")
         # create main field
-        ibrefiner.fields.append(
-            _make_refiner_field(label_no_spaces, f"get_field(__model_result, '{label}')")
-        )
+        ibrefiner.fields.append(_make_refiner_field(label_no_spaces, f"get_field(__model_result, '{label}')"))
 
         # create confidence field
         ibrefiner.fields.append(
-            _make_refiner_field(
-                f'__{label_no_spaces}_confidence', f"get_confidence(__model_result, '{label}')"
-            )
+            _make_refiner_field(f"__{label_no_spaces}_confidence", f"get_confidence(__model_result, '{label}')")
         )
 
         # create validation field
@@ -275,7 +265,7 @@ def write_refiner_program(
         #     ))
 
     # write refiner program
-    with open(refiner_path, 'w+') as f:
+    with open(refiner_path, "w+") as f:
         f.write(MessageToJson(ibrefiner, use_integers_for_enums=False))
 
     return refiner_module_path
