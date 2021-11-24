@@ -84,7 +84,7 @@ def run_hyperparams_and_cmdline_train(
     )
 
     # workaround for docpro params
-    if hyperparams.get('dataset_config_name', '') == 'docpro_ds':
+    if hyperparams.get("dataset_config_name", "") == "docpro_ds":
         data_args.train_file = [data_args.train_file]
 
     run_train(

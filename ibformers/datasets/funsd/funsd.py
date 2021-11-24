@@ -127,9 +127,9 @@ class Funsd(datasets.GeneratorBasedBuilder):
             image_path = image_path.replace("json", "png")
             image, size = load_image(image_path)
             features = create_features_from_file_content(
-                data['form'], size, self.info.features["token_label_ids"].feature._str2int
+                data["form"], size, self.info.features["token_label_ids"].feature._str2int
             )
-            features['id'] = guid
+            features["id"] = guid
             if self.config.use_image:
                 enrich_features_with_images(features, image, self.image_processor)
 

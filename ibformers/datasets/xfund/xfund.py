@@ -54,8 +54,8 @@ class XFUNConfig(datasets.BuilderConfig):
         super(XFUNConfig, self).__init__(**kwargs)
         self.use_image = use_image
         self.ibsdk = ibsdk
-        self.lang = 'de'
-        self.additional_langs = '+'.join(["zh", "es", "fr", "it", "ja", "pt"])  # TODO: do we want this configurable?
+        self.lang = "de"
+        self.additional_langs = "+".join(["zh", "es", "fr", "it", "ja", "pt"])  # TODO: do we want this configurable?
 
 
 class XFUN(datasets.GeneratorBasedBuilder):
@@ -142,13 +142,13 @@ class XFUN(datasets.GeneratorBasedBuilder):
                 data = json.load(f)
 
             for doc in data["documents"]:
-                guid = doc['id']
+                guid = doc["id"]
                 image_path = os.path.join(img_dir, doc["img"]["fname"])
                 image, size = load_image(image_path)
                 features = create_features_from_file_content(
-                    doc['document'], size, self.info.features["token_label_ids"].feature._str2int
+                    doc["document"], size, self.info.features["token_label_ids"].feature._str2int
                 )
-                features['id'] = guid
+                features["id"] = guid
                 if self.config.use_image:
                     enrich_features_with_images(features, image, self.image_processor)
 

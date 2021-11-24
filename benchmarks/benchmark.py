@@ -40,12 +40,12 @@ def run_single_benchmark(benchmark_id: str, model_name_or_path: str, output_path
         model_config = MODEL_PARAMS_REGISTRY.get_config(model_name_or_path)
 
         hyperparams = model_config.hyperparams.copy()
-        hyperparams['report_to'] = 'wandb'
-        hyperparams['model_name_or_path'] = model_name_or_path
+        hyperparams["report_to"] = "wandb"
+        hyperparams["model_name_or_path"] = model_name_or_path
 
         dataset_hyperparams = benchmark_config.hyperparams.copy()
         hyperparams.update(**dataset_hyperparams)
-        hyperparams['output_dir'] = output_path
+        hyperparams["output_dir"] = output_path
 
         output_path.mkdir(exist_ok=True, parents=True)
 

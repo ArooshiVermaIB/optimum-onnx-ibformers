@@ -139,9 +139,9 @@ class DataAndPipelineArguments:
 
     def save(self, save_path, filename="pipeline.json"):
         save_dict = asdict(self)
-        save_dict.pop('train_file')
-        save_dict.pop('validation_file')
-        save_dict.pop('test_file')
+        save_dict.pop("train_file")
+        save_dict.pop("validation_file")
+        save_dict.pop("test_file")
         with open(os.path.join(save_path, filename), "w", encoding="utf-8") as writer:
             json.dump(save_dict, writer, indent=2, sort_keys=True)
 
@@ -158,7 +158,7 @@ class IbArguments:
     file_client: Optional[Any] = field(
         default=None, metadata={"help": "File client object which support different file systems"}
     )
-    job_metadata_client: Optional['JobMetadataClient'] = field(
+    job_metadata_client: Optional["JobMetadataClient"] = field(
         default=None,
         metadata={"help": "Job metadata client. Used for collecting information of training progress"},
     )
@@ -181,7 +181,7 @@ class IbArguments:
     )
 
 
-T = TypeVar('T', bound=Tuple[DataClass, ...])
+T = TypeVar("T", bound=Tuple[DataClass, ...])
 
 
 def update_params_with_commandline(param_dataclasses: T) -> T:
