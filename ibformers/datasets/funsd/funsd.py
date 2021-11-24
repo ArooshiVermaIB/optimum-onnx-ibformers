@@ -9,7 +9,7 @@ import numpy as np
 from typing import Any, Dict, Tuple
 
 from ibformers.data.utils import ImageProcessor
-from ibformers.datasets.utils import create_features_from_file_content, enrich_features_with_images
+from ibformers.datasets.utils import create_features_from_fund_file_content, enrich_features_with_images
 
 logger = datasets.logging.get_logger(__name__)
 _CITATION = """\
@@ -126,7 +126,7 @@ class Funsd(datasets.GeneratorBasedBuilder):
             image_path = os.path.join(img_dir, file)
             image_path = image_path.replace("json", "png")
             image, size = load_image(image_path)
-            features = create_features_from_file_content(
+            features = create_features_from_fund_file_content(
                 data["form"], size, self.info.features["token_label_ids"].feature._str2int
             )
             features["id"] = guid

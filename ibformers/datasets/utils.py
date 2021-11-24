@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, TypedDict
 import numpy as np
 
 
@@ -22,9 +22,50 @@ def enrich_features_with_images(features, image, image_processor):
     features["images_page_nums"] = page_nums
 
 
-def create_features_from_file_content(
-    file_contents: List[Dict[str, Any]], image_size: Tuple[int, int], label2id: Dict[str, int]
+class FundWordRecord(TypedDict):
+    """
+    Attributes:
+        text: text of the word
+        bbox: bounding box of the word
+    """
+
+    text: str
+    box: Tuple[int, int, int, int]
+
+
+class FundEntityRecord(TypedDict):
+    """
+    Attributes:
+        id: the id of the entity
+        text: the text of the entoty
+        bbox: the bounding boxcovering the whole entity. Note that the entity might span over whole paragraphs.
+        linking: list of the relations that this entity is a part of
+        label: entity label name
+        words: list of word data
+    """
+
+    id: int
+    text: str
+    box: Tuple[int, int, int, int]
+    linking: List[Tuple[int, int]]
+    label: str
+    words: List[FundWordRecord]
+
+
+def create_features_from_fund_file_content(
+    file_contents: List[FundEntityRecord], image_size: Tuple[int, int], label2id: Dict[str, int]
 ) -> Dict[str, Any]:
+    """
+    Extract features from FUNSD/XFUND documents data.
+
+    Args:
+        file_contents: List of dictionaries with document data.
+        image_size: Tuple of page dimensions, used for bbox normalization
+        label2id: mapping of label names to label ids
+
+    Returns:
+        Processed features.
+    """
 
     features = defaultdict(list)
     features["page_bboxes"].append([0, 0, *image_size])

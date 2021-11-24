@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 
 from ibformers.data.utils import ImageProcessor
-from ibformers.datasets.utils import create_features_from_file_content, enrich_features_with_images
+from ibformers.datasets.utils import create_features_from_fund_file_content, enrich_features_with_images
 
 
 def load_image(image_path):
@@ -145,7 +145,7 @@ class XFUN(datasets.GeneratorBasedBuilder):
                 guid = doc["id"]
                 image_path = os.path.join(img_dir, doc["img"]["fname"])
                 image, size = load_image(image_path)
-                features = create_features_from_file_content(
+                features = create_features_from_fund_file_content(
                     doc["document"], size, self.info.features["token_label_ids"].feature._str2int
                 )
                 features["id"] = guid
