@@ -25,6 +25,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import datasets
+import torch
 import transformers
 from datasets import ClassLabel, load_dataset, DownloadConfig
 from datasets.data_files import DataFilesDict
@@ -63,6 +64,7 @@ require_version(
 )
 
 logger = logging.getLogger(__name__)
+torch.set_num_threads(1)
 
 
 def run_hyperparams_and_cmdline_train(hyperparams: Dict):

@@ -4,6 +4,7 @@ from typing import Tuple, Iterator, Union, List, Sequence, Mapping, Dict, Option
 
 import numpy as np
 import pandas as pd
+import torch
 from datasets import load_metric, Dataset
 
 
@@ -105,8 +106,14 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
         word_indices = np.array(doc_word_starts)
 
         # softmax for np
-        doc_prob = np.exp(doc_preds) / np.sum(np.exp(doc_preds), axis=-1, keepdims=True)
+        doc_prob = torch.tensor(doc_preds.astype(np.float)).softmax(1).numpy()
         doc_conf = np.max(doc_prob, axis=-1)
+        if np.isnan(doc_conf).sum() > 0:
+            logging.warning(
+                "There are NaNs in the model predictions. "
+                "If this run is using mixed precision try to run it with single precision"
+            )
+
         doc_class_index = np.argmax(doc_prob, axis=-1)
 
         # get word level predictions
