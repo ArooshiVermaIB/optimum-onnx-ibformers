@@ -10,6 +10,7 @@ import pandas as pd
 
 from transformers import HfArgumentParser, TrainingArguments, TrainerCallback
 
+from ibformers.trainer.train import run_train
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.trainer.ib_utils import (
     MountDetails,
@@ -19,7 +20,6 @@ from ibformers.trainer.ib_utils import (
     upload_dir,
 )
 from ibformers.trainer.refiner_module_generator import write_refiner_program
-from ibformers.trainer.train import run_train
 from ibformers.trainer.arguments import ModelArguments, DataAndPipelineArguments, IbArguments
 from instabase.dataset_utils.sdk import LocalDatasetSDK, RemoteDatasetSDK, DatasetSDK
 from instabase.dataset_utils.shared_types import (
