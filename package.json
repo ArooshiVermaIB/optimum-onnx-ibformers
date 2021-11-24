@@ -1,6 +1,6 @@
 {
   "name": "ibformers",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "keywords": "models, transformers",
   "category": "model-training",
   "short_description": "Training scripts for transformers",
