@@ -49,11 +49,7 @@ def run_single_benchmark(benchmark_id: str, model_name_or_path: str, output_path
 
         output_path.mkdir(exist_ok=True, parents=True)
 
-        sdk = InstabaseSDKDummy(None, "user")
-        run_hyperparams_and_cmdline_train(
-            hyperparams,
-            sdk,
-        )
+        run_hyperparams_and_cmdline_train(hyperparams)
     except Exception as e:
         logger.error(
             f"Encountered exception when running benchmark {benchmark_id} for model {model_name_or_path}."

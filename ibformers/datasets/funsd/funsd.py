@@ -36,7 +36,7 @@ def load_image(image_path):
 class FunsdConfig(datasets.BuilderConfig):
     """BuilderConfig for FUNSD"""
 
-    def __init__(self, use_image: bool = False, ibsdk=None, **kwargs):
+    def __init__(self, use_image: bool = False, **kwargs):
         """BuilderConfig for FUNSD.
         Args:
           use_image: if true, the images are added as features
@@ -45,7 +45,6 @@ class FunsdConfig(datasets.BuilderConfig):
         """
         super(FunsdConfig, self).__init__(**kwargs)
         self.use_image = use_image
-        self.ibsdk = ibsdk
 
 
 class Funsd(datasets.GeneratorBasedBuilder):

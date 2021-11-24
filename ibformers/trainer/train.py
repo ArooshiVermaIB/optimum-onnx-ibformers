@@ -65,10 +65,7 @@ require_version(
 logger = logging.getLogger(__name__)
 
 
-def run_hyperparams_and_cmdline_train(
-    hyperparams: Dict,
-    file_client: Any,
-):
+def run_hyperparams_and_cmdline_train(hyperparams: Dict):
     parser = HfArgumentParser(
         (
             ModelArguments,
@@ -95,7 +92,6 @@ def run_hyperparams_and_cmdline_train(
         augmenter_args,
         extra_callbacks=[],
         extra_load_kwargs={
-            "ibsdk": file_client,
             "extraction_class_name": data_args.extraction_class_name,
             "download_config": DownloadConfig(max_retries=3),
         },

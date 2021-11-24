@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 class XFUNConfig(datasets.BuilderConfig):
     """BuilderConfig for XFUN."""
 
-    def __init__(self, use_image: bool = False, ibsdk=None, **kwargs):
+    def __init__(self, use_image: bool = False, **kwargs):
         """
         Args:
             lang: string, language for the input text
@@ -53,7 +53,6 @@ class XFUNConfig(datasets.BuilderConfig):
         """
         super(XFUNConfig, self).__init__(**kwargs)
         self.use_image = use_image
-        self.ibsdk = ibsdk
         self.lang = "de"
         self.additional_langs = "+".join(["zh", "es", "fr", "it", "ja", "pt"])  # TODO: do we want this configurable?
 
