@@ -39,7 +39,7 @@ def version_is_new(
 
 
 async def sync_and_publish(
-    sdk: Instabase, contents: bytes, package_name: str, package_version: str
+    sdk: Instabase, root_path: str, contents: bytes, package_name: str, package_version: str
 ) -> None:
     logger = logging.getLogger(sdk.name)
     marketplace_list: MarketplaceRequestResponse = await sdk.load_marketplace_list()
@@ -49,9 +49,7 @@ async def sync_and_publish(
         package_name=package_name,
         package_version=package_version,
     ):
-        logger.info(
-            f"Skipping publishing to {sdk.name}: current version {package_version} is already present"
-        )
+        logger.info(f"Skipping publishing to {sdk.name}: current version {package_version} is already present")
         return
 
     logger.info(f"Publishing {package_name} to {sdk.name}")
@@ -60,13 +58,12 @@ async def sync_and_publish(
     logger.debug(f"Writing zipped code to {REMOTE_TEMP_ZIP_PATH}")
     await sdk.write_file(REMOTE_TEMP_ZIP_PATH, contents)
     logger.debug("Publishing to marketplace (this might take a while!)")
-    success = await sdk.publish_solution(REMOTE_TEMP_ZIP_PATH)
+    success = await sdk.publish_solution(os.path.join(root_path, REMOTE_TEMP_ZIP_PATH))
     if success:
         logger.info("Publishing was successful!")
     else:
         logger.error(
-            f"Something went wrong while publishing {package_name} to {sdk.name}. "
-            f"Try again with --log-level=DEBUG"
+            f"Something went wrong while publishing {package_name} to {sdk.name}. " f"Try again with --log-level=DEBUG"
         )
 
 
@@ -99,6 +96,7 @@ async def publish(package: str, env_name: str):
 
     return await sync_and_publish(
         sdk,
+        env_dict['path'],
         zip_bytes,
         package_name=package_name,
         package_version=package_version,
@@ -106,9 +104,7 @@ async def publish(package: str, env_name: str):
 
 
 parser = argparse.ArgumentParser(description='Publish ibformers package')
-parser.add_argument(
-    '--environment', dest='environment', help="environment package will be published to"
-)
+parser.add_argument('--environment', dest='environment', help="environment package will be published to")
 
 parser.add_argument(
     '--log-level',

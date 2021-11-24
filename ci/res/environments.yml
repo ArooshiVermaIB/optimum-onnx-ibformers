@@ -1,6 +1,7 @@
 dogfood:
   host: https://dogfood.instabase.com
   path: daniel.cahn/my-repo/fs/Instabase Drive/test_location # TODO replace with a shared location
+  dataset_path: ib_annotation/data/fs/Prod Drive/datasets  # TODO: merge this with path
   token: RtzvlDwk2jUp1F0fj4AofiRTM34qaf # TODO: use env variable
 
 #prod:
@@ -10,15 +11,18 @@ dogfood:
 
 doc-insights-sandbox:
   host: https://doc-insights.aws.sandbox.instabase.com
-  path: vontell/my-repo/fs/Instabase Drive/automation/
+  path: vontell/my-repo/fs/Instabase Drive/automation
+  dataset_path: vontell/my-repo/fs/Instabase Drive/automation
   token: p67QBJb6MhQKpIZtS2yDafOyMkqdsV
 
 gs-sandbox:
   host: https://gs.aws.sandbox.instabase.com/
   path: daniel.halpern/my-repo/fs/Instabase Drive/publishing-space
+  dataset_path: vontell/my-repo/fs/Instabase Drive/automation
   token: BFJGz5BCnmvDXvwrPyoMbsi1as0vuv
 
 solution-eng:
   host: https://solution-eng.aws.sandbox.instabase.com/
-  path: daniel.cahn/my-repo/fs/Instabase Drive/automation
+  path: vontell/my-repo/fs/Instabase Drive/automation
+  dataset_path: vontell/my-repo/fs/Instabase Drive/automation
   token: vDatMjJ3J294G701cv7TMabwBfx3Td

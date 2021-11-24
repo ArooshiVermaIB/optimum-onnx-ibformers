@@ -13,16 +13,17 @@ def abspath(relpath):
     return os.path.abspath(os.path.join(dirpath, relpath))
 
 
-PROJECT_ROOT = abspath('../../ibformers')
-REMOTE_TEMP_ZIP_PATH = '%s.ibsolution' % uuid.uuid4().hex
-REMOTE_CODE_LOCATION = 'ibformers'  # TODO: Make this within a randomly generated directory
-SCRIPT_FUNCTION = 'ibformers.trainer.ib_utils.run_train_annotator'
+PROJECT_ROOT = abspath("../../ibformers")
+REMOTE_TEMP_ZIP_PATH = "%s.ibsolution" % uuid.uuid4().hex
+REMOTE_CODE_LOCATION = "ibformers"  # TODO: Make this within a randomly generated directory
+DATASET_PREFIX = "ci-test-datasets-do-not-delete"
 
 
 class Environment(TypedDict):
     host: str
     token: str
     path: str
+    dataset_path: str
 
 
 class ModelTestConfig(TypedDict):
@@ -39,10 +40,10 @@ def load_environments_() -> Dict[str, Environment]:
 
 
 async def load_environments() -> Dict[str, Environment]:
-    with open(abspath('../res/environments.yml')) as f:
+    with open(abspath("../res/environments.yml")) as f:
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
 async def load_model_tests() -> Dict[str, ModelTestConfig]:
-    with open(abspath('../res/model_tests.yaml')) as f:
+    with open(abspath("../res/model_tests.yaml")) as f:
         return yaml.load(f, Loader=yaml.FullLoader)

@@ -1,13 +1,15 @@
-NYDriversLicenses:
+UberEatsReceipts:
   env:
     - dogfood
-  ibannotator: ib_annotation/data/fs/Prod Drive/datasets/DLs Clean/Drivers Licenses Clean.ibannotator
+    - doc-insights-sandbox
+  model_project_path: ml_studio_models/uber_eats
+  dataset_project_path: ml_studio_datasets/uber_eats
   time_limit: 1200 # 20 minutes
   config: &defaults
     adam_epsilon: 1.e-8
     batch_size: 2
     chunk_size: 510
-    epochs: 15
+    epochs: 10
     learning_rate: 5.e-5
     loss_agg_steps: 1
     max_grad_norm: 1
@@ -18,54 +20,28 @@ NYDriversLicenses:
     warmup: 0
     weight_decay: 0
     class_weights: false
-    upload: true
-    use_gpu: true
     model_name: microsoft/layoutlm-base-uncased
-  metrics: # TODO stop assuming higher is better
-    # TODO maybe transpose this?
-    precision:
-      DL Number: 0.89
-      Name: 0.7
-      Address: 0.9
-    recall:
-      DL Number: 1
-      Name: 0.5
-      Address: 0.9
-    f1:
-      DL Number: 0.9
-      Name: 0.6
-      Address: 0.8
 
-
-UberEatsReceipts:
-  env:
-    - doc-insights-sandbox
-  ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
-  time_limit: 1200 # 20 minutes
-  config:
-    <<: *defaults
-    epochs: 10
-    model_name: microsoft/layoutlm-base-uncased
   metrics:
     precision:
-      date: 0.8
+      date: 0.5
       total: 0.95
     recall:
-      date: 0.95
+      date: 0.5
       total: 0.95
     f1:
-      date: 0.9
+      date: 0.5
       total: 0.95
 
 
 UberEatsXLM:
-  env:
-    - doc-insights-sandbox
-  ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
-  time_limit: 1200 # 20 minutes
+  env: []  # TODO: tune hyperparameters to make it work
+  model_project_path: ml_studio_models/uber_eats
+  dataset_project_path: ml_studio_datasets/uber_eats
+  time_limit: 1500 # 20 minutes
   config:
     <<: *defaults
-    epochs: 10
+    epochs: 13
     model_name: microsoft/layoutxlm-base
   metrics:
     precision:
@@ -80,13 +56,13 @@ UberEatsXLM:
 
 
 UberEatsV2:
-  env:
-    - doc-insights-sandbox
-  ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
+  env: []  # TODO: tune hyperparameters to make it work
+  model_project_path: ml_studio_models/uber_eats
+  dataset_project_path: ml_studio_datasets/uber_eats
   time_limit: 1200 # 20 minutes
   config:
     <<: *defaults
-    epochs: 10
+    epochs: 13
     model_name: microsoft/layoutlmv2-base-uncased
   metrics:
     precision:
@@ -101,13 +77,13 @@ UberEatsV2:
 
 
 UberEatsBERT:
-  env:
-    - doc-insights-sandbox
-  ibannotator: vontell/my-repo/fs/Instabase Drive/test/projects/UberEatsDemo.ibannotator
+  env: []  # TODO: tune hyperparameters to make it work
+  model_project_path: ml_studio_models/uber_eats
+  dataset_project_path: ml_studio_datasets/uber_eats
   time_limit: 1200 # 20 minutes
   config:
     <<: *defaults
-    epochs: 10
+    epochs: 17
     model_name: bert-base-uncased
     pipeline_name: plain_sl
   metrics:
@@ -120,3 +96,29 @@ UberEatsBERT:
     f1:
       date: 0.6
       total: 0.6
+
+
+NYDriversLicenses:
+  env:
+    - dogfood
+  model_project_path: ml_studio_models/driver_licenses
+  dataset_project_path: ml_studio_datasets/driver_licenses
+  time_limit: 1200 # 20 minutes
+  config:
+    <<: *defaults
+    epochs: 15
+    model_name: microsoft/layoutlm-base-uncased
+  metrics: # TODO stop assuming higher is better
+    # TODO maybe transpose this?
+    precision:
+      DL Number: 0.8
+      Name: 0.7
+      Address: 0.9
+    recall:
+      DL Number: 0.8
+      Name: 0.5
+      Address: 0.9
+    f1:
+      DL Number: 0.8
+      Name: 0.6
+      Address: 0.8
