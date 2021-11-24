@@ -311,7 +311,13 @@ def get_images_from_layouts(
             # try relative path - useful for debugging
             ocr_path = Path(ocr_path)
             img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
-            img_arr = image_processor(img_rel_path).astype(np.uint8)
+
+            # try opening the relative file. If the path is missing, explicitly use the default image
+            try:
+                with open_fn(str(img_rel_path), "rb") as img_file:
+                    img_arr = image_processor(img_file).astype(np.uint8)
+            except OSError:
+                img_arr = image_processor.get_default_processed_image()
 
         img_lst.append(img_arr)
 
