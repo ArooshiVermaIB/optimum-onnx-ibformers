@@ -1,5 +1,6 @@
 from collections import defaultdict
-from typing import List, Dict, Any, Tuple, TypedDict
+from typing import List, Dict, Any, Tuple
+from typing_extensions import TypedDict
 import numpy as np
 
 
@@ -18,7 +19,7 @@ def enrich_features_with_images(features, image, image_processor):
     page_nums.sort()
     image_postprocessed = image_processor.postprocess(image)
     # assert len(norm_page_bboxes) == len(images), "Number of images should match number of pages in document"
-    features["images"] = [image_postprocessed]
+    features["images"] = image_postprocessed[None, :]
     features["images_page_nums"] = page_nums
 
 
@@ -37,7 +38,7 @@ class FundEntityRecord(TypedDict):
     """
     Attributes:
         id: the id of the entity
-        text: the text of the entoty
+        text: the text of the entity
         bbox: the bounding boxcovering the whole entity. Note that the entity might span over whole paragraphs.
         linking: list of the relations that this entity is a part of
         label: entity label name
