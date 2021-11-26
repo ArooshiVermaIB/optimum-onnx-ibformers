@@ -1,11 +1,12 @@
 import logging
 from collections import defaultdict
-from typing import Tuple, Iterator, Union, List, Sequence, Mapping, Dict, Optional
+from typing import Tuple, Iterator, Union, List, Sequence, Mapping, Dict, Optional, Any
 
 import numpy as np
 import pandas as pd
 import torch
 from datasets import load_metric, Dataset
+from typing_extensions import TypedDict
 
 
 def doc_chunk_iter(doc_ids: List[str]) -> Iterator[Tuple[str, int, int]]:
@@ -64,7 +65,7 @@ def join_chunks(
     return doc_arr_mean.astype(first_chunk.dtype)
 
 
-def iou_score(y_true: Mapping[str, List], y_pred: Mapping[str, List], all_tags: List[str]) -> Dict[str, int]:
+def iou_score(y_true: Mapping[str, List[int]], y_pred: Mapping[str, List[int]], all_tags: List[str]) -> Dict[str, int]:
     result = {}
     for t in all_tags:
         if t == "O":
@@ -80,6 +81,28 @@ def iou_score(y_true: Mapping[str, List], y_pred: Mapping[str, List], all_tags: 
     return result
 
 
+class DechunkedDoc(TypedDict):
+    id: str
+    words: Sequence[str]
+    word_original_bboxes: Optional[Sequence[Tuple[int, int, int, int]]]
+    word_page_nums: Optional[Sequence[int]]
+    gold_labels: np.ndarray  # (seq_length, ), int
+    raw_predictions: np.ndarray  # (seq_length, num_labels), float
+    word_starts: np.ndarray  # (seq_length, ), bool
+    is_test_file: bool
+    word_line_idx: Optional[np.ndarray]
+    word_in_line_idx: Optional[np.ndarray]
+
+
+class PredictionComponents(TypedDict):
+    predicted_classes: np.ndarray  # (seq_length, ), int
+    prediction_confidences: np.ndarray  # (seq_length, ), float
+
+
+class PredictedDoc(DechunkedDoc, PredictionComponents):
+    pass
+
+
 def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None):
     features = dataset.features
     assert "id" in features, "dataset need to contain ids of documents"
@@ -87,111 +110,22 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
         label_list = features["labels"].feature.names
     preds, labels = predictions
     ids = dataset["id"]
-    chunk_ranges = dataset["chunk_ranges"]
     pred_dict = {}
 
     for doc_id, chunk_from_idx, chunk_to_idx in doc_chunk_iter(ids):
-        doc = dataset[chunk_from_idx]
-        assert doc_id == doc["id"], "Chunk doc_id and doc_id obtained from the dataset does not match"
+        # this relies on the fact that each doc chunk contains all non-chunked features,
+        # e.g. words or original bounding boxes. That's why we can create prediction for all chunks using only
+        # the first doc in the chunk
+        doc: PredictedDoc = prepare_predicted_doc(dataset, doc_id, chunk_from_idx, chunk_to_idx, predictions)
 
-        chunk_ranges_lst = chunk_ranges[chunk_from_idx:chunk_to_idx]
-        content_mask_lst = dataset["content_tokens_mask"][chunk_from_idx:chunk_to_idx]
-        preds_arr = preds[chunk_from_idx:chunk_to_idx]
-        labels_arr = labels[chunk_from_idx:chunk_to_idx]
-        word_starts = dataset["word_starts"][chunk_from_idx:chunk_to_idx]
-
-        doc_preds = join_chunks(preds_arr, chunk_ranges_lst, content_mask_lst)
-        doc_labels = join_chunks(labels_arr, chunk_ranges_lst, content_mask_lst)
-        doc_word_starts = join_chunks(word_starts, chunk_ranges_lst, None)
-        word_indices = np.array(doc_word_starts)
-
-        # softmax for np
-        doc_prob = torch.tensor(doc_preds.astype(np.float)).softmax(1).numpy()
-        doc_conf = np.max(doc_prob, axis=-1)
-        if np.isnan(doc_conf).sum() > 0:
-            logging.warning(
-                "There are NaNs in the model predictions. "
-                "If this run is using mixed precision try to run it with single precision"
-            )
-
-        doc_class_index = np.argmax(doc_prob, axis=-1)
-
-        # get word level predictions
-        if "word_line_idx" in doc:
-            word_line_idx = doc["word_line_idx"]
-        if "word_in_line_idx" in doc:
-            word_in_line_idx = doc["word_in_line_idx"]
-
-        doc_conf = doc_conf[word_indices]
-        doc_class_index = doc_class_index[word_indices]
-        doc_labels = doc_labels[word_indices]
-
-        non_zero_class = np.nonzero(doc_class_index)[0]
-        doc_words_dict = defaultdict(list)
-        for idx in non_zero_class:
-            class_idx = doc_class_index[idx]
-            conf = doc_conf[idx]
-            tag_name = label_list[class_idx]
-            if "word_original_bboxes" in doc:
-                org_bbox = doc["word_original_bboxes"][idx]
-            else:
-                org_bbox = [0, 0, 0, 0]
-            if "word_page_nums" in doc:
-                page = doc["word_page_nums"][idx]
-            else:
-                page = 0
-            word = dict(
-                raw_word=doc["words"][idx],
-                start_x=org_bbox[0],
-                start_y=org_bbox[1],
-                end_x=org_bbox[2],
-                end_y=org_bbox[3],
-                line_height=org_bbox[3] - org_bbox[1],
-                word_width=org_bbox[2] - org_bbox[0],
-                page=page,
-                conf=conf,
-                idx=idx,
-            )
-            if "word_line_idx" in doc:
-                word["word_line_idx"] = word_line_idx[idx]
-            if "word_in_line_idx" in doc:
-                word["word_in_line_idx"] = word_in_line_idx[idx]
-
-            doc_words_dict[tag_name].append(word)
-
-        # generate correct answers to print pred/gold mismatches
-        golden_words_dict = defaultdict(list)
-        non_zero_golden_class = np.nonzero(doc_labels > 0)[0]
-        for idx in non_zero_golden_class:
-            class_idx = doc_labels[idx]
-            tag_name = label_list[class_idx]
-            if "word_original_bboxes" in doc:
-                org_bbox = doc["word_original_bboxes"][idx]
-            else:
-                org_bbox = [0, 0, 0, 0]
-            if "word_page_nums" in doc:
-                page = doc["word_page_nums"][idx]
-            else:
-                page = 0
-            word = dict(
-                raw_word=doc["words"][idx],
-                start_x=org_bbox[0],
-                start_y=org_bbox[1],
-                end_x=org_bbox[2],
-                end_y=org_bbox[3],
-                line_height=org_bbox[3] - org_bbox[1],
-                word_width=org_bbox[2] - org_bbox[0],
-                page=page,
-                conf=0.0,
-                idx=idx,
-            )
-            golden_words_dict[tag_name].append(word)
+        predicted_entity_words = extract_entity_words(doc["predicted_classes"], doc, label_list, True)
+        gold_entity_words = extract_entity_words(doc["gold_labels"], doc, label_list, False)
 
         doc_dict = {}
         for k in label_list[1:]:
-            pred_words = doc_words_dict.get(k, [])
+            pred_words = predicted_entity_words.get(k, [])
             pred_text = " ".join([w["raw_word"] for w in pred_words])
-            gold_words = golden_words_dict.get(k, [])
+            gold_words = gold_entity_words.get(k, [])
             gold_text = " ".join([w["raw_word"] for w in gold_words])
             doc_dict[k] = {
                 "words": pred_words,
@@ -206,6 +140,97 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
         pred_dict[doc["id"]] = {"is_test_file": is_test_file, "entities": doc_dict}
 
     return pred_dict
+
+
+def extract_entity_words(prediction_idxs, doc, label_list, is_gold):
+    non_zero_class = np.nonzero(prediction_idxs)[0]
+    doc_words_dict = defaultdict(list)
+    for idx in non_zero_class:
+        class_idx = prediction_idxs[idx]
+        conf = 0 if is_gold else doc["prediction_confidences"][idx]
+        tag_name = label_list[class_idx]
+        if "word_original_bboxes" in doc:
+            org_bbox = doc["word_original_bboxes"][idx]
+        else:
+            org_bbox = [0, 0, 0, 0]
+        if "word_page_nums" in doc:
+            page = doc["word_page_nums"][idx]
+        else:
+            page = 0
+        word = dict(
+            raw_word=doc["words"][idx],
+            start_x=org_bbox[0],
+            start_y=org_bbox[1],
+            end_x=org_bbox[2],
+            end_y=org_bbox[3],
+            line_height=org_bbox[3] - org_bbox[1],
+            word_width=org_bbox[2] - org_bbox[0],
+            page=page,
+            conf=conf,
+            idx=idx,
+        )
+        if is_gold:
+            if doc["word_line_idx"] is not None:
+                word["word_line_idx"] = doc["word_line_idx"][idx]
+            if doc["word_in_line_idx"] is not None:
+                word["word_in_line_idx"] = doc["word_in_line_idx"][idx]
+
+        doc_words_dict[tag_name].append(word)
+    return doc_words_dict
+
+
+def extract_dechunked_components(dataset, doc_id, chunk_from_idx, chunk_to_idx, predictions) -> DechunkedDoc:
+    preds, labels = predictions
+
+    doc = dataset[chunk_from_idx]
+    assert doc_id == doc["id"], "Chunk doc_id and doc_id obtained from the dataset does not match"
+
+    chunk_ranges = dataset["chunk_ranges"]
+    chunk_ranges_lst = chunk_ranges[chunk_from_idx:chunk_to_idx]
+    content_mask_lst = dataset["content_tokens_mask"][chunk_from_idx:chunk_to_idx]
+    preds_arr = preds[chunk_from_idx:chunk_to_idx]
+    labels_arr = labels[chunk_from_idx:chunk_to_idx]
+    word_starts = dataset["word_starts"][chunk_from_idx:chunk_to_idx]
+
+    doc_preds = join_chunks(preds_arr, chunk_ranges_lst, content_mask_lst)
+    doc_labels = join_chunks(labels_arr, chunk_ranges_lst, content_mask_lst)
+    doc_word_starts = join_chunks(word_starts, chunk_ranges_lst, None)
+    doc_word_starts = np.array(doc_word_starts)
+
+    dechunked_doc = DechunkedDoc(
+        id=doc["id"],
+        words=doc["words"],
+        word_original_bboxes=doc.get("word_original_bboxes", None),
+        word_page_nums=doc.get("word_page_nums", None),
+        gold_labels=doc_labels[doc_word_starts],
+        raw_predictions=doc_preds[doc_word_starts],
+        word_starts=doc_word_starts,
+        is_test_file=doc.get("is_test_file", False),
+        word_line_idx=doc.get("word_line_idx", None),
+        word_in_line_idx=doc.get("word_in_line_idx", None),
+    )
+    return dechunked_doc
+
+
+def calculate_predictions(raw_predictions: np.ndarray, word_starts: np.ndarray) -> PredictionComponents:
+    # softmax for np
+    doc_prob = torch.tensor(raw_predictions.astype(np.float)).softmax(1).numpy()
+    doc_conf = np.max(doc_prob, axis=-1)
+    if np.isnan(doc_conf).sum() > 0:
+        logging.warning(
+            "There are NaNs in the model predictions. "
+            "If this run is using mixed precision try to run it with single precision"
+        )
+
+    doc_class_index = np.argmax(doc_prob, axis=-1)
+    return PredictionComponents(predicted_classes=doc_class_index, prediction_confidences=doc_conf)
+
+
+def prepare_predicted_doc(dataset, doc_id, chunk_from_idx, chunk_to_idx, predictions) -> PredictedDoc:
+    doc_components = extract_dechunked_components(dataset, doc_id, chunk_from_idx, chunk_to_idx, predictions)
+    prediction_components = calculate_predictions(doc_components["raw_predictions"], doc_components["word_starts"])
+    doc_components.update(**prediction_components)
+    return PredictedDoc(**doc_components)
 
 
 def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, float]:
