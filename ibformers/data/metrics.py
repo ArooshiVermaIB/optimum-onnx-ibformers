@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, List, Mapping, Dict, Optional
+from typing import Tuple, List, Mapping, Dict, Optional, Union, Any
 
 import numpy as np
 import pandas as pd
@@ -24,7 +24,7 @@ def iou_score(y_true: Mapping[str, List[int]], y_pred: Mapping[str, List[int]], 
     return result
 
 
-def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, float]:
+def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, Union[float, str]]:
     """
     Calculate average (micro- and macro-) metrics.
 
@@ -47,7 +47,7 @@ def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, float]:
     average_results = summed_df[["micro_precision", "micro_recall", "micro_f1"]].to_dict()
 
     # ignore fields with no gold values
-    macro_metrics_df = token_level_df[token_level_df["total_positives"] > 0].fillna(0)
+    macro_metrics_df = token_level_df[token_level_df["total_true"] > 0].fillna(0)
     if macro_metrics_df.shape[0] == 0:
         average_results["macro_f1"] = average_results["macro_precision"] = average_results["macro_recall"] = "NAN"
     else:
@@ -57,7 +57,26 @@ def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, float]:
     return average_results
 
 
-def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None):
+def compute_legacy_metrics_for_sl(
+    predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None
+) -> Dict[str, Any]:
+    """
+    Compute metrics for sequence labelling.
+
+    The computed metrics are:
+    * exact_match (per field name)
+    * precision, recall, f1 (per field name)
+    * precision, recall, f1 (micro- and macro- averaged)
+
+    Args:
+        predictions: Tuple of prediciton, labels tensors
+        dataset: the dataset where the predictions come from
+        label_list: Optional list of label names. If none provided, it will be inferred from `labels` column in the
+         dataset
+
+    Returns:
+
+    """
 
     if label_list is None:
         label_list = dataset.features["labels"].feature.names
@@ -78,11 +97,11 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_li
     logging.info(mismatches_text)
 
     # get list of document gold labels - List[Dict[List]]
-    ground_truths: List[Dict[List]] = [
+    ground_truths: List[Dict[str, List]] = [
         {k: [wrd["idx"] for wrd in v["gold_words"]] for k, v in doc_lab["entities"].items()}
         for doc_lab in pred_dict.values()
     ]
-    pred_words: List[Dict[List]] = [
+    pred_words: List[Dict[str, List]] = [
         {k: [wrd["idx"] for wrd in v["words"]] for k, v in doc_lab["entities"].items()}
         for doc_lab in pred_dict.values()
     ]
@@ -109,9 +128,9 @@ def compute_legacy_metrics_for_sl(predictions: Tuple, dataset: Dataset, label_li
 
     # TODO: Add other metrics and make customizable
     doc_level_metrics: Mapping[str, Mapping[str, float]] = {
-        "exact_match": (df == 1).mean().to_dict(),
+        "exact_match": (df == 1).mean().to_dict(),  # type: ignore
     }
-    overall_accuracy = (df == 1).mean().mean()
+    overall_accuracy = (df == 1).mean().mean()  # type: ignore
 
     token_level_df = pd.DataFrame(token_level).T
     token_level_df["precision"] = token_level_df.true_positives / token_level_df.total_positives
