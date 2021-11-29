@@ -10,6 +10,10 @@ import numpy as np
 
 
 class DechunkedDoc(TypedDict):
+    """
+    Representation of the document reconstructed from the chunking procedure.
+    """
+
     id: str
     words: Sequence[str]
     word_original_bboxes: Optional[Sequence[Tuple[int, int, int, int]]]
@@ -23,12 +27,58 @@ class DechunkedDoc(TypedDict):
 
 
 class PredictionComponents(TypedDict):
+    """
+    Components related to document predictions.
+    """
+
     predicted_classes: np.ndarray  # (seq_length, ), int
     prediction_confidences: np.ndarray  # (seq_length, ), float
 
 
 class PredictedDoc(DechunkedDoc, PredictionComponents):
+    """
+    Full representation of the document after predictions.
+    """
+
     pass
+
+
+def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None) -> Dict[str, Any]:
+    """
+    Extract prediction dictionary from raw predictions.
+
+    Args:
+        predictions: raw predictions of the model with their corresponding labels
+        dataset: Chunked dataset that the predictions are from
+        label_list: Optional list of label names. If missing, it is inferred from the `labels` col in the dataset.
+
+    Returns:
+        Dictionary of document predictions with items:
+            * is_test_file: true if the document is test file
+            * entities: Dictionary of document-level entities.
+    """
+    features = dataset.features
+    assert "id" in features, "dataset need to contain ids of documents"
+    if label_list is None:
+        label_list = features["labels"].feature.names
+    ids = dataset["id"]
+    pred_dict = {}
+
+    for doc_id, chunk_from_idx, chunk_to_idx in doc_chunk_iter(ids):
+        # this relies on the fact that each doc chunk contains all non-chunked features,
+        # e.g. words or original bounding boxes. That's why we can create prediction for all chunks using only
+        # the first doc in the chunk
+        doc = prepare_predicted_doc(doc_id, chunk_from_idx, chunk_to_idx, predictions, dataset)
+
+        predicted_entity_words = extract_entity_words(doc["predicted_classes"], doc, label_list, True)
+        gold_entity_words = extract_entity_words(doc["gold_labels"], doc, label_list, False)
+
+        doc_dict = create_entities(predicted_entity_words, gold_entity_words, label_list)
+
+        is_test_file = doc["is_test_file"] if "is_test_file" in doc else False
+        pred_dict[doc["id"]] = {"is_test_file": is_test_file, "entities": doc_dict}
+
+    return pred_dict
 
 
 def doc_chunk_iter(doc_ids: List[str]) -> Iterator[Tuple[str, int, int]]:
@@ -43,6 +93,78 @@ def doc_chunk_iter(doc_ids: List[str]) -> Iterator[Tuple[str, int, int]]:
         if doc_id != next_doc_id:
             yield doc_id, from_idx, i + 1
             from_idx = i + 1
+
+
+def prepare_predicted_doc(
+    doc_id: str, chunk_from_idx: int, chunk_to_idx: int, predictions: Tuple, dataset: Dataset
+) -> PredictedDoc:
+    """
+    Prepare dechunked document with predictions.
+
+    Args:
+        doc_id: The doc id that the predictions will be generated from
+        chunk_from_idx: Start chunk index of the document
+        chunk_to_idx: End chunk index of the document
+        predictions: raw predictions of the model with their corresponding labels
+        dataset: Chunked dataset that the predictions are from
+
+    Returns:
+        Representation of the document with de-chunked data and predictions added.
+    """
+    doc_components = extract_dechunked_components(doc_id, chunk_from_idx, chunk_to_idx, predictions, dataset)
+    prediction_components = calculate_predictions(doc_components["raw_predictions"])
+    doc_components.update(**prediction_components)
+    return PredictedDoc(**doc_components)
+
+
+def extract_dechunked_components(
+    doc_id: str, chunk_from_idx: int, chunk_to_idx: int, predictions: Tuple, dataset: Dataset
+) -> DechunkedDoc:
+    """
+    Prepare dechunked document.
+
+    Extracts proper chunks from the dataset and joins the raw predictions.
+
+    Args:
+        doc_id: The doc id that the predictions will be generated from
+        chunk_from_idx: Start chunk index of the document
+        chunk_to_idx: End chunk index of the document
+        predictions: raw predictions of the model with their corresponding labels
+        dataset: Chunked dataset that the predictions are from
+
+    Returns:
+        Representation of the document with de-chunked data and raw predictions added.
+    """
+    preds, labels = predictions
+
+    doc = dataset[chunk_from_idx]
+    assert doc_id == doc["id"], "Chunk doc_id and doc_id obtained from the dataset does not match"
+
+    chunk_ranges = dataset["chunk_ranges"]
+    chunk_ranges_lst = chunk_ranges[chunk_from_idx:chunk_to_idx]
+    content_mask_lst = dataset["content_tokens_mask"][chunk_from_idx:chunk_to_idx]
+    preds_arr = preds[chunk_from_idx:chunk_to_idx]
+    labels_arr = labels[chunk_from_idx:chunk_to_idx]
+    word_starts = dataset["word_starts"][chunk_from_idx:chunk_to_idx]
+
+    doc_preds = join_chunks(preds_arr, chunk_ranges_lst, content_mask_lst)
+    doc_labels = join_chunks(labels_arr, chunk_ranges_lst, content_mask_lst)
+    doc_word_starts = join_chunks(word_starts, chunk_ranges_lst, None)
+    doc_word_starts = np.array(doc_word_starts)
+
+    dechunked_doc = DechunkedDoc(
+        id=doc["id"],
+        words=doc["words"],
+        word_original_bboxes=doc.get("word_original_bboxes", None),
+        word_page_nums=doc.get("word_page_nums", None),
+        gold_labels=doc_labels[doc_word_starts],
+        raw_predictions=doc_preds[doc_word_starts],
+        word_starts=doc_word_starts,
+        is_test_file=doc.get("is_test_file", False),
+        word_line_idx=doc.get("word_line_idx", None),
+        word_in_line_idx=doc.get("word_in_line_idx", None),
+    )
+    return dechunked_doc
 
 
 def join_chunks(
@@ -87,29 +209,28 @@ def join_chunks(
     return doc_arr_mean.astype(first_chunk.dtype)
 
 
-def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None):
-    features = dataset.features
-    assert "id" in features, "dataset need to contain ids of documents"
-    if label_list is None:
-        label_list = features["labels"].feature.names
-    ids = dataset["id"]
-    pred_dict = {}
+def calculate_predictions(raw_predictions: np.ndarray) -> PredictionComponents:
+    """
+    Calculate probabilities and selected classes from raw predictions.
 
-    for doc_id, chunk_from_idx, chunk_to_idx in doc_chunk_iter(ids):
-        # this relies on the fact that each doc chunk contains all non-chunked features,
-        # e.g. words or original bounding boxes. That's why we can create prediction for all chunks using only
-        # the first doc in the chunk
-        doc: PredictedDoc = prepare_predicted_doc(dataset, doc_id, chunk_from_idx, chunk_to_idx, predictions)
 
-        predicted_entity_words = extract_entity_words(doc["predicted_classes"], doc, label_list, True)
-        gold_entity_words = extract_entity_words(doc["gold_labels"], doc, label_list, False)
+    Args:
+        raw_predictions: (num_samples x num_classes) numpy array
 
-        doc_dict = create_entities(predicted_entity_words, gold_entity_words, label_list)
+    Returns:
+        Dictionary with predicted classes and their confidences.
+    """
+    # softmax for np
+    doc_prob = torch.tensor(raw_predictions.astype(np.float)).softmax(1).numpy()
+    doc_conf = np.max(doc_prob, axis=-1)
+    if np.isnan(doc_conf).sum() > 0:
+        logging.warning(
+            "There are NaNs in the model predictions. "
+            "If this run is using mixed precision try to run it with single precision"
+        )
 
-        is_test_file = doc["is_test_file"] if "is_test_file" in doc else False
-        pred_dict[doc["id"]] = {"is_test_file": is_test_file, "entities": doc_dict}
-
-    return pred_dict
+    doc_class_index = np.argmax(doc_prob, axis=-1)
+    return PredictionComponents(predicted_classes=doc_class_index, prediction_confidences=doc_conf)
 
 
 def create_entities(
@@ -151,7 +272,21 @@ def create_entities(
     return doc_dict
 
 
-def extract_entity_words(prediction_idxs, doc, label_list, is_gold):
+def extract_entity_words(
+    prediction_idxs: np.ndarray, doc: Dict[str, Any], label_list: List[str], is_gold: bool
+) -> Dict[str, Any]:
+    """
+    Given predicted classes, create a dictionary with entity words.
+
+    Args:
+        prediction_idxs:
+        doc:
+        label_list:
+        is_gold:
+
+    Returns:
+
+    """
     non_zero_class = np.nonzero(prediction_idxs)[0]
     doc_words_dict = defaultdict(list)
     for idx in non_zero_class:
@@ -178,65 +313,11 @@ def extract_entity_words(prediction_idxs, doc, label_list, is_gold):
             conf=conf,
             idx=idx,
         )
-        if is_gold:
-            if doc["word_line_idx"] is not None:
+        if not is_gold:
+            if doc.get("word_line_idx", None) is not None:
                 word["word_line_idx"] = doc["word_line_idx"][idx]
-            if doc["word_in_line_idx"] is not None:
+            if doc.get("word_in_line_idx", None) is not None:
                 word["word_in_line_idx"] = doc["word_in_line_idx"][idx]
 
         doc_words_dict[tag_name].append(word)
     return doc_words_dict
-
-
-def extract_dechunked_components(dataset, doc_id, chunk_from_idx, chunk_to_idx, predictions) -> DechunkedDoc:
-    preds, labels = predictions
-
-    doc = dataset[chunk_from_idx]
-    assert doc_id == doc["id"], "Chunk doc_id and doc_id obtained from the dataset does not match"
-
-    chunk_ranges = dataset["chunk_ranges"]
-    chunk_ranges_lst = chunk_ranges[chunk_from_idx:chunk_to_idx]
-    content_mask_lst = dataset["content_tokens_mask"][chunk_from_idx:chunk_to_idx]
-    preds_arr = preds[chunk_from_idx:chunk_to_idx]
-    labels_arr = labels[chunk_from_idx:chunk_to_idx]
-    word_starts = dataset["word_starts"][chunk_from_idx:chunk_to_idx]
-
-    doc_preds = join_chunks(preds_arr, chunk_ranges_lst, content_mask_lst)
-    doc_labels = join_chunks(labels_arr, chunk_ranges_lst, content_mask_lst)
-    doc_word_starts = join_chunks(word_starts, chunk_ranges_lst, None)
-    doc_word_starts = np.array(doc_word_starts)
-
-    dechunked_doc = DechunkedDoc(
-        id=doc["id"],
-        words=doc["words"],
-        word_original_bboxes=doc.get("word_original_bboxes", None),
-        word_page_nums=doc.get("word_page_nums", None),
-        gold_labels=doc_labels[doc_word_starts],
-        raw_predictions=doc_preds[doc_word_starts],
-        word_starts=doc_word_starts,
-        is_test_file=doc.get("is_test_file", False),
-        word_line_idx=doc.get("word_line_idx", None),
-        word_in_line_idx=doc.get("word_in_line_idx", None),
-    )
-    return dechunked_doc
-
-
-def calculate_predictions(raw_predictions: np.ndarray) -> PredictionComponents:
-    # softmax for np
-    doc_prob = torch.tensor(raw_predictions.astype(np.float)).softmax(1).numpy()
-    doc_conf = np.max(doc_prob, axis=-1)
-    if np.isnan(doc_conf).sum() > 0:
-        logging.warning(
-            "There are NaNs in the model predictions. "
-            "If this run is using mixed precision try to run it with single precision"
-        )
-
-    doc_class_index = np.argmax(doc_prob, axis=-1)
-    return PredictionComponents(predicted_classes=doc_class_index, prediction_confidences=doc_conf)
-
-
-def prepare_predicted_doc(dataset, doc_id, chunk_from_idx, chunk_to_idx, predictions) -> PredictedDoc:
-    doc_components = extract_dechunked_components(dataset, doc_id, chunk_from_idx, chunk_to_idx, predictions)
-    prediction_components = calculate_predictions(doc_components["raw_predictions"])
-    doc_components.update(**prediction_components)
-    return PredictedDoc(**doc_components)

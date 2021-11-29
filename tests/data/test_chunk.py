@@ -162,11 +162,11 @@ class TestChunk(unittest.TestCase):
         chunks = list(chunk.get_chunks(example, tokenizer, chunk_ranges))
 
         # verify
-        self.assertEquals(len(chunks), 2)
+        self.assertEqual(len(chunks), 2)
         keys_to_check = [k for k in example.keys() if k in chunk.KEYS_TO_CHUNK]
         for chunk_ in chunks:
             for key in keys_to_check:
-                self.assertEquals(len(chunk_[key]), len(chunk_[keys_to_check[0]]))
+                self.assertEqual(len(chunk_[key]), len(chunk_[keys_to_check[0]]))
                 # TODO: not all KEYS_TO_CHUNK are actualle the same length.
                 #  Some are chunked, but are not filled with the extra tokens (e.g. token_page_nums)
 
@@ -180,11 +180,11 @@ class TestChunk(unittest.TestCase):
         chunks = list(chunk.get_chunks(example, tokenizer, chunk_ranges))
 
         # verify
-        self.assertEquals(len(chunks), 2)
+        self.assertEqual(len(chunks), 2)
         keys_to_check = [k for k in example.keys() if k in chunk.KEYS_TO_CHUNK]
         for chunk_ in chunks:
             for key in keys_to_check:
-                self.assertEquals(len(chunk_[key]), len(chunk_[keys_to_check[0]]))
+                self.assertEqual(len(chunk_[key]), len(chunk_[keys_to_check[0]]))
 
     def test_get_chunks_with_image(self):
         # given
@@ -196,7 +196,7 @@ class TestChunk(unittest.TestCase):
         chunks = list(chunk.get_chunks(example, tokenizer, chunk_ranges))
 
         # verify
-        self.assertEquals(len(chunks), 3)
+        self.assertEqual(len(chunks), 3)
 
     def test_produce_chunks_all_chunks(self):
         # undecorate
