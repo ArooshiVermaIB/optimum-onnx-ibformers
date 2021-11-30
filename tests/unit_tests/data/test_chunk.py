@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from transformers import AutoTokenizer
 
@@ -79,6 +79,16 @@ class TestChunk(unittest.TestCase):
         # verify
         expected = [(0, 3), (3, 6), (6, 9), (9, 10)]
         self.assertListEqual(ranges, expected)
+
+    def test_get_chunk_ranges_large_overlap(self):
+        # given
+        input_len = 30
+        chunk_size = 22
+        overlap = 32
+
+        # then
+        with self.assertRaisesRegex(AssertionError, "chunk size is smaller"):
+            chunk.get_chunk_ranges(input_len, chunk_size, overlap)
 
     def test_get_single_page_chunk_ranges(self):
         # given
@@ -244,4 +254,23 @@ class TestChunk(unittest.TestCase):
 
         # verify
         with self.assertRaises(ValueError):
+            list(fn_to_test(example, tokenizer, max_length, chunking_strategy, chunk_overlap))
+
+    def test_produce_chunks_long_prefix_input_ids_raise_assertion(self):
+        # undecorate
+        fn_to_test = chunk.produce_chunks.__closure__[0].cell_contents
+        # given
+        dataset_dict = {}
+        dataset_dict["prefix_input_ids"] = [0] * 500
+        dataset_dict["input_ids"] = [0] * 512
+        example = MagicMock()
+        example.get.side_effect = lambda x, y: dataset_dict[x]
+
+        tokenizer = MagicMock()
+        max_length = 512
+        chunk_overlap = 64
+        chunking_strategy = "ALL_CHUNKS"
+
+        # verify
+        with self.assertRaisesRegex(AssertionError, "chunk size is smaller"):
             list(fn_to_test(example, tokenizer, max_length, chunking_strategy, chunk_overlap))
