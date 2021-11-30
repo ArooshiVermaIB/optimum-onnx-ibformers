@@ -66,7 +66,7 @@ class _NormBboxesInput(TypedDict):
 T = TypeVar("T", bound=_NormBboxesInput)
 
 
-def _fix_for_negative_dims(norm_bboxes: List[List[int]]) -> List[List[float]]:
+def _fix_for_negative_dims(norm_bboxes: List[List[int]]) -> List[List[int]]:
     """
     fix the bboxes which do not meet conditions x1<x2 and y1<y2 for bbox format (x1,y1,x2,y2)
     """
@@ -94,7 +94,7 @@ def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
 
 def _norm_bboxes_for_layoutlm(
     bboxes: List[List[int]], page_bboxes: List[List[int]], page_spans: List[Tuple[int, int]]
-) -> Tuple[List[List[float]], List[List[float]]]:
+) -> Tuple[List[List[int]], List[List[int]]]:
     norm_bboxes = np.array(bboxes)
     norm_page_bboxes = np.array(page_bboxes)
     for (_, _, _, page_height), (page_start_i, page_end_i) in zip(page_bboxes, page_spans):
