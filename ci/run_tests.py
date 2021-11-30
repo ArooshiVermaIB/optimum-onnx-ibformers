@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import backoff
 import json
 import logging
 import os
@@ -24,77 +25,14 @@ from .lib.config import (
     load_model_tests,
 )
 from .lib.ibapi import Instabase
+from .lib import utils
+from .lib import exceptions
 
-POLLING_INTERVAL = 10
+POLLING_INTERVAL = 30
 INFERENCE_TIMEOUT = 300  # Allow 5 minutes to run the model in model service
 
 
-def do_comparison(
-    evaluation_results: Dict[str, Dict[str, Any]],
-    expected_metrics: Dict[str, Dict[str, Any]],
-    *,
-    test_name: str,
-) -> bool:
-    """
-    Check that the evaluation_results are each at least as high as the expected metrics
-    >>> evaluation_results = {
-    >>>     "f1_score": {
-    >>>         "name": 0.95,
-    >>>         "address": 0.9,
-    >>>     }, "accuracy": {
-    >>>         "name": 0.6,
-    >>>         "address": 0.7,
-    >>>     }, "pecision": {
-    >>>         "name": 0.7,
-    >>>         "address": 0.8,
-    >>>     }
-    >>> }
-    >>> expected_metrics = {
-    >>>        "f1_score": {
-    >>>         "name": 0.9
-    >>>     }, "accuracy": {
-    >>>         "name": 0.5
-    >>>     }
-    >>> }
-    >>> do_comparison(evaluation_results, expected_metrics)
-    True
-    """
-    logger = logging.getLogger(test_name)
-    success = True
-    for metric, fields in expected_metrics.items():
-        if metric not in evaluation_results:
-            logger.error(f"evaluation results did not contain expected metric {metric}")
-            success = False
-            continue
-        evaluation_results_for_metric = evaluation_results[metric]
-        for field, value in fields.items():
-            if field not in evaluation_results_for_metric:
-                logger.error(f"evaluation results did not contain expected field {field} for metric {metric}")
-                success = False
-                continue
-            observed = evaluation_results_for_metric[field]
-            try:
-                observed = float(observed)
-            except ValueError:
-                logger.error(
-                    f"for field '{field}' and metric '{metric}' observed value '{observed}' "
-                    f"could not be converted to a float"
-                )
-                success = False
-                continue
-
-            if (
-                not isinstance(evaluation_results_for_metric[field], float)
-                or value > evaluation_results_for_metric[field]
-            ):
-                logger.error(
-                    f"for field '{field}' and metric '{metric}' expected at "
-                    f"least '{value}' but observed '{evaluation_results_for_metric[field]}'"
-                )
-                success = False
-    return success
-
-
+@backoff.on_exception(backoff.expo, exceptions.ContainerRestartException, max_tries=5)
 async def run_training_test(
     sdk: Instabase,
     wait_for: asyncio.Task,
@@ -104,7 +42,7 @@ async def run_training_test(
     dataset_path: str,
     test_config: ModelTestConfig,
 ) -> [bool, str]:
-    logger = logging.getLogger(test_name)
+    logger = logging.getLogger(f"{sdk.name}: {test_name}")
 
     logger.debug("Awaiting code sync")
     await wait_for
@@ -126,9 +64,21 @@ async def run_training_test(
     job_info = {}
     task_metadata = {}
     while time.time() - start_time < test_config["time_limit"]:
-        job_info = await sdk.get_training_job_status(job_id)
+        resp = await sdk.get_training_job_status(job_id)
+        job_info = None
+        if resp and "job" in resp:
+            job_info = resp["job"]
+        else:
+            # if this issue persists, then time out will occur
+            logger.info(f"get job status response: {resp}")
+            await asyncio.sleep(POLLING_INTERVAL)
+            continue
 
         if job_info.get("status") in ["ERROR", "FAILURE"]:
+            # check if it's due to contanier restart
+            if job_info.get("message") and job_info.get("message").startswith("Worker received non-pending task"):
+                raise exceptions.ContainerRestartException(job_info.get("message"))
+
             logger.error(f"Server error: {job_info}")
             return False, job_id
 
@@ -159,7 +109,7 @@ async def run_training_test(
 
     evaluation_results = task_metadata.get("evaluation_results")
     if evaluation_results:
-        success = do_comparison(evaluation_results, test_config["metrics"], test_name=test_name)
+        success = utils.do_comparison(evaluation_results, test_config["metrics"], test_name=test_name)
         if success:
             logging.info(f"Test passed: {test_name}")
     else:
@@ -182,7 +132,7 @@ async def run_inference_test(
     dataset_path: str,
     test_config: ModelTestConfig,
 ) -> bool:
-    logger = logging.getLogger(test_name)
+    logger = logging.getLogger(f"{sdk.name}: {test_name}")
 
     logger.info("Waiting for training test to finish before starting inference test")
     await wait_for
@@ -240,7 +190,7 @@ async def run_inference_test(
     # We should ideally run against many or all documents to compare
     resp = await sdk.run_refiner(
         program_path=str(refiner_path),
-        input_record_keys=[preds_dict['ibdoc_path'] + "-0"],  # Weird thing that we have to add "-0"
+        input_record_keys=[preds_dict["ibdoc_path"] + "-0"],  # Weird thing that we have to add "-0"
     )
 
     if "job_id" not in resp:
@@ -273,8 +223,8 @@ async def run_inference_test(
         inference_val = preds_by_field[field_name]
         if train_val != inference_val:
             logging.error(
-                f'For file <{ibdoc_path}> and field <{field_name}>, expected training prediction <{train_val}> '
-                f'equal inference prediction <{inference_val}>'
+                f"For file <{ibdoc_path}> and field <{field_name}>, expected training prediction <{train_val}> "
+                f"equal inference prediction <{inference_val}>"
             )
             success = False
 
@@ -462,7 +412,7 @@ if __name__ == "__main__":
         format=VERBOSE_FORMAT if not namespace.quiet else "%(message)s",
     )
 
-    asyncio.run(
+    asyncio.get_event_loop().run_until_complete(
         run_tests(
             train=namespace.train,
             inference=namespace.inference,

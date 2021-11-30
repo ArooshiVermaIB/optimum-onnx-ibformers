@@ -1,4 +1,4 @@
 typing_extensions
 aiohttp
 pyyaml
-retry
+backoff

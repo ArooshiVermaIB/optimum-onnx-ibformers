@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import AnyStr, Dict, Any, List, Optional, Mapping, Union
 
-from retry import retry  # add retry for sync api calls
+import backoff  # add retry for sync api calls
 import aiohttp
 from typing_extensions import TypedDict, Literal
 
@@ -22,6 +22,9 @@ class Instabase:
         self.drive_api_url = os.path.join(self._host, "api/v1", "drives")
         self.logger = logging.getLogger(name)
 
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def start_model_training_task(
         self,
         *,
@@ -48,6 +51,7 @@ class Instabase:
                 url,
                 headers=self._make_headers(),
                 data=json.dumps(arguments),
+                raise_for_status=True,
             ) as r:
                 resp = await r.json()
 
@@ -57,6 +61,9 @@ class Instabase:
         self.logger.error(f"{self.name}: Error while starting model training job: {resp}")
         return False, resp
 
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def run_refiner(
         self,
         program_path: str,
@@ -90,11 +97,14 @@ class Instabase:
                 url,
                 headers=self._make_headers(),
                 data=json.dumps(data),
+                raise_for_status=True,
             ) as r:
                 resp = await r.json()
         return resp
 
-    @retry(tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def unload_model(self, model_name: str) -> Dict[str, Any]:
         url = os.path.join(self._host, "api/v1/model-service/unload_model")
 
@@ -106,6 +116,7 @@ class Instabase:
                 url,
                 headers=self._make_headers(),
                 data=json.dumps(data),
+                raise_for_status=True,
             ) as r:
                 resp = await r.json()
 
@@ -113,7 +124,9 @@ class Instabase:
             self.logger.error(f"Error occurred while unloading model: {resp}")
         return resp
 
-    @retry(aiohttp.client_exceptions.ContentTypeError, tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def prepare_publish(self, ib_path: str, job_id: str) -> [bool, Union[str, dict, None]]:
         """parepare training job to be published
 
@@ -126,7 +139,7 @@ class Instabase:
         args = dict(model_project_path=ib_path, training_job_id=job_id)
         data = json.dumps(args)
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data, headers=self._make_headers()) as r:
+            async with session.post(url, data=data, headers=self._make_headers(), raise_for_status=True) as r:
                 resp = await r.json()
 
         if resp.get("version", "").upper():
@@ -136,7 +149,9 @@ class Instabase:
         self.logger.error(f"{self.name}: Server Error: {resp}")
         return False, resp
 
-    @retry(tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def create_ibsolution(
         self, content_folder: str, output_folder: str
     ) -> [bool, Union[str, Dict[str, Any], None]]:
@@ -151,11 +166,11 @@ class Instabase:
         args = {"async": "true", "content_folder": content_folder, "output_folder": output_folder}
         data = json.dumps(args)
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data, headers=self._make_headers()) as r:
+            async with session.post(url, data=data, headers=self._make_headers(), raise_for_status=True) as r:
                 resp = await r.json()
 
         self.logger.info("waiting for creating ibsolution")
-        results = await self.wait_for_job_completion(resp['job_id'], wait_time=1, is_async=True)
+        results = await self.wait_for_job_completion(resp["job_id"], wait_time=1, is_async=True)
         if results:
             if results["status"] == "OK":
                 self.logger.debug(f"{self.name}: response was: {results}")
@@ -164,7 +179,9 @@ class Instabase:
                 self.logger.error(f"{self.name}: Server Error: {results}")
         return False, results
 
-    @retry(tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=8
+    )
     async def publish_solution(self, ib_path: str) -> [bool, Union[str, Dict[str, Any], None]]:
         """Publishes the ibsolution located at ib_path on instabase.com to the marketplace
 
@@ -179,11 +196,11 @@ class Instabase:
         self.logger.info(f"{self.name}: publishing solution found at {ib_path}")
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data, headers=self._make_headers()) as r:
+            async with session.post(url, data=data, headers=self._make_headers(), raise_for_status=True) as r:
                 resp = await r.json()
 
         self.logger.info("waiting for publishing ibsolution")
-        results = await self.wait_for_job_completion(resp['job_id'], wait_time=1, is_async=True)
+        results = await self.wait_for_job_completion(resp["job_id"], wait_time=1, is_async=True)
         if results:
             if results["status"] == "OK":
                 self.logger.debug(f"{self.name}: response was: {results}")
@@ -192,7 +209,9 @@ class Instabase:
                 self.logger.error(f"{self.name}: Server Error: {results}")
         return False, results
 
-    @retry(tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=8
+    )
     async def unpublish_solution(self, name: str, version: str) -> bool:
         """Unpublishes the ibsolution located at ib_path on instabase.com to the marketplace
 
@@ -207,7 +226,7 @@ class Instabase:
         self.logger.info(f"{self.name}: unpublishing {name} {version}")
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data, headers=self._make_headers()) as r:
+            async with session.post(url, data=data, headers=self._make_headers(), raise_for_status=True) as r:
                 resp = await r.json()
 
         if resp.get("status", "").upper() == "OK":
@@ -216,17 +235,22 @@ class Instabase:
         self.logger.error(f"{self.name}: Server response when unpublishing: {resp}")
         return False
 
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def load_marketplace_list(self) -> MarketplaceRequestResponse:
         url = f"{self._host}/api/v1/marketplace/list"
 
         self.logger.debug(f"{self.name}: Requesting {url}")
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=self._make_headers()) as r:
+            async with session.get(url, headers=self._make_headers(), raise_for_status=True) as r:
                 resp = await r.json()
 
         return resp
 
-    @retry(aiohttp.client_exceptions.ContentTypeError, tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def read_file(self, ib_path: str, use_abspath: bool = False) -> str:
         headers = {
             **self._make_headers(),
@@ -242,13 +266,16 @@ class Instabase:
             async with session.get(
                 url,
                 headers=headers,
+                raise_for_status=True,
             ) as r:
                 resp = await r.text()
 
         self.logger.debug(f"{self.name} read_file: IB API response head: {resp}")
         return resp
 
-    @retry(aiohttp.client_exceptions.ContentTypeError, tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def list_directory(self, ib_path: str, use_abspath: bool = False) -> List[str]:
 
         if use_abspath:
@@ -256,12 +283,12 @@ class Instabase:
         else:
             url = os.path.join(self.drive_api_url, self._root_path, ib_path)
 
-        self.logger.info(f'{self.name}: Listing directory {ib_path}')
+        self.logger.info(f"{self.name}: Listing directory {ib_path}")
 
         headers = {
             **self._make_headers(),
-            'Instabase-API-Args': json.dumps(
-                dict(type='folder', if_exists='overwrite', get_content=True, get_metadata=False, start_page_token='')
+            "Instabase-API-Args": json.dumps(
+                dict(type="folder", if_exists="overwrite", get_content=True, get_metadata=False, start_page_token="")
             ),
         }
         has_more = True
@@ -271,25 +298,28 @@ class Instabase:
                 async with session.get(
                     url,
                     headers=headers,
+                    raise_for_status=True,
                 ) as r:
                     resp = await r.json()
-            dir_content += [r['name'] for r in resp.get('nodes', [])]
-            has_more = resp['has_more']
+            dir_content += [r["name"] for r in resp.get("nodes", [])]
+            has_more = resp["has_more"]
             if has_more:
-                next_page_token = resp['next_page_token']
-                headers['Instabase-API-Args'] = json.dumps(
+                next_page_token = resp["next_page_token"]
+                headers["Instabase-API-Args"] = json.dumps(
                     dict(
-                        type='folder',
-                        if_exists='overwrite',
+                        type="folder",
+                        if_exists="overwrite",
                         get_content=True,
                         get_metadata=False,
                         start_page_token=next_page_token,
                     )
                 )
-                self.logger.info(f'{self.name}: Listing further part of the directory {ib_path}')
+                self.logger.info(f"{self.name}: Listing further part of the directory {ib_path}")
         return dir_content
 
-    @retry(aiohttp.client_exceptions.ContentTypeError, tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def read_binary(self, ib_path: str) -> bytes:
         headers = {
             **self._make_headers(),
@@ -301,13 +331,16 @@ class Instabase:
             async with session.get(
                 url,
                 headers=headers,
+                raise_for_status=True,
             ) as r:
                 resp = await r.read()
 
         self.logger.debug(f"{self.name} read_binary: IB API response: {resp[:100]}")
         return resp
 
-    @retry(aiohttp.client_exceptions.ContentTypeError, tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def write_file(self, ib_path: str, contents: AnyStr) -> Dict[str, Any]:
         headers = {
             **self._make_headers(),
@@ -319,14 +352,16 @@ class Instabase:
         url = os.path.join(self.drive_api_url, self._root_path, ib_path)
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=contents, headers=headers) as r:
+            async with session.post(url, data=contents, headers=headers, raise_for_status=True) as r:
                 resp = await r.json()
 
         self.logger.debug(f"{self.name} write_file: IB API response: {resp}")
         self.logger.info(f"{self.name} write_file: Wrote to path {ib_path}")
         return resp
 
-    @retry(aiohttp.client_exceptions.ContentTypeError, tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def delete_file(self, ib_path: str, *, recursive: bool = False) -> Dict[str, Any]:
         url = os.path.join(self.drive_api_url, self._root_path, ib_path)
 
@@ -334,12 +369,14 @@ class Instabase:
         self.logger.info(f"{self.name}: Deleting file at location {ib_path}")
 
         async with aiohttp.ClientSession() as session:
-            async with session.delete(url, data=data, headers=self._make_headers()) as r:
+            async with session.delete(url, data=data, headers=self._make_headers(), raise_for_status=True) as r:
                 resp = await r.json()
         self.logger.debug(f"{self.name}: Response was: {resp}")
         return resp
 
-    @retry(tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=6
+    )
     async def wait_for_job_completion(self, job_id: str, wait_time: float, is_async: bool = False) -> Dict[str, Any]:
         """Repeatedly hits the job status API until a completion/failure signal is received
 
@@ -357,6 +394,7 @@ class Instabase:
                 async with session.get(
                     url,
                     headers=self._make_headers(),
+                    raise_for_status=True,
                 ) as r:
                     resp = await r.json()
                     if resp["state"] != "PENDING":
@@ -364,7 +402,9 @@ class Instabase:
 
             await asyncio.sleep(wait_time)
 
-    @retry(aiohttp.client_exceptions.ContentTypeError, tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=6
+    )
     async def get_training_job_status(self, job_id: str) -> Dict[str, Any]:
         url = os.path.join(self._host, "api/v1/model/training_job") + f"?training_job_id={job_id}"
 
@@ -374,29 +414,35 @@ class Instabase:
             async with session.get(
                 url,
                 headers=self._make_headers(),
+                raise_for_status=True,
             ) as r:
                 resp = await r.json()
 
         self.logger.debug(f"{self.name}: async job with ID {job_id} returned with: {resp}")
-        return resp["job"]
+        return resp
 
-    @retry(aiohttp.client_exceptions.ContentTypeError, tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def get_async_job_status(self, job_id: str) -> Dict[str, Any]:
-        url = os.path.join(self._host, 'api/v1/jobs/status') + f'?job_id={job_id}&type=async'
+        url = os.path.join(self._host, "api/v1/jobs/status") + f"?job_id={job_id}&type=async"
 
-        self.logger.debug(f'{self.name}: Waiting for async job with ID: {job_id}')
+        self.logger.debug(f"{self.name}: Waiting for async job with ID: {job_id}")
 
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 url,
                 headers=self._make_headers(),
+                raise_for_status=True,
             ) as r:
                 resp = await r.json()
 
-        self.logger.debug(f'{self.name}: async job with ID {job_id} returned with: {resp}')
+        self.logger.debug(f"{self.name}: async job with ID {job_id} returned with: {resp}")
         return resp
 
-    @retry(aiohttp.client_exceptions.ContentTypeError, tries=3, delay=1, backoff=2)
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def get_model_training_logs(self, job_id: str) -> List[IClassifierLog]:
         """
         :param job_id: The ID of the job to get logs for
@@ -404,10 +450,13 @@ class Instabase:
         """
         url = os.path.join(self._host, "classifier/logs", job_id)
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=self._make_headers()) as r:
+            async with session.get(url, headers=self._make_headers(), raise_for_status=True) as r:
                 resp = await r.json()
         return resp
 
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
     async def unzip(self, zip_filepath: str, destination: str) -> bool:
         """Unzips file at zip_filepath on IB into destination. Waits for the
         unzip to finish before returning.
@@ -435,7 +484,7 @@ class Instabase:
 
         self.logger.debug(f"Sending request to unzip '{zip_filename}' to '{destination}'")
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=json.dumps(data), headers=headers) as r:
+            async with session.post(url, data=json.dumps(data), headers=headers, raise_for_status=True) as r:
                 resp = await r.json()
 
         self.logger.debug(f"Unzip response while trying to unzip file at {zip_filename}: {resp}")
