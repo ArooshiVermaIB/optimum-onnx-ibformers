@@ -5,13 +5,23 @@ import numpy as np
 
 from ibformers.data.utils import feed_single_example_and_flatten
 
+KEYS_TO_CHUNK = [
+    "input_ids",
+    "bboxes",
+    "token_label_ids",
+    "offset_mapping",
+    "word_starts",
+    "word_map",
+    "token_page_nums",
+]
 
-def get_chunk_ranges(input_len, chunk_size, overlap):
+
+def get_chunk_ranges(input_len: int, chunk_size: int, overlap: int) -> List[Tuple[int, int]]:
     # get chunk ranges which will cover whole input size
     if input_len < chunk_size:
         return [(0, input_len)]
     ranges = []
-    for i in range(0, input_len - 1, chunk_size - overlap):
+    for i in range(0, input_len, chunk_size - overlap):
         from_range = max(0, i)
         to_range = min(input_len, from_range + chunk_size)
         len_chunk = to_range - from_range
@@ -84,18 +94,8 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
     range(3,6) -> [3,4,5]
     """
 
-    keys_to_chunk = [
-        "input_ids",
-        "bboxes",
-        "token_label_ids",
-        "offset_mapping",
-        "word_starts",
-        "word_map",
-        "token_page_nums",
-    ]
-
     # TODO: check how many tokens are added and remove hardcoded "2"
-    chunked = {k: _split_by_ranges(example[k], ranges=chunk_ranges) for k in keys_to_chunk if k in example}
+    chunked = {k: _split_by_ranges(example[k], ranges=chunk_ranges) for k in KEYS_TO_CHUNK if k in example}
 
     # add images to chunks
     # get pages
@@ -116,7 +116,7 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
     chunked["chunk_ranges"] = chunk_ranges
 
     # This includes things like the document's ID
-    other_keys = [i for i in list(example.keys()) if i not in set(keys_to_chunk).union(chunked.keys())]
+    other_keys = [i for i in list(example.keys()) if i not in set(KEYS_TO_CHUNK).union(chunked.keys())]
 
     # We're transposing now to make it easier to "flatten" the document into essentially independent examples
     transposed = [{k: v[i] for k, v in chunked.items()} for i, _ in enumerate(chunked["input_ids"])]
@@ -176,6 +176,17 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
 
 
 def fill_special_tokens(arr: Sequence[Any], content_mask: Sequence[int], fill_value: int):
+    """
+    Adds items to the sequence to accommodate for the extra tokens, and fills them with provided value.
+
+    Args:
+        arr: Array to be filled
+        content_mask: Mask with extra tokens marked as False, and proper content marked as True
+        fill_value: Value to be filled.
+
+    Returns:
+        Array with items added to match the length of the content_mask and filled with fill_value.
+    """
     arr = np.array(arr)
     new_dims = [len(content_mask)] + list(arr.shape[1:])
     filled = np.full_like(arr, shape=new_dims, fill_value=fill_value)
