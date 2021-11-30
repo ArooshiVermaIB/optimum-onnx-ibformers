@@ -155,7 +155,7 @@ def run_model(INPUT_COL: Value[str], model_version: Value[str], **kwargs) -> Mod
   ibocr, err = kwargs['_FN_CONTEXT_KEY'].get_by_col_name('INPUT_IBOCR_RECORD')
   if err:
     raise KeyError(err)
-  record = ParsedIBOCRBuilder()
+  record = ParsedIBOCRBuilder(use_ibdoc=True)
   record.add_ibocr_records([ibocr])
   results = ip_sdk.run_model('{model_name}', 
                           input_record=record, 
