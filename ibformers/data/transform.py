@@ -75,7 +75,7 @@ def _fix_for_negative_dims(norm_bboxes: List[List[int]]) -> List[List[int]]:
         (bboxes[:, [0, 2]].min(-1), bboxes[:, [1, 3]].min(-1), bboxes[:, [0, 2]].max(-1), bboxes[:, [1, 3]].max(-1)),
         axis=1,
     )
-    return fix_bboxes
+    return fix_bboxes.tolist()
 
 
 @feed_single_example
