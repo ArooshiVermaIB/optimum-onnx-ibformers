@@ -1,3 +1,4 @@
+from random import shuffle
 from typing import List, TypeVar, Tuple
 
 import numpy as np
@@ -9,7 +10,6 @@ from ibformers.data.utils import (
     feed_single_example,
     get_tokens_spans,
 )
-from random import shuffle
 
 
 @feed_single_example
@@ -66,6 +66,18 @@ class _NormBboxesInput(TypedDict):
 T = TypeVar("T", bound=_NormBboxesInput)
 
 
+def _fix_for_negative_dims(norm_bboxes: List[List[int]]) -> List[List[float]]:
+    """
+    fix the bboxes which do not meet conditions x1<x2 and y1<y2 for bbox format (x1,y1,x2,y2)
+    """
+    bboxes = np.array(norm_bboxes)
+    fix_bboxes = np.stack(
+        (bboxes[:, [0, 2]].min(-1), bboxes[:, [1, 3]].min(-1), bboxes[:, [0, 2]].max(-1), bboxes[:, [1, 3]].max(-1)),
+        axis=1,
+    )
+    return fix_bboxes
+
+
 @feed_single_example
 def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
     bboxes, page_bboxes, page_spans = (
@@ -74,8 +86,10 @@ def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
         example["page_spans"],
     )
     norm_bboxes, norm_page_bboxes = _norm_bboxes_for_layoutlm(bboxes, page_bboxes, page_spans)
+    # layoutlm expect bboxes to be in format x1,y1,x2,y2 where x1<x2 and y1<y2
+    fixed_bboxes = _fix_for_negative_dims(norm_bboxes)
 
-    return {"bboxes": norm_bboxes, "page_bboxes": norm_page_bboxes}
+    return {"bboxes": fixed_bboxes, "page_bboxes": norm_page_bboxes}
 
 
 def _norm_bboxes_for_layoutlm(
