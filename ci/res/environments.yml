@@ -12,17 +12,17 @@ dogfood:
 doc-insights-sandbox:
   host: https://doc-insights.aws.sandbox.instabase.com
   path: vontell/my-repo/fs/Instabase Drive/automation
-  dataset_path: vontell/my-repo/fs/Instabase Drive/automation
+  dataset_path: ib_annotation/data/fs/Prod Drive/datasets
   token: p67QBJb6MhQKpIZtS2yDafOyMkqdsV
 
 gs-sandbox:
   host: https://gs.aws.sandbox.instabase.com/
   path: daniel.halpern/my-repo/fs/Instabase Drive/publishing-space
-  dataset_path: vontell/my-repo/fs/Instabase Drive/automation
+  dataset_path: ib_annotation/data/fs/Prod Drive/datasets
   token: BFJGz5BCnmvDXvwrPyoMbsi1as0vuv
 
 solution-eng:
   host: https://solution-eng.aws.sandbox.instabase.com/
   path: vontell/my-repo/fs/Instabase Drive/automation
-  dataset_path: vontell/my-repo/fs/Instabase Drive/automation
+  dataset_path: ib_annotation/data/fs/Prod Drive/datasets
   token: vDatMjJ3J294G701cv7TMabwBfx3Td
