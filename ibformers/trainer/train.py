@@ -38,6 +38,7 @@ from transformers import (
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint
+from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 from typing import Dict, Any
 
@@ -52,14 +53,12 @@ from ibformers.trainer.arguments import (
 )
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-# check_min_version("4.10.0.dev0")
-from ibformers.trainer.train_utils import (
-    split_train_with_column,
-)
+check_min_version("4.12.3")
+from ibformers.trainer.train_utils import split_train_with_column, prepare_config_kwargs
 from ibformers.trainer.trainer import IbTrainer
 
 require_version(
-    "datasets>=1.8.0",
+    "datasets>=1.15.1",
     "To fix: pip install -r examples/pytorch/token-classification/requirements.txt",
 )
 
@@ -279,37 +278,14 @@ def run_train(
         # with training_args.main_process_first(desc="prediction dataset map pre-processing"):
         predict_dataset = prepare_dataset(predict_dataset, pipeline, **map_kwargs)
 
-    if training_args.do_train:
-        features = train_dataset.features
-    else:
-        features = eval_dataset.features
-
-    # In the event the labels are not a `Sequence[ClassLabel]`, we will need to go through the dataset to get the
-    # unique labels.
-    def get_label_list(labels):
-        unique_labels = set()
-        for label in labels:
-            unique_labels = unique_labels | set(label)
-        label_list = list(unique_labels)
-        label_list.sort()
-        return label_list
-
-    if isinstance(features["labels"].feature, ClassLabel):
-        label_list = features["labels"].feature.names
-    else:
-        label_list = get_label_list(train_dataset["labels"])
-
-    num_labels = len(label_list)
-    label_to_id = {l: i for i, l in enumerate(label_list)}
+    config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset)
 
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        num_labels=num_labels,
-        label2id=label_to_id,
-        id2label={i: l for l, i in label_to_id.items()},
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=token,
+        **config_kwargs,
     )
 
     model = model_class.from_pretrained(
