@@ -43,77 +43,68 @@ async def download_and_save_file(sdk: Instabase, file_path: Path, root_path: Pat
     return content, output_file_path
 
 
-async def _download_files_from_list(sdk: Instabase, file_list: List[Union[Path, str]], output_path: Path,
-                                    relative_root: Path):
+async def _download_files_from_list(
+    sdk: Instabase, file_list: List[Union[Path, str]], output_path: Path, relative_root: Path, download_images: bool
+):
     for file_path in file_list:
         file_path = Path(file_path)
         ib_doc_content, output_ibdoc_path = await download_and_save_file(
             sdk, file_path, relative_root, output_path, True
         )
-        image_paths = await get_image_paths_from_content(ib_doc_content, output_ibdoc_path)
-        for image_path in image_paths:
-            await download_and_save_file(sdk, image_path, relative_root, output_path, True)
+        if download_images:
+            image_paths = await get_image_paths_from_content(ib_doc_content, output_ibdoc_path)
+            for image_path in image_paths:
+                await download_and_save_file(sdk, image_path, relative_root, output_path, True)
 
 
-async def _ibannotator(sdk: Instabase, input_path: Path, output_path: Path):
+async def _ibannotator(sdk: Instabase, input_path: Path, output_path: Path, download_images: bool):
     output_path.mkdir(exist_ok=True, parents=True)
     relative_root = input_path.parent
-    annotation_file_content, _ = await download_and_save_file(
-        sdk, input_path, relative_root, output_path, False
-    )
+    annotation_file_content, _ = await download_and_save_file(sdk, input_path, relative_root, output_path, False)
     annotation_dict = json.loads(annotation_file_content)
 
-    file_list = [Path(file['ocrPath']) for file in annotation_dict['files']]
-    await _download_files_from_list(sdk, file_list, output_path, relative_root)
+    file_list = [Path(file["ocrPath"]) for file in annotation_dict["files"]]
+    await _download_files_from_list(sdk, file_list, output_path, relative_root, download_images)
 
 
-async def _ml_studio(sdk: Instabase, input_path: Path, output_path: Path):
+async def _ml_studio(sdk: Instabase, input_path: Path, output_path: Path, download_images: bool):
     output_path.mkdir(exist_ok=True, parents=True)
-    dataset_path = input_path / 'dataset.json'
-    edit_info_path = input_path / 'edit-info.json'
+    dataset_path = input_path / "dataset.json"
+    edit_info_path = input_path / "edit-info.json"
     relative_root = input_path
 
-    await download_and_save_file(
-        sdk, edit_info_path, relative_root, output_path, False
-    )
-    dataset_text, _ = await download_and_save_file(
-        sdk, dataset_path, relative_root, output_path, False
-    )
+    await download_and_save_file(sdk, edit_info_path, relative_root, output_path, False)
+    dataset_text, _ = await download_and_save_file(sdk, dataset_path, relative_root, output_path, False)
     dataset_content = json.loads(dataset_text)
-    dataset_dir = dataset_content['docs_path']
+    dataset_dir = dataset_content["docs_path"]
 
     filename_list = await sdk.list_directory(input_path / dataset_dir)
     file_list = [input_path / dataset_dir / f for f in filename_list]
-    await _download_files_from_list(sdk, file_list, output_path, relative_root)
+    await _download_files_from_list(sdk, file_list, output_path, relative_root, download_images)
 
 
 class ProjectDownloader(object):
-
     def __init__(self, env_name: str):
         envs = load_environments_()
 
         env_config = envs[env_name]
         self._sdk = Instabase(
             name=env_name,
-            host=env_config['host'],
-            token=env_config['token'],
-            root_path='',
+            host=env_config["host"],
+            token=env_config["token"],
+            root_path="",
         )
 
-    def ibannotator(self, input_path: str, output_path: str):
-        asyncio.run(
-            _ibannotator(self._sdk, Path(input_path), Path(output_path))
-        )
+    def ibannotator(self, input_path: str, output_path: str, download_images: bool = False):
+        asyncio.run(_ibannotator(self._sdk, Path(input_path), Path(output_path), download_images))
 
-    def ml_studio(self, input_path: Path, output_path: Path):
-        asyncio.run(
-            _ml_studio(self._sdk, Path(input_path), Path(output_path))
-        )
+    def ml_studio(self, input_path: Path, output_path: Path, download_images: bool = False):
+        asyncio.run(_ml_studio(self._sdk, Path(input_path), Path(output_path), download_images))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(
-        level='DEBUG',
+        level="DEBUG",
         format="%(message)s",
     )
 
