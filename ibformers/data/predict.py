@@ -70,8 +70,8 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
         # the first doc in the chunk
         doc = prepare_predicted_doc(doc_id, chunk_from_idx, chunk_to_idx, predictions, dataset)
 
-        predicted_entity_words = extract_entity_words(doc["predicted_classes"], doc, label_list, True)
-        gold_entity_words = extract_entity_words(doc["gold_labels"], doc, label_list, False)
+        predicted_entity_words = extract_entity_words(doc["predicted_classes"], doc, label_list, False)
+        gold_entity_words = extract_entity_words(doc["gold_labels"], doc, label_list, True)
 
         doc_dict = create_entities(predicted_entity_words, gold_entity_words, label_list)
 
