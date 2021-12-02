@@ -302,14 +302,22 @@ def get_docpro_ds_split(anno: Optional[Dict]):
     return False, "train"
 
 
-def validate_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes):
+def validate_and_fix_bboxes(bbox_arr, page_size_per_token, word_pages_arr, page_bboxes, doc_id):
     for dim in range(1):
-        tokens_outside_dim = np.nonzero(bbox_arr[:, 2 + dim] > size_per_token[:, dim])
+        tokens_outside_dim = np.nonzero(bbox_arr[:, 2 + dim] > page_size_per_token[:, dim])
         if len(tokens_outside_dim[0]) > 0:
             example_idx = tokens_outside_dim[0][0]
             ex_bbox = bbox_arr[example_idx]
             ex_page = page_bboxes[word_pages_arr[example_idx]]
-            raise ValueError(f"found bbox {ex_bbox} outside of the page. bbox {ex_page}")
+            logging.error(
+                f"found bboxes  outside of the page for {doc_id}. Example bbox {ex_bbox} page:({ex_page})."
+                f"These will be trimmed to page coordinates"
+            )
+            # fixing bboxes
+            # use tile to double last dim size and apply trimming both to x1,y1 and x2,y2
+            fixed_arr = np.minimum(bbox_arr, np.tile(page_size_per_token, 2))
+            return fixed_arr
+    return bbox_arr
 
 
 # https://github.com/instabase/instabase/pull/22443/files
@@ -539,8 +547,10 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         norm_bboxes = bbox_arr * 1000 / size_per_token[:, 0:1]
         norm_page_bboxes = page_bboxes * 1000 / page_bboxes[:, 2:3]
 
+        doc_id = f"{dataset_id}-{os.path.basename(full_path)}-{record_index}.json"
+
         # Validate bboxes
-        validate_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes)
+        bbox_arr = validate_and_fix_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes, doc_id)
 
         entities, token_label_ids = process_labels_from_annotation(
             annotations=anno_fields,
@@ -551,8 +561,6 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         )
 
         is_test_file, split = get_docpro_ds_split(anno)
-
-        doc_id = f"{dataset_id}-{os.path.basename(full_path)}-{record_index}.json"
 
         features = {
             "id": doc_id,
