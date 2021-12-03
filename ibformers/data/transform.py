@@ -66,16 +66,15 @@ class _NormBboxesInput(TypedDict):
 T = TypeVar("T", bound=_NormBboxesInput)
 
 
-def _fix_for_negative_dims(norm_bboxes: List[List[int]]) -> List[List[int]]:
+def _fix_for_negative_dims(bboxes: np.ndarray) -> np.ndarray:
     """
     fix the bboxes which do not meet conditions x1<x2 and y1<y2 for bbox format (x1,y1,x2,y2)
     """
-    bboxes = np.array(norm_bboxes)
     fix_bboxes = np.stack(
         (bboxes[:, [0, 2]].min(-1), bboxes[:, [1, 3]].min(-1), bboxes[:, [0, 2]].max(-1), bboxes[:, [1, 3]].max(-1)),
         axis=1,
     )
-    return fix_bboxes.tolist()
+    return fix_bboxes
 
 
 @feed_single_example
@@ -88,13 +87,23 @@ def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
     norm_bboxes, norm_page_bboxes = _norm_bboxes_for_layoutlm(bboxes, page_bboxes, page_spans)
     # layoutlm expect bboxes to be in format x1,y1,x2,y2 where x1<x2 and y1<y2
     fixed_bboxes = _fix_for_negative_dims(norm_bboxes)
+    min_val = fixed_bboxes.min()
+    max_val = fixed_bboxes.max()
 
-    return {"bboxes": fixed_bboxes, "page_bboxes": norm_page_bboxes}
+    if min_val < 0 or max_val > 1000:
+        ex = fixed_bboxes.max(-1).argmax() if max_val > 1000 else fixed_bboxes.min(-1).argmin()
+        ex_bbox = bboxes[ex]
+        raise ValueError(
+            f"Bboxes are outside of required range 0-1000. Range: {min_val} - {max_val} "
+            f"Example Bbox: {ex_bbox}, Page bbox: {page_bboxes}, Page Spans: {page_spans}"
+        )
+
+    return {"bboxes": fixed_bboxes.tolist(), "page_bboxes": norm_page_bboxes.tolist()}
 
 
 def _norm_bboxes_for_layoutlm(
     bboxes: List[List[int]], page_bboxes: List[List[int]], page_spans: List[Tuple[int, int]]
-) -> Tuple[List[List[int]], List[List[int]]]:
+) -> Tuple[np.ndarray, np.ndarray]:
     norm_bboxes = np.array(bboxes)
     norm_page_bboxes = np.array(page_bboxes)
     for (_, _, _, page_height), (page_start_i, page_end_i) in zip(page_bboxes, page_spans):
@@ -104,7 +113,7 @@ def _norm_bboxes_for_layoutlm(
 
     norm_page_bboxes[:, 3] = 1000
 
-    return norm_bboxes.tolist(), norm_page_bboxes.tolist()
+    return norm_bboxes, norm_page_bboxes
 
 
 @feed_single_example

@@ -499,6 +499,10 @@ def run_train_doc_pro(
         model_name,
     )
 
+    if hyperparams.get("debug_cuda_launch_blocking", False):
+        logging.warning("Setting up debbuging mode (CUDA_LAUNCH_BLOCKING=1)")
+        os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
     model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hparams_dict)
 
     callback = DocProCallback(
