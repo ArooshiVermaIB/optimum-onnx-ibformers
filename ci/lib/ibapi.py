@@ -12,6 +12,8 @@ import backoff  # add retry for sync api calls
 import aiohttp
 from typing_extensions import TypedDict, Literal
 
+from . import exceptions
+
 
 class Instabase:
     def __init__(self, name: str, host: str, token: str, root_path: str):
@@ -180,7 +182,13 @@ class Instabase:
         return False, results
 
     @backoff.on_exception(
-        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=8
+        backoff.expo,
+        (
+            aiohttp.client_exceptions.ClientError,
+            aiohttp.client_exceptions.ContentTypeError,
+            exceptions.ServerUnavailableException,
+        ),
+        max_tries=8,
     )
     async def publish_solution(self, ib_path: str) -> [bool, Union[str, Dict[str, Any], None]]:
         """Publishes the ibsolution located at ib_path on instabase.com to the marketplace
@@ -206,11 +214,19 @@ class Instabase:
                 self.logger.debug(f"{self.name}: response was: {results}")
                 return True, Path(ib_path).name.split("-")[0]  # TODO: find a better way to obtain model_name
             else:
+                if "UNAVAILABLE" in results:  # retry when file service is not available
+                    raise exceptions.ServerUnavailableException(results)
                 self.logger.error(f"{self.name}: Server Error: {results}")
         return False, results
 
     @backoff.on_exception(
-        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=8
+        backoff.expo,
+        (
+            aiohttp.client_exceptions.ClientError,
+            aiohttp.client_exceptions.ContentTypeError,
+            exceptions.ServerUnavailableException,
+        ),
+        max_tries=8,
     )
     async def unpublish_solution(self, name: str, version: str) -> bool:
         """Unpublishes the ibsolution located at ib_path on instabase.com to the marketplace
@@ -232,7 +248,12 @@ class Instabase:
         if resp.get("status", "").upper() == "OK":
             self.logger.debug(f"{self.name}: response was: {resp}")
             return True
+
+        if "UNAVAILABLE" in results:  # retry when file service is not available
+            raise exceptions.ServerUnavailableException(results)
+
         self.logger.error(f"{self.name}: Server response when unpublishing: {resp}")
+
         return False
 
     @backoff.on_exception(

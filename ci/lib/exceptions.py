@@ -4,3 +4,7 @@ class RetryableException(Exception):
 
 class ContainerRestartException(RetryableException):
     pass
+
+
+class ServerUnavailableException(RetryableException):
+    pass
