@@ -311,7 +311,7 @@ def validate_and_fix_bboxes(bbox_arr, page_size_per_token, word_pages_arr, page_
             ex_page = page_bboxes[word_pages_arr[example_idx]]
             logging.error(
                 f"found bboxes  outside of the page for {doc_id}. Example bbox {ex_bbox} page:({ex_page})."
-                f"These will be trimmed to page coordinates"
+                f"These will be trimmed to page coordinates. Please review your OCR settings."
             )
             # fixing bboxes
             # use tile to double last dim size and apply trimming both to x1,y1 and x2,y2
@@ -541,16 +541,14 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
         # get page height and width
         page_bboxes = np.array([[0, 0, pg.get_width(), pg.get_height()] for pg in layouts])
+        doc_id = f"{dataset_id}-{os.path.basename(full_path)}-{record_index}.json"
 
         # normalize bboxes - divide only by width to keep information about ratio
         size_per_token = np.take(page_bboxes[:, 2:], word_pages_arr, axis=0)
-        norm_bboxes = bbox_arr * 1000 / size_per_token[:, 0:1]
-        norm_page_bboxes = page_bboxes * 1000 / page_bboxes[:, 2:3]
-
-        doc_id = f"{dataset_id}-{os.path.basename(full_path)}-{record_index}.json"
-
         # Validate bboxes
-        bbox_arr = validate_and_fix_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes, doc_id)
+        fix_bbox_arr = validate_and_fix_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes, doc_id)
+        norm_bboxes = fix_bbox_arr * 1000 / size_per_token[:, 0:1]
+        norm_page_bboxes = page_bboxes * 1000 / page_bboxes[:, 2:3]
 
         entities, token_label_ids = process_labels_from_annotation(
             annotations=anno_fields,
