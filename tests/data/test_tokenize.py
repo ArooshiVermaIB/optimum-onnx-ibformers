@@ -41,5 +41,5 @@ class TestTokenize(unittest.TestCase):
         self.assertEqual(len(tokenized["input_ids"]), 1)
         self.assertEqual(len(tokenized["token_label_ids"]), 1)
 
-        self.assertEqual(len(tokenized["input_ids"][0]), 3)
-        self.assertEqual(len(tokenized["token_label_ids"][0]), 3)
+        self.assertEqual(len(tokenized["input_ids"][0]), 2)
+        self.assertEqual(len(tokenized["token_label_ids"][0]), 2)
