@@ -303,7 +303,7 @@ def get_docpro_ds_split(anno: Optional[Dict]):
 
 
 def validate_and_fix_bboxes(bbox_arr, page_size_per_token, word_pages_arr, page_bboxes, doc_id):
-    for dim in range(1):
+    for dim in range(2):
         tokens_outside_dim = np.nonzero(bbox_arr[:, 2 + dim] > page_size_per_token[:, dim])
         if len(tokens_outside_dim[0]) > 0:
             example_idx = tokens_outside_dim[0][0]
@@ -546,6 +546,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         # normalize bboxes - divide only by width to keep information about ratio
         size_per_token = np.take(page_bboxes[:, 2:], word_pages_arr, axis=0)
         # Validate bboxes
+
         fix_bbox_arr = validate_and_fix_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes, doc_id)
         norm_bboxes = fix_bbox_arr * 1000 / size_per_token[:, 0:1]
         norm_page_bboxes = page_bboxes * 1000 / page_bboxes[:, 2:3]
