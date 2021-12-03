@@ -163,7 +163,7 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
             )
 
         chunk_processed["content_tokens_mask"] = content_tokens_mask
-        chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], content_tokens_mask, 0).tolist()
+        chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], content_tokens_mask, 0)
         # if "prefix_input_ids" in example:
         #     prefix_bboxes = np.array(
         #         [[[i * 20, 10, i * 20 + 10, 20] for i in range(1, len_prefix + 1)]]

@@ -407,13 +407,13 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             "is_test_file": datasets.Value("bool"),
             # TODO: remove this column once Dataset SDK will allow for test files iterators
             "words": datasets.Sequence(datasets.Value("string")),
-            "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+            "bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
             # needed to generate prediction file, after evaluation
-            "word_original_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("float32"), length=4)),
+            "word_original_bboxes": datasets.Array2D(shape=(None, 4), dtype="float32"),
             "word_page_nums": datasets.Sequence(datasets.Value("int32")),
             "word_line_idx": datasets.Sequence(datasets.Value("int32")),
             "word_in_line_idx": datasets.Sequence(datasets.Value("int32")),
-            "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+            "page_bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
             "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
             "token_label_ids": datasets.Sequence(datasets.features.ClassLabel(names=classes)),
             # Do not output entities as this ds is used only by SL models by now
