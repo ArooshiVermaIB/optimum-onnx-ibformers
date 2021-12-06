@@ -29,7 +29,7 @@ def chain(example_batch, fn_lst, **kwargs):
 
 
 def pipeline_preprocess(
-    dataset, fn_lst, chain_functions=False, fn_kwargs=None, batch_size=128, num_proc=4, **map_kwargs
+    dataset, fn_lst, chain_functions=True, fn_kwargs=None, batch_size=128, num_proc=4, **map_kwargs
 ):
     """
     :param dataset: hf/dataset used for preprocessing
