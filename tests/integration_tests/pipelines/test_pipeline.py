@@ -48,6 +48,7 @@ class TestPipeline(unittest.TestCase):
                 prepared_dataset = prepare_dataset(
                     dataset, pipeline, fn_kwargs=fn_kwargs, keep_in_memory=True, num_proc=1
                 )
+                pass
                 # dataloader = DataLoader(
                 #     prepared_dataset,
                 #     batch_size=2,
@@ -66,7 +67,7 @@ class TestPipeline(unittest.TestCase):
                 max_example_len=50,
                 num_fields=4,
                 allow_invalid_bboxes=False,
-                allowed_text_characters=string.ascii_letters + string.digits,
+                allowed_text_characters=string.ascii_letters + string.digits + string.whitespace,
             ),
             min_size=1,
             max_size=5,
