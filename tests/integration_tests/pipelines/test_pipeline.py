@@ -31,6 +31,7 @@ class TestPipeline(unittest.TestCase):
 
     def _test_pipelines_on_dataset(self, dataset: Dataset, padding: Any, max_length: int, chunk_overlap: int):
         for pipeline_name, tokenizer in self.pipeline_tokenizer_pairs:
+            # given
             pipeline = PIPELINES[pipeline_name]
             fn_kwargs = {
                 "tokenizer": tokenizer,
@@ -46,6 +47,8 @@ class TestPipeline(unittest.TestCase):
                 model=model,
             )
             supported_fields = set(data_collator.collator.supported_fields)
+
+            # then
             try:
                 prepared_dataset = prepare_dataset(
                     dataset, pipeline, fn_kwargs=fn_kwargs, keep_in_memory=True, num_proc=1
@@ -58,10 +61,12 @@ class TestPipeline(unittest.TestCase):
                     collate_fn=data_collator,
                     num_workers=0,
                 )
-                for batch in dataloader:
+                for _ in dataloader:
+                    # just check if the dataloader iterates correctly for now
                     pass
             except AssertionError:
-                pass  # Allow failing on assertions, as they indicate expected data problems.
+                pass
+                # Allow failing on assertions, as they indicate expected data problems.
 
     @given(
         st.lists(
