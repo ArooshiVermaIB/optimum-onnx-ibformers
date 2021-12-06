@@ -108,7 +108,7 @@ def example(
         "words": words,
         "word_original_bboxes": ([],),
         "word_page_nums": [0] * example_len,
-        "page_bboxes": [draw(bbox(allow_invalid_bboxes))],
+        "page_bboxes": [(0, 0, 1000, 1000)],
         "page_spans": [(0, example_len)],
         "images": ImageProcessor().get_default_processed_image()[None, :],
         "images_page_nums": [0],

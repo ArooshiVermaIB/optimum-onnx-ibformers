@@ -86,6 +86,10 @@ class UniversalDataCollator:
             for field in collator.supported_fields:
                 self.field_to_collator[field].append(collator)
 
+    @property
+    def supported_fields(self) -> List[str]:
+        return self.base_collator.supported_fields + list(self.field_to_collator.keys())
+
     def _get_collator_for_field(self, field_name: str) -> BaseCollator:
         collators = self.field_to_collator[field_name]
         if len(collators) > 1:
