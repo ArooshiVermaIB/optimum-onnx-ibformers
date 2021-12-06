@@ -474,7 +474,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             # ann_dl = DataLoader(ann_dataset, batch_size=1, num_workers=1, collate_fn=lambda x: x)
 
             for record_anno in dataset.iterator_over_annotations():
-                yield record_anno[0], label2ann_label_id, dataset_id, class_id
+                yield record_anno, label2ann_label_id, dataset_id, class_id
 
     def get_annotation_from_model_service(self, records):
         # get similar format to the one defined by dataset SDK
