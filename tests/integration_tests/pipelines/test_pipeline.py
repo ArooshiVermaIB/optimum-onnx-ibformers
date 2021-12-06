@@ -3,7 +3,7 @@ import unittest
 from typing import Any
 from unittest.mock import MagicMock
 
-from hypothesis import given, settings, reproduce_failure
+from hypothesis import given, settings, reproduce_failure, Phase
 from hypothesis import strategies as st
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
@@ -73,7 +73,7 @@ class TestPipeline(unittest.TestCase):
         st.lists(
             example(
                 min_example_len=1,
-                max_example_len=30,
+                max_example_len=50,
                 num_fields=4,
                 allow_invalid_bboxes=False,
                 allowed_text_characters=string.ascii_letters + string.digits + string.whitespace,
@@ -82,7 +82,12 @@ class TestPipeline(unittest.TestCase):
             max_size=5,
         )
     )
-    @settings(max_examples=10, deadline=None, print_blob=True)
+    @settings(
+        max_examples=25,
+        phases=[Phase.explicit, Phase.reuse, Phase.generate, Phase.target],
+        deadline=None,
+        print_blob=True,
+    )
     def test_pipeline(self, example_list):
         # given
         dataset = create_dataset_from_examples(example_list)

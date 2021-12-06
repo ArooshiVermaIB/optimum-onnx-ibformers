@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional, Union, List, ClassVar
 
+import numpy as np
 from transformers import PreTrainedTokenizerBase
 from transformers.file_utils import PaddingStrategy
 
@@ -57,6 +58,10 @@ class BaseCollator(CollatorABC):
         return self.tokenizer.model_input_names
 
     def _collate_features(self, features, target_length: Optional[int] = None):
+        # ugly fix for layoutlmv2
+        if "bbox" in features[0] and isinstance(features[0]["bbox"], np.ndarray):
+            for feature in features:
+                feature["bbox"] = feature["bbox"].tolist()
         return self.tokenizer.pad(
             features,
             padding=self.padding,
