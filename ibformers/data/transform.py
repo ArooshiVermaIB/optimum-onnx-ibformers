@@ -87,8 +87,18 @@ def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
     norm_bboxes, norm_page_bboxes = _norm_bboxes_for_layoutlm(bboxes, page_bboxes, page_spans)
     # layoutlm expect bboxes to be in format x1,y1,x2,y2 where x1<x2 and y1<y2
     fixed_bboxes = _fix_for_negative_dims(norm_bboxes)
+    min_val = fixed_bboxes.min()
+    max_val = fixed_bboxes.max()
 
-    return {"bboxes": fixed_bboxes, "page_bboxes": norm_page_bboxes}
+    if min_val < 0 or max_val > 1000:
+        ex = fixed_bboxes.max(-1).argmax() if max_val > 1000 else fixed_bboxes.min(-1).argmin()
+        ex_bbox = bboxes[ex]
+        raise ValueError(
+            f"Bboxes are outside of required range 0-1000. Range: {min_val} - {max_val} "
+            f"Example Bbox: {ex_bbox}, Page bbox: {page_bboxes}, Page Spans: {page_spans}"
+        )
+
+    return {"bboxes": fixed_bboxes.tolist(), "page_bboxes": norm_page_bboxes.tolist()}
 
 
 def _norm_bboxes_for_layoutlm(
