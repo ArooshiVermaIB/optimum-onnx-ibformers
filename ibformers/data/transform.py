@@ -59,8 +59,8 @@ def add_token_labels_qa(example, **kwargs):
 
 
 class _NormBboxesInput(TypedDict):
-    bboxes: List[List[int]]
-    page_bboxes: List[List[int]]
+    bboxes: np.ndarray
+    page_bboxes: np.ndarray
 
 
 T = TypeVar("T", bound=_NormBboxesInput)
@@ -98,7 +98,7 @@ def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
             f"Example Bbox: {ex_bbox}, Page bbox: {page_bboxes}, Page Spans: {page_spans}"
         )
 
-    return {"bboxes": fixed_bboxes.tolist(), "page_bboxes": norm_page_bboxes.tolist()}
+    return {"bboxes": fixed_bboxes, "page_bboxes": norm_page_bboxes}
 
 
 def _norm_bboxes_for_layoutlm(
