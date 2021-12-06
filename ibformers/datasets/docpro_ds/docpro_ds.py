@@ -467,15 +467,14 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             class_schema = dataset_classes[class_id]["schema"]
             label2ann_label_id = {field["name"]: field["id"] for field in class_schema}
 
+            # TODO: wrap with Dataloader once we support multiprocessing in celery
             # create torch dataset from iterable in order to get prefetch functionality
             # and load the examples in the separate process
-            ann_dataset = AnnItemDataset(dataset.iterator_over_annotations())
-            ann_dl = DataLoader(ann_dataset, batch_size=1, num_workers=1, collate_fn=lambda x: x, prefetch_factor=2)
+            # ann_dataset = AnnItemDataset(dataset.iterator_over_annotations())
+            # ann_dl = DataLoader(ann_dataset, batch_size=1, num_workers=1, collate_fn=lambda x: x)
 
-            for record_anno in ann_dl:
-                if len(record_anno) != 1:
-                    raise ValueError("Only supports one element batches")
-                yield record_anno[0], label2ann_label_id, dataset_id, class_id
+            for record_anno in dataset.iterator_over_annotations():
+                yield record_anno, label2ann_label_id, dataset_id, class_id
 
     def get_annotation_from_model_service(self, records):
         # get similar format to the one defined by dataset SDK
