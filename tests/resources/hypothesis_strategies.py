@@ -1,6 +1,6 @@
 import bisect
 from typing import Tuple, List, Optional, Sequence, Dict, Any
-
+import numpy as np
 import datasets
 from hypothesis import strategies as st
 
@@ -126,14 +126,17 @@ def example(
 
 
 def create_dataset_from_examples(examples: List[Dict[str, Any]]):
+    for key in ("bboxes", "word_original_bboxes", "page_bboxes"):
+        for example in examples:
+            example[key] = np.array(example[key])
     feature_names = ["O"] + list([entity_dict["name"] for entity_dict in examples[0]["entities"]])
     ds_features = {
         "id": datasets.Value("string"),
         "words": datasets.Sequence(datasets.Value("string")),
-        "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int64"))),
-        "word_original_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("float32"), length=4)),
+        "bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
+        "word_original_bboxes": datasets.Array2D(shape=(None, 4), dtype="float32"),
         "word_page_nums": datasets.Sequence(datasets.Value("int32")),
-        "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+        "page_bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
         "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
         "token_label_ids": datasets.Sequence(datasets.features.ClassLabel(names=feature_names)),
         "entities": datasets.Sequence(
