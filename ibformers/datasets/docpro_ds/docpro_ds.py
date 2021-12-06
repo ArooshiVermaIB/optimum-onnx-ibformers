@@ -356,6 +356,10 @@ def assert_valid_record(ibocr_record: IBOCRRecord) -> Optional[str]:
 
 
 class AnnItemDataset(IterableDataset):
+    """
+    Helper dataset build on iterator_over_annotations needed to leverage prefetch functionality of torch dataloaders
+    """
+
     def __init__(self, iterator):
         self.iterator = iterator
 
@@ -641,8 +645,6 @@ class DocProDs(datasets.GeneratorBasedBuilder):
 
     def _generate_examples(self, annotation_items):
         """Yields examples."""
-
-        #
 
         label2id = self.info.features["token_label_ids"].feature._str2int
         for annotation_item, label2ann_label_id, dataset_id, class_id in annotation_items:
