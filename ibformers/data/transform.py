@@ -59,8 +59,8 @@ def add_token_labels_qa(example, **kwargs):
 
 
 class _NormBboxesInput(TypedDict):
-    bboxes: List[List[int]]
-    page_bboxes: List[List[int]]
+    bboxes: np.ndarray
+    page_bboxes: np.ndarray
 
 
 T = TypeVar("T", bound=_NormBboxesInput)
@@ -98,22 +98,18 @@ def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
             f"Example Bbox: {ex_bbox}, Page bbox: {page_bboxes}, Page Spans: {page_spans}"
         )
 
-    return {"bboxes": fixed_bboxes.tolist(), "page_bboxes": norm_page_bboxes.tolist()}
+    return {"bboxes": fixed_bboxes, "page_bboxes": norm_page_bboxes}
 
 
 def _norm_bboxes_for_layoutlm(
-    bboxes: List[List[int]], page_bboxes: List[List[int]], page_spans: List[Tuple[int, int]]
+    bboxes: np.ndarray, page_bboxes: np.ndarray, page_spans: List[Tuple[int, int]]
 ) -> Tuple[np.ndarray, np.ndarray]:
-    norm_bboxes = np.array(bboxes)
-    norm_page_bboxes = np.array(page_bboxes)
+    page_bboxes = np.array(page_bboxes)
     for (_, _, _, page_height), (page_start_i, page_end_i) in zip(page_bboxes, page_spans):
-        norm_bboxes[page_start_i:page_end_i, [1, 3]] = norm_bboxes[page_start_i:page_end_i, [1, 3]] / (
-            page_height / 1000
-        )
+        bboxes[page_start_i:page_end_i, [1, 3]] = bboxes[page_start_i:page_end_i, [1, 3]] / (page_height / 1000)
+    page_bboxes[:, 3] = 1000
 
-    norm_page_bboxes[:, 3] = 1000
-
-    return norm_bboxes, norm_page_bboxes
+    return bboxes, page_bboxes
 
 
 @feed_single_example

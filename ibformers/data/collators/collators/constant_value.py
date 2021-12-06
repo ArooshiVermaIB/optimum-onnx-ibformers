@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import ClassVar, List, Any, Optional
 
+import numpy as np
+
 from ibformers.data.collators.collators.base import BaseCollator
 
 
@@ -43,9 +45,19 @@ class DefaultValueCollator(BaseCollator):
             if target_length is None:
                 target_length = max(len(feature) for feature in feature_batch)
 
-            batch[feature_name] = [
-                feature + [self._default_value] * (target_length - len(feature)) for feature in feature_batch
-            ]
+            if len(feature_batch) > 0 and isinstance(feature_batch[0], np.ndarray):
+                feat_lst = []
+                for feature in feature_batch:
+                    pad_width = target_length - len(feature)
+                    if pad_width > 0:
+                        feat_lst.append(np.concatenate((feature, np.array([self._default_value] * pad_width)), axis=0))
+                    else:
+                        feat_lst.append(feature)
+                batch[feature_name] = feat_lst
+            else:
+                batch[feature_name] = [
+                    feature + [self._default_value] * (target_length - len(feature)) for feature in feature_batch
+                ]
         return batch
 
 
