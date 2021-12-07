@@ -105,7 +105,9 @@ class Instabase:
         return resp
 
     @backoff.on_exception(
-        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+        backoff.expo,
+        (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError, ServerUnavailableException),
+        max_tries=3,
     )
     async def unload_model(self, model_name: str) -> Dict[str, Any]:
         url = os.path.join(self._host, "api/v1/model-service/unload_model")
@@ -123,7 +125,8 @@ class Instabase:
                 resp = await r.json()
 
         if not resp.get("message") == "Model unloading initiated":
-            self.logger.error(f"Error occurred while unloading model: {resp}")
+            raise exceptions.ServerUnavailableException(f"Error occurred while unloading model: {resp}")
+
         return resp
 
     @backoff.on_exception(
@@ -214,7 +217,9 @@ class Instabase:
                 self.logger.debug(f"{self.name}: response was: {results}")
                 return True, Path(ib_path).name.split("-")[0]  # TODO: find a better way to obtain model_name
             else:
-                if "UNAVAILABLE" in results:  # retry when file service is not available
+                if ("UNAVAILABLE" in results) or (
+                    results and "msg" in results and "UNAVAILABLE" in results["msg"]
+                ):  # retry when file service is not available
                     raise exceptions.ServerUnavailableException(results)
                 self.logger.error(f"{self.name}: Server Error: {results}")
         return False, results
@@ -372,8 +377,11 @@ class Instabase:
 
         url = os.path.join(self.drive_api_url, self._root_path, ib_path)
 
+        TIMEOUT_SECONDS = 2400  # 40 minutes
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=contents, headers=headers, raise_for_status=True) as r:
+            async with session.post(
+                url, data=contents, headers=headers, raise_for_status=True, timeout=TIMEOUT_SECONDS
+            ) as r:
                 resp = await r.json()
 
         self.logger.debug(f"{self.name} write_file: IB API response: {resp}")
@@ -389,14 +397,23 @@ class Instabase:
         data = json.dumps(dict(force=recursive))
         self.logger.info(f"{self.name}: Deleting file at location {ib_path}")
 
+        TIMEOUT_SECONDS = 2400  # 40 minutes
         async with aiohttp.ClientSession() as session:
-            async with session.delete(url, data=data, headers=self._make_headers(), raise_for_status=True) as r:
+            async with session.delete(
+                url, data=data, headers=self._make_headers(), raise_for_status=True, timeout=TIMEOUT_SECONDS
+            ) as r:
                 resp = await r.json()
         self.logger.debug(f"{self.name}: Response was: {resp}")
         return resp
 
     @backoff.on_exception(
-        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=6
+        backoff.expo,
+        (
+            aiohttp.client_exceptions.ClientError,
+            aiohttp.client_exceptions.ContentTypeError,
+            exceptions.EmptyResponseException,
+        ),
+        max_tries=8,
     )
     async def wait_for_job_completion(self, job_id: str, wait_time: float, is_async: bool = False) -> Dict[str, Any]:
         """Repeatedly hits the job status API until a completion/failure signal is received
@@ -418,6 +435,9 @@ class Instabase:
                     raise_for_status=True,
                 ) as r:
                     resp = await r.json()
+                    if not resp or "state" not in resp:
+                        raise exceptions.EmptyResponseException(f"the response is: {resp}")
+
                     if resp["state"] != "PENDING":
                         return resp["results"][0]
 

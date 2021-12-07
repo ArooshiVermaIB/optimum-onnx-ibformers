@@ -1,5 +1,6 @@
 import logging
 from typing import Dict, Any
+from .config import load_model_config
 
 
 def do_comparison(
@@ -66,3 +67,9 @@ def do_comparison(
                 )
                 success = False
     return success
+
+
+def get_base_model_name(hyperparams: Dict[str, Any]) -> str:
+    base_model_configs = load_model_config()
+    base_model_name = hyperparams["model_name"]
+    return base_model_configs[base_model_name]["name"]

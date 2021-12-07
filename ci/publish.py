@@ -70,7 +70,7 @@ async def sync_and_publish(
 async def publish(package: str, env_name: str):
     logger = logging.getLogger(f"publish-{package}-{env_name}")
 
-    envs = await load_environments()
+    envs = load_environments()
 
     package_location = abspath(f'../../{package}')
     package_json_location = Path(package_location).parent / 'package.json'

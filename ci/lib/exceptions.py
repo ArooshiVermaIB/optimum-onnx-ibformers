@@ -8,3 +8,7 @@ class ContainerRestartException(RetryableException):
 
 class ServerUnavailableException(RetryableException):
     pass
+
+
+class EmptyResponseException(RetryableException):
+    pass
