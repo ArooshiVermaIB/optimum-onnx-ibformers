@@ -6,7 +6,7 @@ import logging
 import time
 import os
 from pathlib import Path
-from typing import AnyStr, Dict, Any, List, Optional, Mapping, Union
+from typing import AnyStr, Dict, Any, List, Optional, Mapping, Union, Tuple
 
 import backoff  # add retry for sync api calls
 import aiohttp
@@ -529,6 +529,29 @@ class Instabase:
 
         self.logger.info(f"{self.name}: Unzipped uploaded zip at {zip_filepath} at folder {destination}")
         return True
+
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
+    async def run_flow(
+        self, input_dir: str, binary_path: str, output_has_run_id: bool = False, delete_out_dir: bool = False
+    ) -> Tuple[bool, Optional[str]]:
+        url = os.path.join(self._host, "api/v1/flow/run_binary_async")
+        headers = self._make_headers()
+        settings = dict(output_has_run_id=output_has_run_id, delete_out_dir=delete_out_dir)
+        data = dict(input_dir=input_dir, binary_path=binary_path, settings=settings)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                headers=headers,
+                data=json.dumps(data),
+                raise_for_status=True,
+            ) as r:
+                resp = await r.json()
+        if resp["status"] == "OK":
+            return True, resp["data"]["output_folder"]
+        else:
+            return False, None
 
     def _make_headers(self):
         return dict(Authorization=f"Bearer {self._token}")
