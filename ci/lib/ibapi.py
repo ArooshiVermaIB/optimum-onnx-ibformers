@@ -106,7 +106,11 @@ class Instabase:
 
     @backoff.on_exception(
         backoff.expo,
-        (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError, ServerUnavailableException),
+        (
+            aiohttp.client_exceptions.ClientError,
+            aiohttp.client_exceptions.ContentTypeError,
+            exceptions.ServerUnavailableException,
+        ),
         max_tries=3,
     )
     async def unload_model(self, model_name: str) -> Dict[str, Any]:
