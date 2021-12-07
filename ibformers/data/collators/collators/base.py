@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import reduce
 from typing import Optional, Union, List, ClassVar
 
 import numpy as np
@@ -18,12 +19,15 @@ class CollatorABC(ABC):
         pass
 
     def __call__(self, features, target_length: Optional[int] = None):
-        all_features = self._collate_features(features, target_length)
-        return {
-            feature_name: feature_value
-            for (feature_name, feature_value) in all_features.items()
-            if feature_name in self.supported_fields
-        }
+        input_features = [
+            {
+                feature_name: feature_value
+                for (feature_name, feature_value) in feature.items()
+                if feature_name in self.supported_fields
+            }
+            for feature in features
+        ]
+        return self._collate_features(input_features, target_length)
 
 
 @dataclass
@@ -58,10 +62,6 @@ class BaseCollator(CollatorABC):
         return self.tokenizer.model_input_names
 
     def _collate_features(self, features, target_length: Optional[int] = None):
-        # ugly fix for layoutlmv2
-        if "bbox" in features[0] and isinstance(features[0]["bbox"], np.ndarray):
-            for feature in features:
-                feature["bbox"] = feature["bbox"].tolist()
         return self.tokenizer.pad(
             features,
             padding=self.padding,
