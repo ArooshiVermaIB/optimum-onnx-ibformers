@@ -5,11 +5,13 @@ import numpy as np
 
 
 def normalize_bbox(bbox: Tuple[int, int, int, int], size: Tuple[int, int]):
+    zero_width = size[0] == 0
+    zero_height = size[1] == 0
     return [
-        int(1000 * bbox[0] / size[0]),
-        int(1000 * bbox[1] / size[1]),
-        int(1000 * bbox[2] / size[0]),
-        int(1000 * bbox[3] / size[1]),
+        int(1000 * bbox[0] / size[0]) if not zero_width else 0,
+        int(1000 * bbox[1] / size[1]) if not zero_height else 0,
+        int(1000 * bbox[2] / size[0]) if not zero_width else 0,
+        int(1000 * bbox[3] / size[1]) if not zero_height else 0,
     ]
 
 

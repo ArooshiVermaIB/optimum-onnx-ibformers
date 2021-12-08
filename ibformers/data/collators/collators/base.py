@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import reduce
 from typing import Optional, Union, List, ClassVar
 
+import numpy as np
 from transformers import PreTrainedTokenizerBase
 from transformers.file_utils import PaddingStrategy
 
@@ -17,12 +19,15 @@ class CollatorABC(ABC):
         pass
 
     def __call__(self, features, target_length: Optional[int] = None):
-        all_features = self._collate_features(features, target_length)
-        return {
-            feature_name: feature_value
-            for (feature_name, feature_value) in all_features.items()
-            if feature_name in self.supported_fields
-        }
+        input_features = [
+            {
+                feature_name: feature_value
+                for (feature_name, feature_value) in feature.items()
+                if feature_name in self.supported_fields
+            }
+            for feature in features
+        ]
+        return self._collate_features(input_features, target_length)
 
 
 @dataclass

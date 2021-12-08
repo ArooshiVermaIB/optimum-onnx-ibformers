@@ -11,8 +11,8 @@ from ibformers.trainer import arguments
 class TestArguments(unittest.TestCase):
     def test_update_params_with_commandline_separate_classes(self):
         # given
-        param_class_a = dataclasses.make_dataclass('A', [('a', int), ('b', int)])
-        param_class_b = dataclasses.make_dataclass('B', [('c', int), ('d', int)])
+        param_class_a = dataclasses.make_dataclass("A", [("a", int), ("b", int)])
+        param_class_b = dataclasses.make_dataclass("B", [("c", int), ("d", int)])
 
         params_a = param_class_a(1, 2)
         params_b = param_class_b(3, 4)
@@ -31,8 +31,8 @@ class TestArguments(unittest.TestCase):
 
     def test_update_params_with_commandline_shared_params(self):
         # given
-        param_class_a = dataclasses.make_dataclass('A', [('a', int), ('b', int)])
-        param_class_b = dataclasses.make_dataclass('B', [('b', int), ('c', int)])
+        param_class_a = dataclasses.make_dataclass("A", [("a", int), ("b", int)])
+        param_class_b = dataclasses.make_dataclass("B", [("b", int), ("c", int)])
 
         params_a = param_class_a(1, 2)
         params_b = param_class_b(3, 4)
@@ -48,11 +48,11 @@ class TestArguments(unittest.TestCase):
 
     def test_update_params_with_commandline_non_init_field(self):
         # given
-        param_class_a = dataclasses.make_dataclass('A', [('a', 'int', dataclasses.field(default=1, init=False))])
+        param_class_a = dataclasses.make_dataclass("A", [("a", "int", dataclasses.field(default=1, init=False))])
 
         params_a = param_class_a()
 
-        cli_args = [sys.argv[0], '--a', '2']
+        cli_args = [sys.argv[0], "--a", "2"]
 
         # then
         with patch("sys.argv", cli_args):
@@ -69,9 +69,9 @@ class TestArguments(unittest.TestCase):
         # It does not work with `dataclasses.replace` because of that.
 
         # given
-        training_arguments = TrainingArguments(output_dir='')
+        training_arguments = TrainingArguments(output_dir="")
 
-        cli_args = [sys.argv[0], '--num_train_epochs', '1']
+        cli_args = [sys.argv[0], "--num_train_epochs", "1"]
 
         # then
         # this shouldn't fail

@@ -18,6 +18,12 @@ KEYS_TO_CHUNK = [
 
 def get_chunk_ranges(input_len: int, chunk_size: int, overlap: int) -> List[Tuple[int, int]]:
     # get chunk ranges which will cover whole input size
+    assert chunk_size >= overlap, (
+        "Requested chunk size is smaller than the overlap. "
+        "This could be caused by unusually large number of prefix tokens"
+    )
+    # TODO: should we fail in this case?
+
     if input_len < chunk_size:
         return [(0, input_len)]
     ranges = []

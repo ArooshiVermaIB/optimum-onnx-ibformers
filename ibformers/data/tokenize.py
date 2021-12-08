@@ -114,7 +114,7 @@ def tokenize_layoutlmv2(example_batch, tokenizer, padding=False, **kwargs):
     encodings["word_starts"] = batch_word_starts
 
     # rename keys
-    encodings["bboxes"] = encodings.pop("bbox")
+    encodings["bboxes"] = [np.array(bboxes) for bboxes in encodings.pop("bbox")]
     encodings["token_label_ids"] = encodings.pop("labels")
 
     if "prefix_words" in example_batch:
