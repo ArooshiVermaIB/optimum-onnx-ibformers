@@ -38,7 +38,7 @@ async def run_training_test(
     test_name: str,
     root_path: str,
     remote_code_loation: str,
-    test_config: ModelTestConfig,
+    test_config: Dict,
 ) -> [bool, str]:
     logger = logging.getLogger(f"{sdk.name}: {test_name}")
 
