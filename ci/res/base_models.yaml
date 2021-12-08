@@ -1,13 +1,13 @@
 microsoft/layoutlm-base-uncased:
   version: 0.0.1
-  name: layout-base
+  name: layout_base
   git_url: https://huggingface.co/microsoft/layoutlm-base-uncased
   package_name: layoutlm-base-uncased
   active: true
 
 microsoft/layoutxlm-base:
   version: 0.0.1
-  name: layout-multilingual
+  name: layout_multilingual
   git_url: https://huggingface.co/microsoft/layoutxlm-base
   package_name: layoutxlm-base
   active: false
@@ -21,28 +21,28 @@ microsoft/layoutlmv2-base-uncased:
 
 nlpaueb/legal-bert-base-uncased:
   version: 0.0.1
-  name: legal natural language
+  name: legal_natural_language
   git_url: https://huggingface.co/nlpaueb/legal-bert-base-uncased
   package_name: legal-bert-base-uncased
   active: false
 
 bert-base-uncased:
   version: 0.0.1
-  name: natural language
+  name: natural_language
   git_url: https://huggingface.co/bert-base-uncased
   package_name: bert-base-uncased
   active: false
 
 microsoft/layoutlm-large-uncased:
   version: 0.0.1
-  name: layout-large
+  name: layout_large
   git_url: https://huggingface.co/microsoft/layoutlm-large-uncased
   package_name: layoutlm-large-uncased
   active: false
 
 microsoft/layoutlmv2-large-uncased:
   version: 0.0.1
-  name: layoutv2-base (single-page)
+  name: layoutv2_base (single-page)
   git_url: https://huggingface.co/microsoft/layoutlmv2-large-uncased
   package_name: layoutlmv2-large-uncased
   active: false
