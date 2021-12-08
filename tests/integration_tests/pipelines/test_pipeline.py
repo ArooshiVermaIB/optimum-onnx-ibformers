@@ -65,9 +65,12 @@ class TestPipeline(unittest.TestCase):
                 for _ in dataloader:
                     # just check if the dataloader iterates correctly for now
                     pass
+                    # TODO: add some property tests of dataloader batches (equal sequence length etc)
             except AssertionError:
                 pass
                 # Allow failing on assertions, as they indicate expected data problems.
+                # TODO: rework the way we throw errors on invalid data and other expected issues.
+                #  Perhaps we should use some predefined exceptions that are handled specifically on the product side
 
     @given(
         st.lists(
