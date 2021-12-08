@@ -128,7 +128,7 @@ async def run_inference_test(
     wait_for: Optional[asyncio.Task],
     test_name: str,
     dataset_path: str,
-    test_config: ModelTestConfig,
+    test_config: Dict,
 ) -> bool:
     logger = logging.getLogger(f"{sdk.name}: {test_name}")
 
