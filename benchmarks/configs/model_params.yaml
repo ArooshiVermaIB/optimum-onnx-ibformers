@@ -1,5 +1,5 @@
 _default:
-  name: Custom model
+  name: Custom_model
   hyperparams: &defaults
     adam_epsilon: 1.e-8
     per_device_train_batch_size: 8
@@ -19,13 +19,13 @@ _default:
     do_predict: true
 
 microsoft/layoutlm-base-uncased:
-  name: layout-base
+  name: layout_base
   hyperparams:
     <<: *defaults
     pipeline_name: layoutlm_sl
 
 microsoft/layoutxlm-base:
-  name: layout-multilingual
+  name: layout_multilingual
   hyperparams:
     <<: *defaults
     pipeline_name: layoutxlm_sl
@@ -37,25 +37,25 @@ microsoft/layoutlmv2-base-uncased:
     pipeline_name: layoutlmv2_sl
 
 instabase/laymqav1-base:
-  name: LayoutMultiQA-base
+  name: LayoutMultiQA_base
   hyperparams:
     <<: *defaults
     pipeline_name: laymqav1
 
 nlpaueb/legal-bert-base-uncased:
-  name: legal natural language
+  name: legal_natural_language
   hyperparams:
     <<: *defaults
     pipeline_name: plain_sl
 
 bert-base-uncased:
-  name: natural language
+  name: natural_language
   hyperparams:
     <<: *defaults
     pipeline_name: plain_sl
 
 microsoft/layoutlm-large-uncased:
-  name: layout-large
+  name: layout_large
   hyperparams:
     <<: *defaults
     per_device_train_batch_size: 4
@@ -64,7 +64,7 @@ microsoft/layoutlm-large-uncased:
     pipeline_name: layoutlm_sl
 
 microsoft/layoutlmv2-large-uncased:
-  name: layoutv2-base (single-page)
+  name: layoutv2_base (single-page)
   hyperparams:
     <<: *defaults
     per_device_train_batch_size: 2

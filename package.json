@@ -18,7 +18,7 @@
     "function_annotator": "ibformers.trainer.ib_utils.run_train_annotator",
     "base_models": [
       {
-        "name": "layout-base",
+        "name": "layout_base",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
@@ -33,7 +33,7 @@
         }
       },
       {
-        "name": "layout-large",
+        "name": "layout_large",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
@@ -48,7 +48,7 @@
         }
       },
       {
-        "name": "layout-multilingual",
+        "name": "layout_multilingual",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
@@ -78,7 +78,7 @@
         }
       },
       {
-        "name": "LayoutMultiQA-base",
+        "name": "LayoutMultiQA_base",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
@@ -94,7 +94,7 @@
         }
       },
       {
-        "name": "legal natural language",
+        "name": "legal_natural_language",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,
@@ -110,7 +110,7 @@
         }
       },
       {
-        "name": "natural language",
+        "name": "natural_language",
         "default_hyperparameters": {
           "batch_size": 2,
           "chunk_size": 512,

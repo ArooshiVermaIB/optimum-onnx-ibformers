@@ -33,7 +33,7 @@ async def unpublish(package: str, version: str, env_name: str) -> Dict[str, bool
     :param version: the version to unpublish
     :return: Dict[env_name -> success]
     """
-    envs = await load_environments()
+    envs = load_environments()
 
     env_dict = dict(envs).get(env_name)
     if env_dict is None:
@@ -42,34 +42,32 @@ async def unpublish(package: str, version: str, env_name: str) -> Dict[str, bool
 
     sdk = Instabase(
         name=env_name,
-        host=env_dict['host'],
-        token=env_dict['token'],
-        root_path=env_dict['path'],
+        host=env_dict["host"],
+        token=env_dict["token"],
+        root_path=env_dict["path"],
     )
 
     return await unpublish_from_env(sdk, package, version)
 
 
-parser = argparse.ArgumentParser(description='Publish layoutlm package')
-parser.add_argument(
-    '--environment', dest='environment', help="environment package will be published to"
-)
+parser = argparse.ArgumentParser(description="Publish layoutlm package")
+parser.add_argument("--environment", dest="environment", help="environment package will be published to")
 
 parser.add_argument(
-    '--log-level',
-    dest='log_level',
-    default='INFO',
+    "--log-level",
+    dest="log_level",
+    default="INFO",
     help="DEBUG, INFO, WARNING, ERROR. Defaults to INFO",
 )
 parser.add_argument(
-    '--package',
-    dest='package',
-    default='ibformers',
+    "--package",
+    dest="package",
+    default="ibformers",
     help="The name of the package to unpublish",
 )
 parser.add_argument(
-    '--version',
-    dest='version',
+    "--version",
+    dest="version",
     help="The version of the package to unpublish",
 )
 
@@ -78,7 +76,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(
         level=namespace.log_level,
-        format='[%(levelname)s] [%(asctime)s] [%(name)s] (%(module)s.%(funcName)s:%(lineno)d) %(message)s',
+        format="[%(levelname)s] [%(asctime)s] [%(name)s] (%(module)s.%(funcName)s:%(lineno)d) %(message)s",
     )
     package = namespace.package
     version = namespace.version

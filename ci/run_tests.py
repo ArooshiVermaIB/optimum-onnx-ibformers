@@ -18,10 +18,10 @@ from typing_extensions import TypedDict
 from .lib.build import zip_project
 from .lib.config import (
     load_environments,
-    ModelTestConfig,
     PROJECT_ROOT,
     REMOTE_TEMP_ZIP_PATH,
-    DATASET_PREFIX,
+    REMOTE_CODE_PREFIX,
+    PUBLISH_LOCK,
     load_model_tests,
 )
 from .lib.ibapi import Instabase
@@ -39,8 +39,7 @@ async def run_training_test(
     test_name: str,
     root_path: str,
     remote_code_loation: str,
-    dataset_path: str,
-    test_config: ModelTestConfig,
+    test_config: Dict,
 ) -> [bool, str]:
     logger = logging.getLogger(f"{sdk.name}: {test_name}")
 
@@ -51,10 +50,10 @@ async def run_training_test(
     success = False
 
     success, job_id = await sdk.start_model_training_task(
-        training_script_path=os.path.join(root_path, remote_code_loation),
-        model_project_path=os.path.join(dataset_path, DATASET_PREFIX, test_config["model_project_path"]),
-        dataset_project_path=os.path.join(dataset_path, DATASET_PREFIX, test_config["dataset_project_path"]),
-        base_model="layout-base",
+        training_script_path=os.path.join(root_path, REMOTE_CODE_PREFIX, remote_code_loation),
+        model_project_path=os.path.join(root_path, test_config["model_project_path"]),
+        dataset_project_path=os.path.join(root_path, test_config["dataset_project_path"]),
+        base_model=utils.get_base_model_name(test_config["config"]),
         hyperparams=test_config["config"],
     )
 
@@ -130,7 +129,7 @@ async def run_inference_test(
     wait_for: Optional[asyncio.Task],
     test_name: str,
     dataset_path: str,
-    test_config: ModelTestConfig,
+    test_config: Dict,
 ) -> bool:
     logger = logging.getLogger(f"{sdk.name}: {test_name}")
 
@@ -142,7 +141,7 @@ async def run_inference_test(
 
     logger.info(f"Running inference test for training job {job_id}")
 
-    model_project_path = Path(os.path.join(dataset_path, DATASET_PREFIX, test_config["model_project_path"]))
+    model_project_path = Path(os.path.join(dataset_path, test_config["model_project_path"]))
     training_job_path = model_project_path / "training_jobs" / job_id
 
     # we need to publish model first before we can run refiner
@@ -158,7 +157,7 @@ async def run_inference_test(
     refiner_filename = refiner_filenames[0]
     refiner_path = refiner_prog_path / refiner_filename
 
-    dataset_project_path = Path(os.path.join(dataset_path, DATASET_PREFIX, test_config["dataset_project_path"]))
+    dataset_project_path = Path(os.path.join(dataset_path, test_config["dataset_project_path"]))
     dev_input_folder = dataset_project_path / "out_annotations" / "s1_process_files"
 
     logger.debug(
@@ -240,17 +239,18 @@ async def run_inference_test(
 
 
 async def _publish_model(sdk: Instabase, model_project_path: str, job_id: str) -> [bool, str, str]:
-    training_job_path = model_project_path / "training_jobs" / job_id
+    async with PUBLISH_LOCK:
+        training_job_path = model_project_path / "training_jobs" / job_id
 
-    success, version_id = await sdk.prepare_publish(str(model_project_path), job_id)
-    if success:
-        content_folder = training_job_path / "artifact"
-        success, output_path = await sdk.create_ibsolution(str(content_folder), str(training_job_path))
+        success, version_id = await sdk.prepare_publish(str(model_project_path), job_id)
         if success:
-            success, model_name = await sdk.publish_solution(output_path)
-            return success, model_name, version_id
-    # failure
-    return False, None, None
+            content_folder = training_job_path / "artifact"
+            success, output_path = await sdk.create_ibsolution(str(content_folder), str(training_job_path))
+            if success:
+                success, model_name = await sdk.publish_solution(output_path)
+                return success, model_name, version_id
+        # failure
+        return False, None, None
 
 
 def _extract_refiner_results_from_status(logger, status, model_result_by_record) -> bool:
@@ -289,7 +289,7 @@ async def sync_and_unzip(sdk: Instabase, contents: bytes, remote_code_loation: s
 
 
 async def run_tests(train: bool, inference: bool, test_name: Optional[str], test_environment: str) -> None:
-    model_tests = await load_model_tests()
+    model_tests = load_model_tests()
     if not model_tests:
         logging.error("No tests found in model_tests.yaml.")
         exit(1)
@@ -301,7 +301,7 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
             exit(1)
 
     # validate test_environment
-    envs = await load_environments()
+    envs = load_environments()
     if test_environment not in envs:
         logging.error(
             f"test_environment is not one of the environments " f"in 'environments.yaml': {[i for i in envs]}"
@@ -315,7 +315,7 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
         name=test_environment,
         host=env_config["host"],
         token=env_config["token"],
-        root_path=env_config["path"],
+        root_path=os.path.join(env_config["path"], REMOTE_CODE_PREFIX),
     )
 
     # this solves race condition when run tests concurrently
@@ -343,7 +343,7 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
             name=test_environment,
             host=env_config["host"],
             token=env_config["token"],
-            root_path=env_config["path"],
+            root_path=os.path.join(env_config["path"], REMOTE_CODE_PREFIX),
         )
         train_task = None
         if train:
@@ -354,7 +354,6 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
                     test_name=test_name,
                     root_path=env_config["path"],
                     remote_code_loation=remote_code_loation,
-                    dataset_path=env_config["dataset_path"],
                     test_config=test_config,
                 )
             )
@@ -365,7 +364,7 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
                     sdk,
                     wait_for=train_task,
                     test_name=test_name,
-                    dataset_path=env_config["dataset_path"],
+                    dataset_path=env_config["path"],
                     test_config=test_config,
                 )
             )

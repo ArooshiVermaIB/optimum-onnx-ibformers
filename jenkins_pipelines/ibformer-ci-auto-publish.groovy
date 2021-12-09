@@ -140,6 +140,34 @@ pipeline {
                         }
                     }
                 }
+                stage ('[Run ibformer tests on UAT and publish if run successfully]') {
+                    steps {
+                        dir ('.') {
+                            ansiColor('xterm') {
+                                sh '''#!/bin/bash
+                                cd ci/
+                                IB_TEST_ENV=uat make run-docker-test
+                                '''
+                            }
+                        }
+                    }
+                    post {
+                        success {
+                            dir ('.') {
+                                ansiColor('xterm') {
+                                    sh '''#!/bin/bash
+                                    cd ci/
+                                    IB_TEST_ENV=uat make run-docker-publish
+                                    '''
+                                }
+                            }
+                            postResultsToSlack('uat', 'good')
+                        }
+                        unsuccessful {
+                            postResultsToSlack('uat', 'danger')
+                        }
+                    }
+                }
             }
         }
     }
