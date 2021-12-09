@@ -1,5 +1,6 @@
 import asyncio
 import io
+import itertools
 import logging
 import zipfile
 from asyncio import Semaphore
@@ -7,7 +8,7 @@ from io import BytesIO
 from pathlib import Path
 import concurrent.futures
 
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict, List
 
 from ci.lib.ibapi import Instabase
 from examples.rvl_ocr.config import OcrFlowConfig
@@ -63,19 +64,30 @@ async def run_ocr_flow(
     return status, output_dir
 
 
-async def download_zip(cfg: OcrFlowConfig, ibapi: Instabase, flow_output_dir: str, task: OcrTask) -> bytes:
-    logger.info(f"Task: {task.task_id}: Downloading zip file from {flow_output_dir} directory...")
-    zip_path = Path(flow_output_dir) / cfg.ZIPPED_FILE_DIR / cfg.ZIPPED_FILE_NAME
-    zip_content = await ibapi.read_binary(str(zip_path))
-    logger.info(f"Task: {task.task_id}: Finished downloading zip file from {flow_output_dir} directory.")
-    return zip_content
+async def get_files_content(cfg: OcrFlowConfig, ibapi: Instabase, task: OcrTask, ib_path: str) -> Dict[Path, bytes]:
+    logger.info(f"Task: {task.task_id}: Downloading files from {ib_path} directory...")
+
+    # downloads ocr docs
+    ocr_files_dir = Path(ib_path) / cfg.ENV_FLOW_OCR_SUBDIR
+    all_files = await ibapi.list_directory(str(ocr_files_dir))
+    all_ibdocs = [f for f in all_files if cfg.OCR_FLOW_EXTENSION in str(f)]
+
+    logger.info(f"Task: {task.task_id}: Downloading files.")
+    file_tasks = [ibapi.read_binary(str(ocr_files_dir / file)) for file in all_ibdocs]
+    contents: List[bytes] = await asyncio.gather(*file_tasks)
+    logger.info(f"Task: {task.task_id}: Downloaded files.")
+
+    logger.info(f"Task: {task.task_id}: Finished downloading files from {ib_path} directory")
+    return dict(zip([Path(p) for p in all_ibdocs], contents))
 
 
-def unpack_zip(cfg: OcrFlowConfig, zip_content: bytes, task: OcrTask):
-    logger.info(f"Task: {task.task_id}: Unzipping documents...")
-    z = zipfile.ZipFile(io.BytesIO(zip_content))
-    z.extractall(task.get_task_dir(cfg))
-    logger.info(f"Task: {task.task_id}: Finished unzipping documents...")
+def write_files(cfg: OcrFlowConfig, file_contents: Dict[Path, bytes], task: OcrTask):
+    logger.info(f"Task: {task.task_id}: writing files...")
+    for path, content in file_contents.items():
+        out_path = task.get_task_dir(cfg) / path
+        out_path.parent.mkdir(exist_ok=True)
+        out_path.write_bytes(content)
+    logger.info(f"Task: {task.task_id}: finished writing files.")
 
 
 async def cleanup(cfg: OcrFlowConfig, ibapi: Instabase, task: OcrTask, flow_output_dir: str):
@@ -105,8 +117,8 @@ async def run_task(cfg: OcrFlowConfig, task: OcrTask, semaphore: Semaphore, flow
         async with flow_semaphore:
             flow_status, flow_output_dir = await run_ocr_flow(cfg, ibapi, unzipped_doc_dir, task)
         if flow_status:
-            file_content = await download_zip(cfg, ibapi, flow_output_dir, task)
-            with concurrent.futures.ProcessPoolExecutor(1) as pool:
-                await loop.run_in_executor(pool, unpack_zip, cfg, file_content, task)
+            file_content = await get_files_content(cfg, ibapi, task, flow_output_dir)
+            with concurrent.futures.ThreadPoolExecutor(1) as pool:
+                await loop.run_in_executor(pool, write_files, cfg, file_content, task)
             await cleanup(cfg, ibapi, task, flow_output_dir)
             await cleanup(cfg, ibapi, task, str(unzipped_doc_dir))
