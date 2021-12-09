@@ -535,7 +535,7 @@ class Instabase:
     )
     async def run_flow(
         self, input_dir: str, binary_path: str, output_has_run_id: bool = False, delete_out_dir: bool = False
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> Tuple[bool, Optional[Tuple[str, str]]]:
         url = os.path.join(self._host, "api/v1/flow/run_binary_async")
         headers = self._make_headers()
         settings = dict(output_has_run_id=output_has_run_id, delete_out_dir=delete_out_dir)
@@ -549,7 +549,7 @@ class Instabase:
             ) as r:
                 resp = await r.json()
         if resp["status"] == "OK":
-            return True, resp["data"]["output_folder"]
+            return True, (resp["data"]["job_id"], resp["data"]["output_folder"])
         else:
             return False, None
 
