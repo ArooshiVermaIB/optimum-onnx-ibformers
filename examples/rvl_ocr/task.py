@@ -37,6 +37,6 @@ def create_tasks(cfg: OcrFlowConfig, document_index: List[Path]) -> List[OcrTask
     tasks = []
     num_docs_per_task = cfg.NUM_DOCS_PER_FOLDER
     for i, start_index in enumerate(range(0, len(document_index), num_docs_per_task)):
-        tasks.append(OcrTask(i, document_index[i : (i + num_docs_per_task)]))
+        tasks.append(OcrTask(i, document_index[start_index : (start_index + num_docs_per_task)]))
     logging.info(f"Created {len(tasks)} tasks with maximum length of {num_docs_per_task}")
     return tasks

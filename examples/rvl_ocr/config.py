@@ -24,7 +24,7 @@ class OcrFlowConfig:
 
     ENV_FLOW_OCR_SUBDIR: str = "s1_process_files"
     ENV_FLOW_IMAGE_SUBDIR: str = "images"
-    ENV_OCR_BINARY_FLOW_PATH: str = "admin/model-dev/fs/Instabase Drive/OCR_tmp_storage/OCR_and_zip.ibflowbin"
+    ENV_OCR_BINARY_FLOW_PATH: str = "admin/model-dev/fs/Instabase Drive/OCR_tmp_storage/OCR_zip_no_images.ibflowbin"
     OCR_FLOW_EXTENSION: str = ".ibmsg"
     ZIPPED_FILE_DIR: str = "s2_reduce_udf"
     ZIPPED_FILE_NAME: str = "zipped.zip"
