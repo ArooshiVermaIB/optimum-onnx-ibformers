@@ -46,6 +46,7 @@ def do_comparison(
                 logger.error(f"evaluation results did not contain expected field {field} for metric {metric}")
                 success = False
                 continue
+
             observed = evaluation_results_for_metric[field]
             try:
                 observed = float(observed)
@@ -57,13 +58,12 @@ def do_comparison(
                 success = False
                 continue
 
-            if (
-                not isinstance(evaluation_results_for_metric[field], float)
-                or value > evaluation_results_for_metric[field]
-            ):
+            value = float(value)
+            # if value is 0, then we skip the comparsion.
+            if value == 0 or value > observed:
                 logger.error(
                     f"for field '{field}' and metric '{metric}' expected at "
-                    f"least '{value}' but observed '{evaluation_results_for_metric[field]}'"
+                    f"least '{value}' but observed '{observed}'"
                 )
                 success = False
     return success

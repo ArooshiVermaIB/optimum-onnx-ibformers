@@ -21,6 +21,7 @@ from .lib.config import (
     PROJECT_ROOT,
     REMOTE_TEMP_ZIP_PATH,
     REMOTE_CODE_PREFIX,
+    PUBLISH_LOCK,
     load_model_tests,
 )
 from .lib.ibapi import Instabase
@@ -238,17 +239,18 @@ async def run_inference_test(
 
 
 async def _publish_model(sdk: Instabase, model_project_path: str, job_id: str) -> [bool, str, str]:
-    training_job_path = model_project_path / "training_jobs" / job_id
+    async with PUBLISH_LOCK:
+        training_job_path = model_project_path / "training_jobs" / job_id
 
-    success, version_id = await sdk.prepare_publish(str(model_project_path), job_id)
-    if success:
-        content_folder = training_job_path / "artifact"
-        success, output_path = await sdk.create_ibsolution(str(content_folder), str(training_job_path))
+        success, version_id = await sdk.prepare_publish(str(model_project_path), job_id)
         if success:
-            success, model_name = await sdk.publish_solution(output_path)
-            return success, model_name, version_id
-    # failure
-    return False, None, None
+            content_folder = training_job_path / "artifact"
+            success, output_path = await sdk.create_ibsolution(str(content_folder), str(training_job_path))
+            if success:
+                success, model_name = await sdk.publish_solution(output_path)
+                return success, model_name, version_id
+        # failure
+        return False, None, None
 
 
 def _extract_refiner_results_from_status(logger, status, model_result_by_record) -> bool:

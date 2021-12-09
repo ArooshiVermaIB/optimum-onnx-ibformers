@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from typing import Dict, Any
@@ -17,6 +18,7 @@ PROJECT_ROOT = abspath("../../ibformers")
 REMOTE_TEMP_ZIP_PATH = "%s.ibsolution" % uuid.uuid4().hex
 REMOTE_CODE_LOCATION = "ibformers"  # TODO: Make this within a randomly generated directory
 REMOTE_CODE_PREFIX = "ci-test-temp"
+PUBLISH_LOCK = asyncio.Lock()
 
 
 def load_environments() -> Dict[str, Dict]:
