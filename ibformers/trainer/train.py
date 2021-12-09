@@ -63,7 +63,6 @@ require_version(
 )
 
 logger = logging.getLogger(__name__)
-torch.set_num_threads(1)
 
 
 def run_hyperparams_and_cmdline_train(hyperparams: Dict):
