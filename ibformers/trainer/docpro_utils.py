@@ -21,6 +21,7 @@ from ibformers.trainer.ib_utils import (
 )
 from ibformers.trainer.refiner_module_generator import write_refiner_program
 from ibformers.trainer.arguments import ModelArguments, DataAndPipelineArguments, IbArguments, EnhancedTrainingArguments
+from ibformers.utils.zip_dir import zip_dir
 from instabase.dataset_utils.sdk import LocalDatasetSDK, RemoteDatasetSDK, DatasetSDK
 from instabase.dataset_utils.shared_types import (
     PredictionResultDict,
@@ -164,10 +165,12 @@ class DocProCallback(TrainerCallback):
         # TODO(rafal): once ibformers is converted to relative imports copy ibformers into py/package_name/ibformers dir
         # py directory location
         py_directory = Path(self.artifacts_context.artifact_path) / "src" / "py"
-        shutil.copytree(
+        zip_dir(
             ibformers_path,
-            py_directory / "ibformers",
-            ignore=lambda x, y: self.ibformers_do_not_copy,
+            py_directory / "ibformers.zip",
+            ignore_files=self.ibformers_do_not_copy,
+            ignore_dirs=["__pycache__"],
+            ignore_hidden=True,
         )
 
     def move_data_to_ib(self):
@@ -307,7 +310,7 @@ class DocProCallback(TrainerCallback):
         # Set the overall accuracy of the model
         self.set_status({"accuracy": overall_accuracy})
 
-    def write_predictions(self, predictions_dict):
+    def write_predictions(self, predictions_dict, zip_predictions=False):
         # Now write the predictions
         prediction_writer = self.prediction_writer
 
@@ -359,6 +362,12 @@ class DocProCallback(TrainerCallback):
         try:
             logging.info("Writing predictions for this training run...")
             prediction_writer.write()
+            # zip folder with predictions and remove it
+            if zip_predictions:
+                zip_dir(
+                    prediction_writer.context.predictions_path, str(prediction_writer.context.predictions_path) + ".zip"
+                )
+                shutil.rmtree(prediction_writer.context.predictions_path)
         except Exception as e:
             logging.error("Could not write prediction")
             logging.error(traceback.format_exc())
@@ -387,7 +396,7 @@ class DocProCallback(TrainerCallback):
         predictions = kwargs["metrics"]["predict_predictions"]
         # FINALIZE STEPS
         self.write_metrics()
-        self.write_predictions(predictions)
+        self.write_predictions(predictions, zip_predictions=True)
 
         id2label = kwargs["model"].config.id2label
         if id2label[0] != "O":
