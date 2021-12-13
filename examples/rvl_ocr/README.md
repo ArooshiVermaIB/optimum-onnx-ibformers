@@ -16,14 +16,10 @@ pythom -m examples.rvl_ocr.rvl_ocr_script /path/to/input/documents /path/to/targ
    2. Zip the documents assigned to the task.
    3. Send the zip to Instabase instance
    4. Unzip documents at Instabase and delete the zip
-   5. Run OCR flow at Instabase:
-      1. OCR the files
-      2. Zip the files into an archive
-   6. Download the content of the archive with processed files
-   7. Unzip processed files
-   8. Remove output from OCR flow
-   9. Remove raw documents from Instabase.
-
+   5. Run OCR flow at Instabase
+   6. Download processed documents
+   7. Remove output from OCR flow
+   8. Remove raw documents from Instabase.
 
 ### Options
 

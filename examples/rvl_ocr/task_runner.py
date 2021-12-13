@@ -59,7 +59,7 @@ async def run_ocr_flow(
         return False, None
     job_id, output_dir = info
     logger.info(f"Task: {task.task_id}: Flow executed with status {status} and output directory {output_dir}")
-    await ibapi.wait_for_job_completion(job_id, 10, True)
+    await ibapi.wait_for_job_completion(job_id, cfg.FLOW_COMPLETION_WAIT_TIME, True)
     logger.info(f"Task: {task.task_id}: Flow finished for {input_dir}!")
     return status, output_dir
 

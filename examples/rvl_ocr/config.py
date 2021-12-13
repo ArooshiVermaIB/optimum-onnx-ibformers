@@ -23,12 +23,10 @@ class OcrFlowConfig:
     ENV_DATA_PATH: str = "admin/model-dev/fs/Instabase Drive/OCR_tmp_storage/input"
 
     ENV_FLOW_OCR_SUBDIR: str = "s1_process_files"
-    ENV_FLOW_IMAGE_SUBDIR: str = "images"
     ENV_OCR_BINARY_FLOW_PATH: str = "admin/model-dev/fs/Instabase Drive/OCR_tmp_storage/OCR.ibflowbin"
     OCR_FLOW_EXTENSION: str = ".ibmsg"
-    ZIPPED_FILE_DIR: str = "s2_reduce_udf"
-    ZIPPED_FILE_NAME: str = "zipped.zip"
 
+    FLOW_COMPLETION_WAIT_TIME: int = 10
     NUM_DOCS_PER_FOLDER: int = 500
     FOLDER_PREFIX: str = "folder_"
 
