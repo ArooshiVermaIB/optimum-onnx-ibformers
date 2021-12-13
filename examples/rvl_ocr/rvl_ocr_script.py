@@ -6,7 +6,7 @@ from pathlib import Path
 import fire
 
 from examples.rvl_ocr.config import OcrFlowConfig
-from examples.rvl_ocr.create_post_ocr_index import create_post_ocr_index
+from examples.rvl_ocr.post_ocr_index import create_post_ocr_index
 from examples.rvl_ocr.image_index import read_or_create_document_index
 from examples.rvl_ocr.task import create_tasks
 from examples.rvl_ocr.task_runner import run_task

@@ -175,8 +175,10 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
         #         [[[i * 20, 10, i * 20 + 10, 20] for i in range(1, len_prefix + 1)]]
         #     )
         #     chunk_processed["bboxes"][prefix_start : prefix_start + len_prefix] = prefix_bboxes
-
-        chunk_processed["token_label_ids"] = fill_special_tokens(chunk["token_label_ids"], content_tokens_mask, -100)
+        if "token_label_ids" in chunk:
+            chunk_processed["token_label_ids"] = fill_special_tokens(
+                chunk["token_label_ids"], content_tokens_mask, -100
+            )
 
         yield chunk_processed
 

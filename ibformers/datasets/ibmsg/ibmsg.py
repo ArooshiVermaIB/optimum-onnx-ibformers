@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import multiprocessing
 from pathlib import Path
 
 import datasets
@@ -11,7 +12,7 @@ from ibformers.datasets.docpro_ds.docpro_ds import assert_valid_record, validate
 from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder, IBOCRRecord
 
 
-HASH_MODULO = 10000
+HASH_MODULO = 1000000
 DATASET_SPLITS = 0.9, 0.07, 0.03
 
 
@@ -114,24 +115,28 @@ class Ibmsg(datasets.GeneratorBasedBuilder):
             ),
         ]
 
-    def _generate_examples(self, index_content: Tuple[Path, Path]):
-        for ibmsg_path, image_path in index_content:
-            doc_id = ibmsg_path.name
-            try:
-                doc_dict = self._load_doc(ibmsg_path, image_path)
-            except DocLoadingException as e:
-                logging.warning(f"Failed to load doc {ibmsg_path}. Full error: {e}")
-                continue
-            if doc_dict is None:
-                continue
-            doc_dict["id"] = doc_id
-            yield doc_id, doc_dict
+    def _generate_examples(self, index_content: List[Tuple[Path, Path]]):
+        with multiprocessing.Pool(8) as pool:
+            for doc_dict in pool.imap(self._try_load_doc, index_content):
+                if doc_dict is None:
+                    continue
+                yield doc_dict["id"], doc_dict
 
     def _load_index(self, index_path: Path) -> List[Tuple[Path, Path]]:
         raw_content = index_path.read_text()
         lines = raw_content.split("\n")
         rows = [l.split(",") for l in lines]
         return [(Path(r[0]), Path(r[1])) for r in rows if len(r) == 2]
+
+    def _try_load_doc(self, paths: Tuple[Path, Path]):
+        ibmsg_path, image_path = paths
+        try:
+            doc_dict = self._load_doc(ibmsg_path, image_path)
+            doc_dict["id"] = ibmsg_path.stem
+            return doc_dict
+        except DocLoadingException as e:
+            logging.warning(f"Failed to load doc {ibmsg_path}. Full error: {e}")
+            return None
 
     def _load_doc(self, ibmsg_path: Path, image_path: Path):
         content = ibmsg_path.read_bytes()
