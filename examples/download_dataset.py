@@ -43,18 +43,28 @@ async def download_and_save_file(sdk: Instabase, file_path: Path, root_path: Pat
     return content, output_file_path
 
 
+async def _download_single_file(
+    sdk: Instabase, file_path: str, output_path: Path, relative_root: Path, download_images: bool
+):
+    file_path = Path(file_path)
+    ib_doc_content, output_ibdoc_path = await download_and_save_file(sdk, file_path, relative_root, output_path, True)
+    if download_images:
+        image_paths = await get_image_paths_from_content(ib_doc_content, output_ibdoc_path)
+        image_tasks = [
+            download_and_save_file(sdk, image_path, relative_root, output_path, True) for image_path in image_paths
+        ]
+        await asyncio.gather(*image_tasks, return_exceptions=True)
+
+
 async def _download_files_from_list(
     sdk: Instabase, file_list: List[Union[Path, str]], output_path: Path, relative_root: Path, download_images: bool
 ):
-    for file_path in file_list:
-        file_path = Path(file_path)
-        ib_doc_content, output_ibdoc_path = await download_and_save_file(
-            sdk, file_path, relative_root, output_path, True
-        )
-        if download_images:
-            image_paths = await get_image_paths_from_content(ib_doc_content, output_ibdoc_path)
-            for image_path in image_paths:
-                await download_and_save_file(sdk, image_path, relative_root, output_path, True)
+    tasks = [
+        _download_single_file(sdk, file_path, output_path, relative_root, download_images)
+        for file_path in file_list
+        if "ibdoc" in str(file_path)
+    ]
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def _ibannotator(sdk: Instabase, input_path: Path, output_path: Path, download_images: bool):
