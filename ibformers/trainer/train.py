@@ -294,6 +294,7 @@ def run_train(
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=token,
+        ignore_mismatched_sizes=True,
     )
 
     callbacks = []

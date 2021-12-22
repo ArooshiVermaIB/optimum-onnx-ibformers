@@ -4,6 +4,7 @@ from logging import StreamHandler
 from typing import Optional, List, Dict
 import numpy as np
 import torch
+import torch.nn as nn
 from datasets import IterableDataset
 from torch.utils.data import DataLoader, Dataset
 from transformers.integrations import WandbCallback, is_wandb_available
@@ -74,6 +75,35 @@ class IbTrainer(Trainer):
             old_callback = self.pop_callback(WandbCallback)
             if old_callback is not None:
                 self.add_callback(ExtendedWandbCallback)
+
+    def compute_loss(self, model, inputs, return_outputs=False):
+
+        if self.label_smoother is not None and "labels" in inputs:
+            labels = inputs.pop("labels")
+        else:
+            labels = None
+        outputs = model(**inputs)
+        # Save past state if it exists
+        # TODO: this needs to be fixed and made cleaner later.
+        if self.args.past_index >= 0:
+            self._past = outputs[self.args.past_index]
+
+        if labels is not None:
+            loss = self.label_smoother(outputs, labels)
+        else:
+            # We don't use .loss here since the model may return tuples instead of ModelOutput.
+            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+
+        return (loss, outputs) if return_outputs else loss
+
+        labels = inputs.get("labels")
+        outputs = model(**inputs)
+        logits = outputs.get("logits")
+        loss_fct = nn.BCEWithLogitsLoss()
+        loss = loss_fct(
+            logits.view(-1, self.model.config.num_labels), labels.float().view(-1, self.model.config.num_labels)
+        )
+        return (loss, outputs) if return_outputs else loss
 
     def evaluation_loop(
         self,
