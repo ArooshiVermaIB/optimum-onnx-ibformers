@@ -156,6 +156,8 @@ class DocProCallback(TrainerCallback):
         self.save_folder = artifacts_context.tmp_dir.name
         self.save_model_dir = os.path.join(artifacts_context.artifact_path, f"src/py/{model_name}/model_data")
         self.id_to_dataset = {dataset.metadata["id"]: dataset for dataset in dataset_list}
+        # paths to zipped files, must be relative to self.save_folder
+        self._zipped: List[str] = []
 
     def copy_library_src_to_package(self):
         # copy ibformers lib into the package
@@ -172,6 +174,7 @@ class DocProCallback(TrainerCallback):
             ignore_dirs=["__pycache__"],
             ignore_hidden=True,
         )
+        self._zipped.append(str((py_directory / "ibformers.zip").relative_to(self.save_folder)))
 
     def move_data_to_ib(self):
         self.copy_library_src_to_package()
@@ -188,6 +191,13 @@ class DocProCallback(TrainerCallback):
             mount_details=self.mount_details,
         )
         logging.info("Uploaded")
+        if self._zipped:
+            logging.info("Unzipping")
+            for path in self._zipped:
+                logging.debug(f"Unzipping file {os.path.join(self.ib_save_path, path)}")
+                full_ib_path = os.path.join(self.ib_save_path, path)
+                self.ibsdk.unzip(full_ib_path, os.path.splitext(full_ib_path)[0], remove=True)
+            logging.info("Unzipped")
 
     def set_status(self, new_status: Dict):
         self.job_status.update(new_status)
@@ -364,10 +374,10 @@ class DocProCallback(TrainerCallback):
             prediction_writer.write()
             # zip folder with predictions and remove it
             if zip_predictions:
-                zip_dir(
-                    prediction_writer.context.predictions_path, str(prediction_writer.context.predictions_path) + ".zip"
-                )
-                shutil.rmtree(prediction_writer.context.predictions_path)
+                _path = Path(prediction_writer.context.predictions_path)
+                zip_dir(_path, _path.with_suffix(".zip"))
+                shutil.rmtree(_path)
+                self._zipped.append(str(_path.with_suffix(".zip").relative_to(self.save_folder)))
         except Exception as e:
             logging.error("Could not write prediction")
             logging.error(traceback.format_exc())
