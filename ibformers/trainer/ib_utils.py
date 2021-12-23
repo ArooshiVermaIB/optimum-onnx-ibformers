@@ -9,6 +9,7 @@ from typing import Dict, Optional, Any, Iterable, Tuple
 from typing_extensions import TypedDict
 import boto3
 import shutil
+import zipfile
 
 from transformers import TrainerCallback, HfArgumentParser
 
@@ -27,11 +28,61 @@ from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase, default_max_write_size
 from instabase.utils.rpc.file_client import ThriftGRPCFileClient
 
+# imports for unzipping functionality
+from instabase.utils.concurrency import executors
+from instabase.utils.concurrency.types import LocalThreadConfig
+from instabase.utils.path.ibpath import join
+from instabase.utils.strutils import decode
+
+
 logger = logging.getLogger(__name__)
 
 
 _IBFILE_CHUNK_SIZE_IN_MB = 500
 _PARALLEL_UPLOAD_WORKERS = 5
+
+# this function is copied from instabase/tasks/file_fns.py
+def _extract_item(zip_file_ref, filename_raw, save_location, file_client, username):
+    # type: (zipfile.ZipFile, str, Text, FileService.Iface, Text) -> Text
+    """Given a ZipFile reference, file to extract, and save location for that
+    extraction, extracts that file into the correct location.
+    """
+    if True:  # PY3:
+        # See: https://stackoverflow.com/questions/41019624/python-zipfile-module-cant-extract-filenames-with-chinese-characters
+        # NOTE: In Python 3, the zipfile library makes some very specific
+        # assumptions about filename encoding. ZIP files may include a flag that
+        # guarantees that a file name is encoded in UTF-8. If this flag is not set,
+        # zipfile assumes that the name is encoded in cp437. In practice, however,
+        # this assumption is often wrong, which can result in incorrect file names.
+
+        # For documentation on the flag as part of the ZIP specification,
+        # see appendix D of https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
+        ZIP_UTF_FLAG = 1 << 11
+
+        zip_info = zip_file_ref.getinfo(filename_raw)
+        if zip_info.flag_bits & ZIP_UTF_FLAG:
+            # filename is encoded with UTF-8
+            filename = filename_raw
+        else:
+            # zipfile will have assumed that filename is encoded with cp437.
+            # In general, there's no way of telling what encoding was actually used,
+            # but UTF-8 is probably a good enough guess most of the time.
+            filename = filename_raw.encode("cp437").decode("utf-8")
+    else:
+        filename = decode(filename_raw)
+
+    # If this is an empty folder, create the folder
+    if filename.endswith("/"):
+        directory = join(save_location, filename)
+        if not ibfile.exists(directory, file_client, username):
+            ibfile.mkdir(directory, file_client, username, create_dirs=True)
+        return None
+
+    # Otherwise, create the new file (and its directory if needed)
+    content = zip_file_ref.read(filename_raw)
+    ibfile.write_file(join(save_location, filename), content, username=username, file_client=file_client)
+
+    return None
 
 
 class InstabaseSDK:
@@ -78,6 +129,50 @@ class InstabaseSDK:
         else:
             logging.info(f"[InstabaseSDK.write_file] Uploading {file_path} with chunked write.")
             self._chunked_write_file(file_path, content)
+
+    # copied from instabase/tasks/file_fns with minimal changes
+    def unzip(self, file_path: str, destination: str, remove: bool = False):
+        """
+        Unzip folder on the IB file system
+
+        :param: file_path: IB path of a zip file
+        :param: destination: IB path, where zip file's content will be extracted into
+        :param: remove: whether to remove original zip file after extraction
+        """
+        # First check for existence
+        if not ibfile.exists(file_path, file_client=self.file_client, username=self.username):
+            raise IOError(f"Zip file {file_path} does not exist")
+        if not ibfile.is_file(file_path, file_client=self.file_client, username=self.username):
+            raise IOError(f"Zip path {file_path} is not a valid file")
+
+        # Iterate through zip and save files. Wrap the entire operation in a
+        # try catch (for instance, if this is not a valid zip file).
+        destination = destination.rstrip("/")
+
+        try:
+            with ibfile.ibopen(file_path, "rb", file_client=self.file_client, username=self.username) as f:
+                # ibfile should take care of chunking file contents if necessary
+                with zipfile.ZipFile(f, "r") as zf:
+                    # For each file, extract that file into the save location
+                    config = LocalThreadConfig(max_workers=10)
+                    with executors.NewExecutor(config) as executor:
+                        extract_jobs = [
+                            executor.submit(_extract_item, zf, filename, destination, self.file_client, self.username)
+                            for filename in zf.namelist()
+                        ]
+                        executors.wait(extract_jobs, timeout=1200)
+                        for job in extract_jobs:
+                            err_msg = job.value()
+                            if job.exception():
+                                if err_msg == None:
+                                    err_msg = ""
+                                err_msg += f" Job exception: {str(job.exception())}"
+                            if err_msg:
+                                raise Exception("An error occurred while extracting this ZIP file: " + err_msg)
+            if remove:
+                ibfile.rm(file_path, file_client=self.file_client, username=self.username)
+        except Exception as e:
+            raise Exception(f"An error occurred while extracting this ZIP file: {e}")
 
 
 class IbCallback(TrainerCallback):
