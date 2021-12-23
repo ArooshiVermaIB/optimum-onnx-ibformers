@@ -40,7 +40,7 @@ def zip_dir(
             logging.debug(f"Skipping dir {dir_name}")
             continue
 
-        arcname_prefix = Path(os.path.basename(root_location))
+        arcname_prefix = Path(os.path.basename("."))
         arcname_prefix /= Path(os.path.relpath(dir_name, root_location))
         for file_name in files:
             # skip hidden files
