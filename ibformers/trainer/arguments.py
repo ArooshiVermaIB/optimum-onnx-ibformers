@@ -58,9 +58,7 @@ class EnhancedTrainingArguments(TrainingArguments):
     def __post_init__(self):
         super().__post_init__()
         if self.class_weights > 1 and "labels" and self.label_smoothing_factor != 0.0:
-            logging.warning(
-                "cannot support both label smoothing and class weighting. " "Label smoothing will be ignored"
-            )
+            logging.warning("cannot support both label smoothing and class weighting. Label smoothing will be ignored")
 
 
 @dataclass
