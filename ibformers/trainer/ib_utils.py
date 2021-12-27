@@ -47,29 +47,26 @@ def _extract_item(zip_file_ref, filename_raw, save_location, file_client, userna
     """Given a ZipFile reference, file to extract, and save location for that
     extraction, extracts that file into the correct location.
     """
-    if True:  # PY3:
-        # See: https://stackoverflow.com/questions/41019624/python-zipfile-module-cant-extract-filenames-with-chinese-characters
-        # NOTE: In Python 3, the zipfile library makes some very specific
-        # assumptions about filename encoding. ZIP files may include a flag that
-        # guarantees that a file name is encoded in UTF-8. If this flag is not set,
-        # zipfile assumes that the name is encoded in cp437. In practice, however,
-        # this assumption is often wrong, which can result in incorrect file names.
+    # See: https://stackoverflow.com/questions/41019624/python-zipfile-module-cant-extract-filenames-with-chinese-characters
+    # NOTE: In Python 3, the zipfile library makes some very specific
+    # assumptions about filename encoding. ZIP files may include a flag that
+    # guarantees that a file name is encoded in UTF-8. If this flag is not set,
+    # zipfile assumes that the name is encoded in cp437. In practice, however,
+    # this assumption is often wrong, which can result in incorrect file names.
 
-        # For documentation on the flag as part of the ZIP specification,
-        # see appendix D of https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
-        ZIP_UTF_FLAG = 1 << 11
+    # For documentation on the flag as part of the ZIP specification,
+    # see appendix D of https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
+    ZIP_UTF_FLAG = 1 << 11
 
-        zip_info = zip_file_ref.getinfo(filename_raw)
-        if zip_info.flag_bits & ZIP_UTF_FLAG:
-            # filename is encoded with UTF-8
-            filename = filename_raw
-        else:
-            # zipfile will have assumed that filename is encoded with cp437.
-            # In general, there's no way of telling what encoding was actually used,
-            # but UTF-8 is probably a good enough guess most of the time.
-            filename = filename_raw.encode("cp437").decode("utf-8")
+    zip_info = zip_file_ref.getinfo(filename_raw)
+    if zip_info.flag_bits & ZIP_UTF_FLAG:
+        # filename is encoded with UTF-8
+        filename = filename_raw
     else:
-        filename = decode(filename_raw)
+        # zipfile will have assumed that filename is encoded with cp437.
+        # In general, there's no way of telling what encoding was actually used,
+        # but UTF-8 is probably a good enough guess most of the time.
+        filename = filename_raw.encode("cp437").decode("utf-8")
 
     # If this is an empty folder, create the folder
     if filename.endswith("/"):
