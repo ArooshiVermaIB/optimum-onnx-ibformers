@@ -5,6 +5,7 @@ from typing import Optional, List, Dict
 import numpy as np
 import torch
 from datasets import IterableDataset
+from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader, Dataset
 from transformers.integrations import WandbCallback, is_wandb_available
 from transformers.trainer import Trainer
@@ -13,8 +14,6 @@ from transformers.file_utils import (
     is_in_notebook,
     is_apex_available,
     is_datasets_available,
-    is_sagemaker_dp_enabled,
-    is_sagemaker_mp_enabled,
     is_training_run_on_sagemaker,
 )
 from transformers.trainer_pt_utils import (
@@ -74,6 +73,34 @@ class IbTrainer(Trainer):
             old_callback = self.pop_callback(WandbCallback)
             if old_callback is not None:
                 self.add_callback(ExtendedWandbCallback)
+
+    def compute_loss(self, model, inputs, return_outputs=False):
+        """
+        Add support for class weights
+        """
+        if self.args.class_weights > 1 and "labels" in inputs:
+            labels = inputs.pop("labels")
+            outputs = model(**inputs)
+
+            # class_weights parameter is used to enlarge weights of tokens corresponding to entity values
+            # that might help model to converge faster
+            class_num = self.model.config.num_labels
+            class_weights = [1.0] + [self.args.class_weights] * (class_num - 1)
+            loss_fct = CrossEntropyLoss(weight=torch.FloatTensor(class_weights).to(labels.device))
+            attention_mask = inputs.get("attention_mask", None)
+            logits = outputs["logits"]
+            if attention_mask is not None:
+                active_loss = attention_mask.view(-1) == 1
+                active_logits = logits.view(-1, class_num)
+                active_labels = torch.where(
+                    active_loss, labels.view(-1), torch.tensor(loss_fct.ignore_index).type_as(labels)
+                )
+                loss = loss_fct(active_logits, active_labels)
+            else:
+                loss = loss_fct(logits.view(-1, class_num), labels.view(-1))
+            return (loss, outputs) if return_outputs else loss
+        else:
+            return super().compute_loss(model, inputs, return_outputs)
 
     def evaluation_loop(
         self,
@@ -261,7 +288,7 @@ class IbTrainer(Trainer):
         return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
 
     def log(self, logs: Dict[str, float]) -> None:
-        """ "
+        """
         Method removes predictions from logging
         """
         logs_mod = {k: v for k, v in logs.items() if not k.endswith("predictions")}

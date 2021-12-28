@@ -1,11 +1,12 @@
 import argparse
 import json
+import logging
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Any, Dict, TypeVar, Tuple
 
-from transformers import HfArgumentParser
+from transformers import HfArgumentParser, TrainingArguments
 from transformers.hf_argparser import DataClass
 
 
@@ -41,6 +42,23 @@ class ModelArguments:
             "with private models)."
         },
     )
+
+
+@dataclass
+class EnhancedTrainingArguments(TrainingArguments):
+    """
+    Extra training arguments passed to the training loop. Enhance to the transformers.TrainingArguments
+    """
+
+    class_weights: float = field(
+        default=1.0,
+        metadata={"help": "Will be used to change the weight of the classes during loss computation"},
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.class_weights > 1 and "labels" and self.label_smoothing_factor != 0.0:
+            logging.warning("cannot support both label smoothing and class weighting. Label smoothing will be ignored")
 
 
 @dataclass
