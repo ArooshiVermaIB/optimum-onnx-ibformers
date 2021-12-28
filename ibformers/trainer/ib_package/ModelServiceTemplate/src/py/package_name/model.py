@@ -6,6 +6,7 @@ import sys
 # TODO: remove once packages paths defined in package.json will be added to PYTHONPATH
 from datasets.data_files import DataFilesDict
 
+from ibformers.trainer.arguments import EnhancedTrainingArguments
 from ibformers.trainer.ib_utils import InstabaseSDK
 
 pth, _ = os.path.split(__file__)
@@ -24,7 +25,7 @@ from instabase.model_service.model_cache import Model
 from instabase.ocr.client.libs.algorithms import WordPolyInputColMapper
 from instabase.protos.model_service import model_service_pb2
 from instabase.model_service.file_utils import get_file_client
-from transformers import AutoTokenizer, PreTrainedTokenizerFast, PreTrainedModel, TrainingArguments
+from transformers import AutoTokenizer, PreTrainedTokenizerFast, PreTrainedModel
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 from ibformers.trainer.trainer import IbTrainer
@@ -72,7 +73,7 @@ class IbModel(Model):
 
         # Initialize our Trainer, trainer class will be used only for prediction
         self.trainer = IbTrainer(
-            args=TrainingArguments(output_dir=tempfile.TemporaryDirectory().name, per_device_eval_batch_size=8),
+            args=EnhancedTrainingArguments(output_dir=tempfile.TemporaryDirectory().name, per_device_eval_batch_size=8),
             model=self.model,
             train_dataset=None,
             eval_dataset=None,
