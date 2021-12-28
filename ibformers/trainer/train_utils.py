@@ -38,6 +38,8 @@ def prepare_config_kwargs(ds: Dataset) -> Dict:
     Additonal kwargs will be passed to the model config for extraction or classification task
     """
     features = ds.features
+    if "labels" not in features:
+        return dict()
     if isinstance(features["labels"].feature, ClassLabel):
         label_list = features["labels"].feature.names
     else:
