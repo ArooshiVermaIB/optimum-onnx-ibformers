@@ -1,44 +1,49 @@
 invoices-non-tabular:
   name: Invoices - non tabular
   hyperparams:
-    dataset_name_or_path: ibds
-    dataset_config_name: ibds
-    train_file: /home/ib/datasets/invoices-non-tabular/Invoices.ibannotator
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/invoices-non-tabular-ml-studio
+    extraction_class_name: ib_Commercial_Invoices_v2
 
 invoices-tabular:
   name: Invoices - tabular
   hyperparams:
-    dataset_name_or_path: ibds
-    dataset_config_name: ibds
-    train_file: /home/ib/datasets/invoices-tabular/Invoices-Tabular fields.ibannotator
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/invoices-tabular-ml-studio
+    extraction_class_name: ib_Invoices_Tabular_fields_v2
 
-receipts:
-  name: Receipts
+checks:
+  name: Checks
   hyperparams:
-    dataset_name_or_path: ibds
-    dataset_config_name: ibds
-    train_file: /home/ib/datasets/receipts/Receipts.ibannotator
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/checks-ml-studio
+    extraction_class_name: ib_solution_us_check_v1
 
 w2:
   name: W2
   hyperparams:
-    dataset_name_or_path: ibds
-    dataset_config_name: ibds
-    train_file: /home/ib/datasets/w2/W2_Marketplace.ibannotator
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/w2-ml-studio
+    extraction_class_name: W2_Marketplace_v2_v8
 
 kleister-nda:
   name: kleister-nda
   hyperparams:
-    dataset_name_or_path: ibds
-    dataset_config_name: ibds
-    train_file: /home/ib/datasets/nda/Kleister_NDA.ibannotator
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/nda-ml-studio
+    extraction_class_name: KleisterNDA
 
 receipts-ml-studio:
   name: Receipts (ML Studio)
   hyperparams:
     dataset_name_or_path: docpro_ds
     dataset_config_name: docpro_ds
-    train_file: /home/ib/datasets/receipts-ml-studio
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/receipts-ml-studio
     extraction_class_name: Receipts
 
 funsd:
