@@ -73,7 +73,9 @@ class IbModel(Model):
 
         # Initialize our Trainer, trainer class will be used only for prediction
         self.trainer = IbTrainer(
-            args=EnhancedTrainingArguments(output_dir=tempfile.TemporaryDirectory().name, per_device_eval_batch_size=8),
+            args=EnhancedTrainingArguments(
+                output_dir=tempfile.TemporaryDirectory().name, per_device_eval_batch_size=2, report_to="none"
+            ),
             model=self.model,
             train_dataset=None,
             eval_dataset=None,
