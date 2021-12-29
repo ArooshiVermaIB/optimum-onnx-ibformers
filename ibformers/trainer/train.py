@@ -35,6 +35,7 @@ from transformers import (
     HfArgumentParser,
     PreTrainedTokenizerFast,
     set_seed,
+    EarlyStoppingCallback,
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
@@ -126,11 +127,11 @@ def run_cmdline_train():
 
 
 def run_train(
-    model_args,
-    data_args,
-    training_args,
-    ib_args,
-    augmenter_args,
+    model_args: ModelArguments,
+    data_args: DataAndPipelineArguments,
+    training_args: EnhancedTrainingArguments,
+    ib_args: IbArguments,
+    augmenter_args: AugmenterArguments,
     extra_callbacks=None,
     extra_load_kwargs=None,
 ):
@@ -313,6 +314,10 @@ def run_train(
     callbacks = []
     if extra_callbacks is not None:
         callbacks.extend(extra_callbacks)
+
+    if training_args.early_stopping_patience > 0:
+        early_stopping = EarlyStoppingCallback(training_args.early_stopping_patience)
+        callbacks.append(early_stopping)
 
     # Data collator
     data_collator = collate_fn(

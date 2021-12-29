@@ -38,7 +38,7 @@ kleister-nda:
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/nda-ml-studio
     extraction_class_name: KleisterNDA
 
-receipts-ml-studio:
+receipts:
   name: Receipts (ML Studio)
   hyperparams:
     dataset_name_or_path: docpro_ds

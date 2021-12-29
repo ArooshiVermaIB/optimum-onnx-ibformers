@@ -439,6 +439,7 @@ def prepare_ib_params(
         mount_details=mount_details,
         model_name=model_name,
         final_model_dir=os.path.join(temp_dir, "model"),
+        metric_for_best_model="eval_macro_f1",
     )
 
     if "epochs" in hyperparams:
@@ -463,8 +464,15 @@ def prepare_ib_params(
         out_dict["max_length"] = int(hyperparams.pop("chunk_size"))
     if "stride" in hyperparams:
         out_dict["chunk_overlap"] = int(hyperparams.pop("stride"))
+
+    if "validation_set_size" in hyperparams:
+        out_dict["validation_set_size"] = float(hyperparams.pop("validation_set_size"))
+    if "early_stopping_patience" in hyperparams:
+        out_dict["early_stopping_patience"] = hyperparams.pop("early_stopping_patience")
+    if "metric_for_best_model" in hyperparams:
+        out_dict["metric_for_best_model"] = hyperparams.pop("metric_for_best_model")
     if "upload" in hyperparams:
-        out_dict["upload"] = hyperparams.pop("upload")
+        out_dict["validation_set_size"] = hyperparams.pop("validation_set_size")
 
     if "scheduler_type" in hyperparams:
         scheduler_type = hyperparams.pop("scheduler_type")
