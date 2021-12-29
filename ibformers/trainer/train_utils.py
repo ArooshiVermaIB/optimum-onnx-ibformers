@@ -21,6 +21,10 @@ def validate_dataset_sizes(raw_datasets: Dict[str, Dataset]):
             )
 
 
+def split_eval_from_train(dataset: Dataset, validation_set_size: float):
+    return dataset  # TODO: implement
+
+
 def split_train_with_column(dataset: Dataset):
     # dataset should contain only train set
     if list(dataset.keys()) != ["train"]:
