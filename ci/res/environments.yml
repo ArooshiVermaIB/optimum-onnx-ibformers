@@ -8,10 +8,10 @@ uat:
   path: ib_annotation/data/fs/Prod Drive/datasets/ci-test-datasets-do-not-delete
   token: HMxPLVjguO6wcIkzXi7wbGPWyHynVx
 
-#prod:
-#  host: https://instabase.com
-#  token: SOME_TOKEN
-#  path: SOME_LOCATION
+prod:
+  host: https://instabase.com
+  path: ib_annotation/data/fs/Instabase Drive/datasets/ci-test-datasets-do-not-delete
+  token: D6wRkvyg6RhfH0zxlPG8vk0eVusbX8
 
 doc-insights-sandbox:
   host: https://doc-insights.aws.sandbox.instabase.com

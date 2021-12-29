@@ -140,6 +140,34 @@ pipeline {
                         }
                     }
                 }
+                stage ('[Run ibformer tests on prod and publish if run successfully]') {
+                    steps {
+                        dir ('.') {
+                            ansiColor('xterm') {
+                                sh '''#!/bin/bash
+                                cd ci/
+                                IB_TEST_ENV=prod make run-docker-test
+                                '''
+                            }
+                        }
+                    }
+                    post {
+                        success {
+                            dir ('.') {
+                                ansiColor('xterm') {
+                                    sh '''#!/bin/bash
+                                    cd ci/
+                                    IB_TEST_ENV=prod make run-docker-publish
+                                    '''
+                                }
+                            }
+                            postResultsToSlack('prod', 'good')
+                        }
+                        unsuccessful {
+                            postResultsToSlack('prod', 'danger')
+                        }
+                    }
+                }
             }
         }
     }

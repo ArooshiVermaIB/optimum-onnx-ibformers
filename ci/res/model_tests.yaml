@@ -33,6 +33,26 @@ UberEatsReceipts:
       total: 0.95
 
 
+UberEatsReceiptsProd:
+  env:
+    - prod
+  model_project_path: ml_studio_models_prod/uber_eats
+  dataset_project_path: ml_studio_datasets_prod/uber_eats
+  time_limit: 1200 # 20 minutes
+  config:
+    <<: *defaults
+  metrics:
+    precision:
+      date: 0.5
+      total: 0.95
+    recall:
+      date: 0.5
+      total: 0.95
+    f1:
+      date: 0.5
+      total: 0.95
+
+
 UberEatsXLM:
   env: []
   model_project_path: ml_studio_models/uber_eats
@@ -113,7 +133,7 @@ NYDriversLicenses:
   metrics: # TODO stop assuming higher is better
     # TODO maybe transpose this?
     precision:
-      DL Number: 0.8
+      DL Number: 0.7
       Name: 0.7
       Address: 0.9
     recall:
