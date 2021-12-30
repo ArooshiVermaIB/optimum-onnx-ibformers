@@ -2,6 +2,11 @@
 
 All notable changes to this repository will be documented in this file.
 
+
+## [Unreleased]
+### Fixed
+- Fix exact_match metric
+
 ## [0.0.11] - 2021-12-30
 ### Added
 - Add `class_weights` support
