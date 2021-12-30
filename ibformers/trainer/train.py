@@ -230,9 +230,12 @@ def run_train(
     # workaround currently only for docpro dataset which require loading into single dataset as information about split
     # could be obtained after loading a record
     is_docpro_training = "split" in next(iter(raw_datasets.column_names.values()))
+
     if is_docpro_training and training_args.early_stopping_patience > 0:
-        raw_datasets = split_eval_from_train(raw_datasets, data_args.validation_set_size)
-    if is_docpro_training:
+        raw_datasets = split_eval_from_train(
+            raw_datasets, data_args.validation_set_size, data_args.fully_deterministic_eval_split
+        )
+    elif is_docpro_training:
         raw_datasets = split_train_with_column(raw_datasets)
 
     validate_dataset_sizes(raw_datasets)

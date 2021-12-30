@@ -23,6 +23,8 @@ _default:
     early_stopping_patience: 3
     metric_for_best_model: macro_f1
     save_total_limit: 1
+    validation_set_size: 0.2
+    fully_deterministic_eval_split: true
 
 microsoft/layoutlm-base-uncased:
   name: layout_base

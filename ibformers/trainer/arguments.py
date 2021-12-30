@@ -165,6 +165,15 @@ class DataAndPipelineArguments:
             "in that case"
         },
     )
+    fully_deterministic_eval_split: bool = field(
+        default=False,
+        metadata={
+            "help": "If True, the splits will be created in a fully deterministic fashion, i.e. "
+            "each document id will always end up in the same split. This might result in "
+            "invalid splits for small datasets. If False, the specified set size will be "
+            "selected."
+        },
+    )
 
     def __post_init__(self):
         if self.dataset_name_or_path is None and self.train_file is None and self.validation_file is None:
