@@ -55,7 +55,7 @@ class EnhancedTrainingArguments(TrainingArguments):
         metadata={"help": "Will be used to change the weight of the classes during loss computation"},
     )
     early_stopping_patience: int = field(
-        default=2,
+        default=0,
         metadata={
             "help": "The number of epochs to wait before stopping if there is no improvement on validation "
             "set. 0 means disabled early stopping."
