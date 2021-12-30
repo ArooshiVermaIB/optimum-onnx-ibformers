@@ -13,14 +13,17 @@ def iou_score(y_true: Mapping[str, List[int]], y_pred: Mapping[str, List[int]], 
     for t in all_tags:
         if t == "O":
             continue
-        if (t not in y_pred) or (t not in y_true):
-            result[t] = 0
+        if (t not in y_pred) and (t not in y_true):
+            result[t] = 1.0
+            continue
+        elif (t not in y_pred) or (t not in y_true):
+            result[t] = 0.0
             continue
         a = set(y_pred[t])
         b = set(y_true[t])
         _union = len(a.union(b))
         _intersection = len(a.intersection(b))
-        result[t] = (_intersection / _union) if _union > 0 else 0.0
+        result[t] = (_intersection / _union) if _union > 0 else 1.0
     return result
 
 
