@@ -104,11 +104,12 @@ def split_eval_from_train_semideterministic(dataset, validation_set_size: float)
     logging.info("Splitting using semi deterministic algorithm.")
     doc_id_list = dataset["id"]
     split_lst = dataset["split"]
-    scores = [get_split_score(doc_id) for doc_id in doc_id_list]
-    split_value = np.quantile(scores, validation_set_size)
+    all_scores = [get_split_score(doc_id) for doc_id in doc_id_list]
+    train_scores = [score for score, split in zip(all_scores, split_lst) if split == "train"]
+    split_value = np.quantile(train_scores, validation_set_size)
     return [
         "test" if split != "train" else ("validation" if score < split_value else "train")
-        for split, score in zip(split_lst, scores)
+        for split, score in zip(split_lst, all_scores)
     ]
 
 
