@@ -114,12 +114,24 @@ def split_eval_from_train_semideterministic(dataset, validation_set_size: float)
 
 
 def split_eval_from_train(dataset: Dataset, validation_set_size: float, fully_deterministic_split: bool):
+    """
+    Splits the train dataset into validation and train, and leaves all other documents as test.
+
+    Args:
+        dataset: Dataset with columns "id" and "split"
+        validation_set_size: percentage of dataset for validation set
+        fully_deterministic_split: if true, the split is made in fully deterministic fashin.
+
+    Returns:
+        DatasetDict with three splits.
+
+    """
     if list(dataset.keys()) != ["train"]:
         raise exceptions.ValidationError(f"Dataset: {dataset} for splitting should contain only train set")
 
     train_ds = dataset["train"]
 
-    if not ({"split", "id"} < set(train_ds.features)):
+    if not ({"split", "id"} <= set(train_ds.features)):
         raise exceptions.ValidationError("No column `split` and `id` required for evaluation set split")
 
     split_fn = (

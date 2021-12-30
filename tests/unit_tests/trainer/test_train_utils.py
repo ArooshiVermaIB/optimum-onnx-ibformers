@@ -1,5 +1,6 @@
 import unittest
 from unittest import mock
+from unittest.mock import patch
 
 from datasets import DatasetDict
 
@@ -156,6 +157,110 @@ class TestTrainUtils(unittest.TestCase):
         # then
         with self.assertRaisesRegex(exceptions.ValidationError, "Dataset split test"):
             train_utils.validate_dataset_sizes(raw_datasets)
+
+    def test_split_eval_from_train_param_deterministic(self):
+        # given
+        split_deterministic_mock = mock.MagicMock()
+        split_semideterministic_mock = mock.MagicMock()
+        create_splits_with_column = mock.MagicMock()
+        split_result_mock = mock.MagicMock()
+        split_deterministic_mock.return_value = split_result_mock
+        dataset_mock = mock.MagicMock()
+        train_ds_mock = mock.MagicMock()
+        dataset_mock.keys.return_value = ["train"]
+        train_ds_mock.features = ["split", "id"]
+        dataset_mock.__getitem__.side_effect = dict(train=train_ds_mock).__getitem__
+        eval_size = 0.5
+
+        # then
+        with patch(
+            "ibformers.trainer.train_utils.split_eval_from_train_deterministic", split_deterministic_mock
+        ) as _, patch(
+            "ibformers.trainer.train_utils.split_eval_from_train_semideterministic", split_semideterministic_mock
+        ) as _, patch(
+            "ibformers.trainer.train_utils.create_splits_with_column", create_splits_with_column
+        ):
+
+            split_dataset = train_utils.split_eval_from_train(dataset_mock, eval_size, True)
+
+        split_deterministic_mock.assert_called_once_with(train_ds_mock, eval_size)
+        split_semideterministic_mock.assert_not_called()
+        create_splits_with_column.assert_called_once_with(split_result_mock, train_ds_mock)
+
+    def test_split_eval_from_train_param_semideterministic(self):
+        # given
+        split_deterministic_mock = mock.MagicMock()
+        split_semideterministic_mock = mock.MagicMock()
+        create_splits_with_column = mock.MagicMock()
+        split_result_mock = mock.MagicMock()
+        split_semideterministic_mock.return_value = split_result_mock
+        dataset_mock = mock.MagicMock()
+        train_ds_mock = mock.MagicMock()
+        dataset_mock.keys.return_value = ["train"]
+        train_ds_mock.features = ["split", "id"]
+        dataset_mock.__getitem__.side_effect = dict(train=train_ds_mock).__getitem__
+        eval_size = 0.5
+
+        # then
+        with patch(
+            "ibformers.trainer.train_utils.split_eval_from_train_deterministic", split_deterministic_mock
+        ) as _, patch(
+            "ibformers.trainer.train_utils.split_eval_from_train_semideterministic", split_semideterministic_mock
+        ) as _, patch(
+            "ibformers.trainer.train_utils.create_splits_with_column", create_splits_with_column
+        ):
+
+            split_dataset = train_utils.split_eval_from_train(dataset_mock, eval_size, False)
+
+        split_deterministic_mock.assert_not_called()
+        split_semideterministic_mock.assert_called_once_with(train_ds_mock, eval_size)
+        create_splits_with_column.assert_called_once_with(split_result_mock, train_ds_mock)
+
+    def test_split_eval_from_train_extra_dataset_on_input(self):
+        # given
+        dataset_mock = mock.MagicMock()
+        train_ds_mock = mock.MagicMock()
+        dataset_mock.keys.return_value = ["train", "test"]
+        eval_size = 0.5
+
+        # then
+        with self.assertRaises(exceptions.ValidationError):
+            split_dataset = train_utils.split_eval_from_train(dataset_mock, eval_size, False)
+
+    def test_split_eval_from_train_missing_train_on_input(self):
+        # given
+        dataset_mock = mock.MagicMock()
+        train_ds_mock = mock.MagicMock()
+        dataset_mock.keys.return_value = ["test"]
+        eval_size = 0.5
+
+        # then
+        with self.assertRaises(exceptions.ValidationError):
+            split_dataset = train_utils.split_eval_from_train(dataset_mock, eval_size, False)
+
+    def test_split_eval_from_train_missing_split_column(self):
+        # given
+        dataset_mock = mock.MagicMock()
+        train_ds_mock = mock.MagicMock()
+        dataset_mock.keys.return_value = ["train"]
+        train_ds_mock.features = ["id", "col1", "col2"]
+        eval_size = 0.5
+
+        # then
+        with self.assertRaises(exceptions.ValidationError):
+            split_dataset = train_utils.split_eval_from_train(dataset_mock, eval_size, False)
+
+    def test_split_eval_from_train_missing_id_column(self):
+        # given
+        dataset_mock = mock.MagicMock()
+        train_ds_mock = mock.MagicMock()
+        dataset_mock.keys.return_value = ["train"]
+        train_ds_mock.features = ["split", "col1", "col2"]
+        eval_size = 0.5
+
+        # then
+        with self.assertRaises(exceptions.ValidationError):
+            split_dataset = train_utils.split_eval_from_train(dataset_mock, eval_size, False)
 
 
 if __name__ == "__main__":
