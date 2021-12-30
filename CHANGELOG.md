@@ -2,7 +2,7 @@
 
 All notable changes to this repository will be documented in this file.
 
-## [Unreleased]
+## [0.0.11] - 2021-12-30
 ### Added
 - Add `class_weights` support
 - Add retry logic when loading images from ibdoc
