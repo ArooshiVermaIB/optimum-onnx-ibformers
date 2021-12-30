@@ -332,21 +332,33 @@ def get_docpro_ds_split(anno: Optional[Dict]):
 
 
 def validate_and_fix_bboxes(bbox_arr, page_size_per_token, word_pages_arr, page_bboxes, doc_id):
+    fixed_arr = bbox_arr
     for dim in range(2):
-        tokens_outside_dim = np.nonzero(bbox_arr[:, 2 + dim] > page_size_per_token[:, dim])
+        tokens_outside_dim = np.nonzero(fixed_arr[:, 2 + dim] > page_size_per_token[:, dim])
         if len(tokens_outside_dim[0]) > 0:
             example_idx = tokens_outside_dim[0][0]
             ex_bbox = bbox_arr[example_idx]
             ex_page = page_bboxes[word_pages_arr[example_idx]]
             logging.error(
-                f"found bboxes  outside of the page for {doc_id}. Example bbox {ex_bbox} page:({ex_page})."
+                f"found bboxes outside of the page for {doc_id}. Example bbox {ex_bbox} page:({ex_page})."
                 f"These will be trimmed to page coordinates. Please review your OCR settings."
             )
             # fixing bboxes
             # use tile to double last dim size and apply trimming both to x1,y1 and x2,y2
-            fixed_arr = np.minimum(bbox_arr, np.tile(page_size_per_token, 2))
-            return fixed_arr
-    return bbox_arr
+            fixed_arr = np.minimum(fixed_arr, np.tile(page_size_per_token, 2))
+
+        tokens_negative = np.nonzero(fixed_arr < 0)
+        if len(tokens_negative[0]) > 0:
+            example_idx = tokens_negative[0][0]
+            ex_bbox = bbox_arr[example_idx]
+            ex_page = page_bboxes[word_pages_arr[example_idx]]
+            logging.error(
+                f"found bboxes with negative coord of the page for {doc_id}. Example bbox {ex_bbox} page:({ex_page})."
+                f"These will be trimmed to page coordinates. Please review your OCR settings."
+            )
+
+            fixed_arr = np.maximum(fixed_arr, 0)
+    return fixed_arr
 
 
 # https://github.com/instabase/instabase/pull/22443/files
