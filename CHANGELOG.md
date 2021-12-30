@@ -16,6 +16,7 @@ All notable changes to this repository will be documented in this file.
 ### Added
 - Add `class_weights` support
 - Add retry logic when loading images from ibdoc
+- Add options for early stopping and evaluation dataset creation
 ### Fixed
 - Add fix inside data processing to correct bboxes with negative coordinates
 ### Changed
