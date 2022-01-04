@@ -166,7 +166,7 @@ single_qa = {
 layoutlm_mlm = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
-    "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
+    "column_mapping": [("bboxes", "bbox")],
     "collate": get_collator_class(MLMAugmenter),
     "model_class": AutoModelForMaskedLM,
     "compute_metrics": None,

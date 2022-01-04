@@ -36,7 +36,7 @@ class ImageProcessor(ImageFeatureExtractionMixin):
             image = Image.open(f).convert("RGB")
         except:
             logger.warning(f"Failed to open image {f}. Replacing it with an empty image instead.")
-            return self.get_default_image()
+            return self.get_default_processed_image()
 
         return self.postprocess(image)
 

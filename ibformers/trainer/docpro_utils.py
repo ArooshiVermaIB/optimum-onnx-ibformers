@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 import pandas as pd
 
-from transformers import HfArgumentParser, TrainingArguments, TrainerCallback
+from transformers import HfArgumentParser, TrainerCallback
 
 from ibformers.trainer.train import run_train
 from ibformers.data.collators.augmenters.args import AugmenterArguments
@@ -20,7 +20,7 @@ from ibformers.trainer.ib_utils import (
     upload_dir,
 )
 from ibformers.trainer.refiner_module_generator import write_refiner_program
-from ibformers.trainer.arguments import ModelArguments, DataAndPipelineArguments, IbArguments
+from ibformers.trainer.arguments import ModelArguments, DataAndPipelineArguments, IbArguments, EnhancedTrainingArguments
 from instabase.dataset_utils.sdk import LocalDatasetSDK, RemoteDatasetSDK, DatasetSDK
 from instabase.dataset_utils.shared_types import (
     PredictionResultDict,
@@ -470,7 +470,7 @@ def run_train_doc_pro(
         (
             ModelArguments,
             DataAndPipelineArguments,
-            TrainingArguments,
+            EnhancedTrainingArguments,
             IbArguments,
             AugmenterArguments,
         )

@@ -60,7 +60,7 @@ def do_comparison(
 
             value = float(value)
             # if value is 0, then we skip the comparsion.
-            if value == 0 or value > observed:
+            if value != 0 and value > observed:
                 logger.error(
                     f"for field '{field}' and metric '{metric}' expected at "
                     f"least '{value}' but observed '{observed}'"

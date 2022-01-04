@@ -1,6 +1,7 @@
 from collections import defaultdict
 from dataclasses import fields, dataclass
 
+import numpy as np
 import torch
 from transformers import PreTrainedTokenizerBase, DataCollator
 from typing import Union, Optional, Type, TypeVar, List, Dict, Any
@@ -132,5 +133,5 @@ class UniversalDataCollator:
             collated = dict(**collated, **extra_collated)
 
         # TODO: custom types for fields
-        batch = {k: torch.tensor(v, dtype=torch.int64) for k, v in collated.items()}
+        batch = {k: torch.tensor(np.array(v), dtype=torch.int64) for k, v in collated.items()}
         return batch

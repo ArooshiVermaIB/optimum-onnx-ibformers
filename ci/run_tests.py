@@ -215,17 +215,18 @@ async def run_inference_test(
             break
 
     for prediction in preds_dict["prediction"]["fields"]:
-        field_name = prediction["field_name"]
-        train_val = prediction["annotations"][0]["value"]
         ibdoc_path = preds_dict["ibdoc_path"]
         preds_by_field = model_result_by_record[ibdoc_path + "-0"]
-        inference_val = preds_by_field[field_name]
-        if train_val != inference_val:
-            logging.error(
-                f"For file <{ibdoc_path}> and field <{field_name}>, expected training prediction <{train_val}> "
-                f"equal inference prediction <{inference_val}>"
-            )
-            success = False
+        field_name = prediction["field_name"]
+        for annotation in prediction["annotations"]:
+            train_val = annotation["value"]
+            inference_val = preds_by_field[field_name]
+            if train_val != inference_val:
+                logging.error(
+                    f"For file <{ibdoc_path}> and field <{field_name}>, expected training prediction <{train_val}> "
+                    f"equal inference prediction <{inference_val}>"
+                )
+                success = False
 
     logger.info(f"Inference test {'passed' if success else 'failed'}: {test_name}")
 

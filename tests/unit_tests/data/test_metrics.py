@@ -31,7 +31,7 @@ class TestMetrics(unittest.TestCase):
         iou_score = metrics.iou_score(y_true, y_pred, all_tags)
 
         # verify
-        expected = {"e1": 0.0, "e2": 0.0}
+        expected = {"e1": 1.0, "e2": 1.0}
         self.assertDictEqual(iou_score, expected)
 
     def test_calculate_average_metrics(self):

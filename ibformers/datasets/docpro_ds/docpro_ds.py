@@ -4,6 +4,7 @@ import traceback
 import urllib
 from pathlib import Path
 from typing import Tuple, List, Dict, Union, Optional, Callable, Sequence
+import time
 
 import datasets
 import numpy as np
@@ -152,6 +153,31 @@ def process_labels_from_annotation(
     return entities, token_label_ids
 
 
+def get_image(img_path, img_rel_path, open_fn, image_processor):
+    # wait for 30s in case of image is saved async in the flow
+    # TODO: remove it once we integrate model-service with datastore - this is temporary workaround
+    time_waited = 0
+    img_arr = None
+    for i in range(16):
+        try:
+            with open_fn(str(img_path)) as img_file:
+                img_arr = image_processor(img_file).astype(np.uint8)
+                break
+        except OSError:
+            try:
+                with open_fn(str(img_rel_path), "rb") as img_file:
+                    img_arr = image_processor(img_file).astype(np.uint8)
+                break
+            except OSError:
+                time.sleep(2)
+                time_waited += 2
+
+    if time_waited > 0 and img_arr is not None:
+        logging.warning(f"Script waited for {time_waited} sec for image {img_path} to be saved")
+
+    return img_arr
+
+
 def get_images_from_layouts(
     layouts: List[IBOCRRecordLayout],
     image_processor: ImageProcessor,
@@ -173,15 +199,17 @@ def get_images_from_layouts(
     for page in page_nums:
         lay = layouts[page]
         img_path = Path(lay.get_processed_image_path())
-        try:
-            with open_fn(str(img_path)) as img_file:
-                img_arr = image_processor(img_file).astype(np.uint8)
-        except OSError:
-            # try relative path - useful for debugging
-            ocr_path = Path(ocr_path)
-            img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
-            with open_fn(str(img_rel_path), "rb") as img_file:
-                img_arr = image_processor(img_file).astype(np.uint8)
+        # try relative path - useful if dataset was moved
+        ocr_path = Path(ocr_path)
+        img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
+        img_arr = get_image(img_path, img_rel_path, open_fn, image_processor)
+
+        if img_arr is None:
+            raise OSError(
+                f"Image does not exist in the image_path location: {img_path}. "
+                f"It was also not found in the location relative to ibdoc: {img_rel_path}. "
+                f"Script also waited for images to be saved for 30s"
+            )
 
         img_lst.append(img_arr)
 
@@ -304,21 +332,33 @@ def get_docpro_ds_split(anno: Optional[Dict]):
 
 
 def validate_and_fix_bboxes(bbox_arr, page_size_per_token, word_pages_arr, page_bboxes, doc_id):
+    fixed_arr = bbox_arr
     for dim in range(2):
-        tokens_outside_dim = np.nonzero(bbox_arr[:, 2 + dim] > page_size_per_token[:, dim])
+        tokens_outside_dim = np.nonzero(fixed_arr[:, 2 + dim] > page_size_per_token[:, dim])
         if len(tokens_outside_dim[0]) > 0:
             example_idx = tokens_outside_dim[0][0]
             ex_bbox = bbox_arr[example_idx]
             ex_page = page_bboxes[word_pages_arr[example_idx]]
             logging.error(
-                f"found bboxes  outside of the page for {doc_id}. Example bbox {ex_bbox} page:({ex_page})."
+                f"found bboxes outside of the page for {doc_id}. Example bbox {ex_bbox} page:({ex_page})."
                 f"These will be trimmed to page coordinates. Please review your OCR settings."
             )
             # fixing bboxes
             # use tile to double last dim size and apply trimming both to x1,y1 and x2,y2
-            fixed_arr = np.minimum(bbox_arr, np.tile(page_size_per_token, 2))
-            return fixed_arr
-    return bbox_arr
+            fixed_arr = np.minimum(fixed_arr, np.tile(page_size_per_token, 2))
+
+        tokens_negative = np.nonzero(fixed_arr < 0)
+        if len(tokens_negative[0]) > 0:
+            example_idx = tokens_negative[0][0]
+            ex_bbox = bbox_arr[example_idx]
+            ex_page = page_bboxes[word_pages_arr[example_idx]]
+            logging.error(
+                f"found bboxes with negative coord of the page for {doc_id}. Example bbox {ex_bbox} page:({ex_page})."
+                f"These will be trimmed to page coordinates. Please review your OCR settings."
+            )
+
+            fixed_arr = np.maximum(fixed_arr, 0)
+    return fixed_arr
 
 
 # https://github.com/instabase/instabase/pull/22443/files

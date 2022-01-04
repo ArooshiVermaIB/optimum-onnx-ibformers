@@ -140,13 +140,13 @@ pipeline {
                         }
                     }
                 }
-                stage ('[Run ibformer tests on UAT and publish if run successfully]') {
+                stage ('[Run ibformer tests on prod and publish if run successfully]') {
                     steps {
                         dir ('.') {
                             ansiColor('xterm') {
                                 sh '''#!/bin/bash
                                 cd ci/
-                                IB_TEST_ENV=uat make run-docker-test
+                                IB_TEST_ENV=prod make run-docker-test
                                 '''
                             }
                         }
@@ -157,14 +157,14 @@ pipeline {
                                 ansiColor('xterm') {
                                     sh '''#!/bin/bash
                                     cd ci/
-                                    IB_TEST_ENV=uat make run-docker-publish
+                                    IB_TEST_ENV=prod make run-docker-publish
                                     '''
                                 }
                             }
-                            postResultsToSlack('uat', 'good')
+                            postResultsToSlack('prod', 'good')
                         }
                         unsuccessful {
-                            postResultsToSlack('uat', 'danger')
+                            postResultsToSlack('prod', 'danger')
                         }
                     }
                 }

@@ -34,7 +34,6 @@ from transformers import (
     AutoTokenizer,
     HfArgumentParser,
     PreTrainedTokenizerFast,
-    TrainingArguments,
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint
@@ -47,6 +46,7 @@ from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 from ibformers.trainer.arguments import (
     ModelArguments,
+    EnhancedTrainingArguments,
     DataAndPipelineArguments,
     IbArguments,
     update_params_with_commandline,
@@ -70,7 +70,7 @@ def run_hyperparams_and_cmdline_train(hyperparams: Dict):
         (
             ModelArguments,
             DataAndPipelineArguments,
-            TrainingArguments,
+            EnhancedTrainingArguments,
             IbArguments,
             AugmenterArguments,
         )
@@ -103,7 +103,7 @@ def run_cmdline_train():
         (
             ModelArguments,
             DataAndPipelineArguments,
-            TrainingArguments,
+            EnhancedTrainingArguments,
             IbArguments,
             AugmenterArguments,
         )
@@ -294,6 +294,7 @@ def run_train(
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=token,
+        ignore_mismatched_sizes=True,
     )
 
     callbacks = []

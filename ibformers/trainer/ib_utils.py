@@ -10,7 +10,7 @@ from typing_extensions import TypedDict
 import boto3
 import shutil
 
-from transformers import TrainerCallback, HfArgumentParser, TrainingArguments
+from transformers import TrainerCallback, HfArgumentParser
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.trainer.train import run_train
@@ -19,6 +19,7 @@ from ibformers.trainer.arguments import (
     DataAndPipelineArguments,
     IbArguments,
     update_params_with_commandline,
+    EnhancedTrainingArguments,
 )
 
 from instabase.storage.fileservice import FileService
@@ -401,8 +402,11 @@ def prepare_ib_params(
     if "report_to" in hyperparams:
         out_dict["report_to"] = hyperparams.pop("report_to")
 
+    if "class_weights" in hyperparams:
+        out_dict["class_weights"] = hyperparams.pop("class_weights")
+
     if hyperparams:
-        logging.info(f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}")
+        logging.warning(f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}")
 
     return out_dict
 
@@ -424,7 +428,7 @@ def run_train_annotator(
         (
             ModelArguments,
             DataAndPipelineArguments,
-            TrainingArguments,
+            EnhancedTrainingArguments,
             IbArguments,
             AugmenterArguments,
         )
