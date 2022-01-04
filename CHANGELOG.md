@@ -4,6 +4,8 @@ All notable changes to this repository will be documented in this file.
 
 
 ## [Unreleased]
+### Added
+- Add validation of dataset sizes.
 ### Fixed
 - Fix exact_match metric
 
