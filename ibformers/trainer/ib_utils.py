@@ -6,15 +6,15 @@ import tempfile
 import uuid
 from pathlib import Path
 from typing import Dict, Optional, Any, Iterable, Tuple
-from typing_extensions import TypedDict
+
 import boto3
 import shutil
 import zipfile
 
 from transformers import TrainerCallback, HfArgumentParser
+from typing_extensions import TypedDict
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
-from ibformers.trainer.train import run_train
 from ibformers.trainer.arguments import (
     ModelArguments,
     DataAndPipelineArguments,
@@ -22,10 +22,10 @@ from ibformers.trainer.arguments import (
     update_params_with_commandline,
     EnhancedTrainingArguments,
 )
-
-from instabase.storage.fileservice import FileService
+from ibformers.trainer.train import run_train
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase, default_max_write_size
+from instabase.storage.fileservice import FileService
 from instabase.utils.rpc.file_client import ThriftGRPCFileClient
 
 # imports for unzipping functionality
@@ -463,15 +463,8 @@ def prepare_ib_params(
         out_dict["max_length"] = int(hyperparams.pop("chunk_size"))
     if "stride" in hyperparams:
         out_dict["chunk_overlap"] = int(hyperparams.pop("stride"))
-
-    if "validation_set_size" in hyperparams:
-        out_dict["validation_set_size"] = float(hyperparams.pop("validation_set_size"))
-    if "early_stopping_patience" in hyperparams:
-        out_dict["early_stopping_patience"] = hyperparams.pop("early_stopping_patience")
-    if "metric_for_best_model" in hyperparams:
-        out_dict["metric_for_best_model"] = hyperparams.pop("metric_for_best_model")
     if "upload" in hyperparams:
-        out_dict["validation_set_size"] = hyperparams.pop("validation_set_size")
+        out_dict["upload"] = hyperparams.pop("upload")
 
     if "scheduler_type" in hyperparams:
         scheduler_type = hyperparams.pop("scheduler_type")
@@ -505,8 +498,8 @@ def prepare_ib_params(
         out_dict["class_weights"] = hyperparams.pop("class_weights")
 
     # early stopping
-    early_stopping_patience = hyperparams.get("early_stopping_patience", 0)
-    validation_set_size = hyperparams.get("validation_set_size", 0)
+    early_stopping_patience = hyperparams.pop("early_stopping_patience", 0)
+    validation_set_size = hyperparams.pop("validation_set_size", 0)
     if early_stopping_patience > 0 and validation_set_size == 0:
         logging.warning(
             f"Requested early stopping by setting `early_stopping_patience` > 0, "
@@ -519,7 +512,7 @@ def prepare_ib_params(
         out_dict["save_strategy"] = "epoch"
         out_dict["load_best_model_at_end"] = True
         out_dict["save_total_limit"] = 1
-        out_dict["metric_for_best_model"] = hyperparams.get("metric_for_best_model", "macro_f1")
+        out_dict["metric_for_best_model"] = hyperparams.pop("metric_for_best_model", "macro_f1")
 
     if hyperparams:
         logging.warning(f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}")
