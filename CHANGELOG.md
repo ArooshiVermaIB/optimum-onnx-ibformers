@@ -4,6 +4,8 @@ All notable changes to this repository will be documented in this file.
 
 
 ## [Unreleased]
+### Added
+- Add early stopping with validation dataset split.
 
 ## [0.0.12] - 2022-1-5
 ### Fixed
