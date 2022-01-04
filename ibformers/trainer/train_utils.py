@@ -168,9 +168,12 @@ def create_splits_with_column(split_lst: List[str], train_ds: Dataset):
                 indices[k].append(idx)
     splitted_dataset = DatasetDict()
     for k, v in indices.items():
-        if len(v) == 0:
+        if len(v) == 0 and k != "predict":
             raise ValueError(f"There is no document chosen for {k} set")
-        splitted_dataset[k] = train_ds.select(indices=indices[k])
+        elif len(v) == 0 and k == "predict":
+            splitted_dataset[k] = train_ds.filter(lambda x: False)  # empty dataset hack
+        else:
+            splitted_dataset[k] = train_ds.select(indices=indices[k])
     return splitted_dataset
 
 

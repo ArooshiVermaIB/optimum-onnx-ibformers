@@ -304,7 +304,12 @@ def run_train(
         # with training_args.main_process_first(desc="prediction dataset map pre-processing"):
         test_dataset = prepare_dataset(test_dataset, pipeline, **map_kwargs)
         predict_raw_dataset = prepare_dataset(predict_raw_dataset, pipeline, **map_kwargs)
-        predict_dataset = datasets.concatenate_datasets([test_dataset, predict_raw_dataset])
+
+        # we have to check this manually, since the predict_raw_dataset will have different column set if empty
+        if len(predict_raw_dataset) > 0:
+            predict_dataset = datasets.concatenate_datasets([test_dataset, predict_raw_dataset])
+        else:
+            predict_dataset = test_dataset
 
     config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset)
 
