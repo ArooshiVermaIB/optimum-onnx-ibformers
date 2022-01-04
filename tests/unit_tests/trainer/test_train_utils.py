@@ -53,6 +53,53 @@ class TestTrainUtils(unittest.TestCase):
         # verify
         self.assertIn("No column named split which is needed for splitting", str(context.exception))
 
+    def test_validate_dataset_sizes(self):
+        # given
+        raw_datasets = {
+            "train": mock.MagicMock(__len__=lambda x: 10),
+            "validation": mock.MagicMock(__len__=lambda x: 5),
+            "test": mock.MagicMock(__len__=lambda x: 5),
+        }
+
+        # then
+        train_utils.validate_dataset_sizes(raw_datasets)
+
+    def test_validate_dataset_sizes_invalid_train(self):
+        # given
+        raw_datasets = {
+            "train": mock.MagicMock(__len__=lambda x: 4),
+            "validation": mock.MagicMock(__len__=lambda x: 5),
+            "test": mock.MagicMock(__len__=lambda x: 5),
+        }
+
+        # then
+        with self.assertRaisesRegex(exceptions.ValidationError, "Dataset split train"):
+            train_utils.validate_dataset_sizes(raw_datasets)
+
+    def test_validate_dataset_sizes_invalid_val(self):
+        # given
+        raw_datasets = {
+            "train": mock.MagicMock(__len__=lambda x: 10),
+            "validation": mock.MagicMock(__len__=lambda x: 1),
+            "test": mock.MagicMock(__len__=lambda x: 5),
+        }
+
+        # then
+        with self.assertRaisesRegex(exceptions.ValidationError, "Dataset split validation"):
+            train_utils.validate_dataset_sizes(raw_datasets)
+
+    def test_validate_dataset_sizes_invalid_test(self):
+        # given
+        raw_datasets = {
+            "train": mock.MagicMock(__len__=lambda x: 10),
+            "validation": mock.MagicMock(__len__=lambda x: 5),
+            "test": mock.MagicMock(__len__=lambda x: 1),
+        }
+
+        # then
+        with self.assertRaisesRegex(exceptions.ValidationError, "Dataset split test"):
+            train_utils.validate_dataset_sizes(raw_datasets)
+
 
 if __name__ == "__main__":
     unittest.main()

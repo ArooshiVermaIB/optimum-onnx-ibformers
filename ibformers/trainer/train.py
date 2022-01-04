@@ -23,11 +23,11 @@ import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
+from typing import Dict
 
 import datasets
-import torch
 import transformers
-from datasets import ClassLabel, load_dataset, DownloadConfig
+from datasets import load_dataset, DownloadConfig
 from datasets.data_files import DataFilesDict
 from transformers import (
     AutoConfig,
@@ -39,7 +39,6 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
-from typing import Dict, Any
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
@@ -54,7 +53,7 @@ from ibformers.trainer.arguments import (
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.3")
-from ibformers.trainer.train_utils import split_train_with_column, prepare_config_kwargs
+from ibformers.trainer.train_utils import split_train_with_column, prepare_config_kwargs, validate_dataset_sizes
 from ibformers.trainer.trainer import IbTrainer
 
 require_version(
@@ -216,6 +215,8 @@ def run_train(
     # could be obtained after loading a record
     if "split" in next(iter(raw_datasets.column_names.values())):
         raw_datasets = split_train_with_column(raw_datasets)
+
+    validate_dataset_sizes(raw_datasets)
 
     tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
 

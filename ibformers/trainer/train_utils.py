@@ -4,6 +4,22 @@ from datasets import Dataset, DatasetDict, ClassLabel
 
 from ibformers.utils import exceptions
 
+MIN_DOCUMENT_SIZES = {
+    "train": 5,
+    "validation": 2,
+    "test": 2,
+}
+
+
+def validate_dataset_sizes(raw_datasets: Dict[str, Dataset]):
+    for split_name, split_min_docs in MIN_DOCUMENT_SIZES.items():
+        dataset_len = len(raw_datasets[split_name])
+        if dataset_len < split_min_docs:
+            raise exceptions.ValidationError(
+                f"Dataset split {split_name} contains only {dataset_len} documents, "
+                f"which is less than required minimum of {split_min_docs}."
+            )
+
 
 def split_train_with_column(dataset: Dataset):
     # dataset should contain only train set
