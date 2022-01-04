@@ -13,7 +13,7 @@ class TestTrainUtils(unittest.TestCase):
         # given
         dataset_mock = mock.MagicMock()
         train_ds_mock = mock.MagicMock()
-        split_lst = [["train"], ["validation"], ["test"]]
+        split_lst = [["train"], ["validation"], ["test"], ["predict"]]
         dataset_mock.keys.return_value = ["train"]
         train_ds_mock.features = ["split"]
         dataset_mock.__getitem__.side_effect = dict(train=train_ds_mock).__getitem__
@@ -26,6 +26,7 @@ class TestTrainUtils(unittest.TestCase):
         self.assertIn("train", result)
         self.assertIn("validation", result)
         self.assertIn("test", result)
+        self.assertIn("predict", result)
 
     def test_split_train_with_column_validation_error_of_keys(self):
         # given
@@ -82,7 +83,7 @@ class TestTrainUtils(unittest.TestCase):
     def test_split_eval_from_train_deterministic(self):
         # given
         train_ds_mock = mock.MagicMock()
-        split_lst = ["train", "train", "train", "train", "validation+test", "test"]
+        split_lst = ["train", "train", "train", "train", "test", "predict"]
         id_lst = [f"id_{i}" for i in range(len(split_lst))]
         train_ds_mock.features = ["split", "id"]
         train_ds_mock.__getitem__.side_effect = dict(split=split_lst, id=id_lst).__getitem__
@@ -92,13 +93,13 @@ class TestTrainUtils(unittest.TestCase):
         split_values = train_utils.split_eval_from_train_deterministic(train_ds_mock, eval_size)
 
         # verify
-        expected_split_values = ["train", "train", "train", "validation", "test", "test"]
+        expected_split_values = ["train", "train", "train", "validation", "test", "predict"]
         self.assertListEqual(split_values, expected_split_values)
 
     def test_split_eval_from_train_semideterministic(self):
         # given
         train_ds_mock = mock.MagicMock()
-        split_lst = ["train", "train", "train", "train", "validation+test", "test"]
+        split_lst = ["train", "train", "train", "train", "test", "predict"]
         id_lst = [f"id_{i}" for i in range(len(split_lst))]
         train_ds_mock.features = ["split", "id"]
         train_ds_mock.__getitem__.side_effect = dict(split=split_lst, id=id_lst).__getitem__
@@ -108,7 +109,7 @@ class TestTrainUtils(unittest.TestCase):
         split_values = train_utils.split_eval_from_train_semideterministic(train_ds_mock, eval_size)
 
         # verify
-        expected_split_values = ["validation", "train", "train", "validation", "test", "test"]
+        expected_split_values = ["validation", "train", "train", "validation", "test", "predict"]
         self.assertListEqual(split_values, expected_split_values)
 
     def test_validate_dataset_sizes(self):

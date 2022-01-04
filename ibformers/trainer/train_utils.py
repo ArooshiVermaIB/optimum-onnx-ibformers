@@ -63,25 +63,27 @@ def split_eval_from_train_deterministic(dataset, validation_set_size: float) -> 
     """
     Generates split identifiers in a deterministic fashion.
 
-    Each document gets a score in [0, 1] based on its id. Each score is then assigned to a dataset
+    Each train document gets a score in [0, 1] based on its id. Each score is then assigned to a dataset
     independently of the other documents.
     The most rightful way to split a dataset. When expanding the dataset, the old documents stay
     in the same splits as before. No data leakage guaranteed.
+    Non-train documents keep the same assigned split.
 
-    However, there is a non-zero probability that one of the
+    However, there is a non-zero probability that all of the documents land in a single set, thus making
+    the resulting split invalid.
 
     Args:
         dataset: Dataset with columns "id" and "split"
         validation_set_size: percentage of dataset for validation set
 
     Returns:
-        List of "train", "validation" and "test" identifiers.
+        List of "train", "validation", "test" or "predict" identifiers.
     """
     logging.info("Splitting using fully deterministic algorithm.")
     doc_id_list = dataset["id"]
     split_lst = dataset["split"]
     return [
-        assign_split(doc_id, validation_set_size) if split == "train" else "test"
+        assign_split(doc_id, validation_set_size) if split == "train" else split
         for doc_id, split in zip(doc_id_list, split_lst)
     ]
 
@@ -90,16 +92,17 @@ def split_eval_from_train_semideterministic(dataset, validation_set_size: float)
     """
     Generates split identifiers in a semi-deterministic fashion.
 
-    This method first sorts all the documents by the split score, and then assigns the split using
+    This method first sorts all train documents by the split score, and then assigns the split using
     proper percentile.
     As opposed to `split_eval_from_train_deterministic`, the splits of some documents may change
     if the dataset is expanded with new docs.
+    Non-train documents keep the same assigned split.
     Args:
         dataset: Dataset with columns "id" and "split"
         validation_set_size: percentage of dataset for validation set
 
     Returns:
-        List of "train", "validation" and "test" identifiers.
+        List of "train", "validation", "test" or "predict" identifiers.
     """
     logging.info("Splitting using semi deterministic algorithm.")
     doc_id_list = dataset["id"]
@@ -108,7 +111,7 @@ def split_eval_from_train_semideterministic(dataset, validation_set_size: float)
     train_scores = [score for score, split in zip(all_scores, split_lst) if split == "train"]
     split_value = np.quantile(train_scores, validation_set_size)
     return [
-        "test" if split != "train" else ("validation" if score < split_value else "train")
+        split if split != "train" else ("validation" if score < split_value else "train")
         for split, score in zip(split_lst, all_scores)
     ]
 
@@ -151,14 +154,14 @@ def split_train_with_column(dataset: Dataset):
     if "split" not in train_ds.features:
         raise exceptions.ValidationError("No column named split which is needed for splitting")
 
-    split_lst = train_ds["split"]
+    split_lst = [split if split != "test" else "validation+test" for split in train_ds["split"]]
     splitted_dataset = create_splits_with_column(split_lst, train_ds)
 
     return splitted_dataset
 
 
 def create_splits_with_column(split_lst: List[str], train_ds: Dataset):
-    indices = {"train": [], "validation": [], "test": []}
+    indices = {"train": [], "validation": [], "test": [], "predict": []}
     for idx, split in enumerate(split_lst):
         for k, v in indices.items():
             if k in split:
@@ -166,7 +169,7 @@ def create_splits_with_column(split_lst: List[str], train_ds: Dataset):
     splitted_dataset = DatasetDict()
     for k, v in indices.items():
         if len(v) == 0:
-            raise ValueError(f"There is no document choosen for {k} set")
+            raise ValueError(f"There is no document chosen for {k} set")
         splitted_dataset[k] = train_ds.select(indices=indices[k])
     return splitted_dataset
 

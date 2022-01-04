@@ -294,11 +294,17 @@ def run_train(
     if training_args.do_predict:
         if "test" not in raw_datasets:
             raise ValueError("--do_predict requires a test dataset")
-        predict_dataset = raw_datasets["test"]
+        if "predict" not in raw_datasets:
+            raise ValueError("--do_predict requires a predict dataset")
+        test_dataset = raw_datasets["test"]
+        predict_raw_dataset = raw_datasets["predict"]
         if data_args.max_predict_samples is not None:
-            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+            test_dataset = test_dataset.select(range(data_args.max_predict_samples))
+            predict_raw_dataset = predict_raw_dataset.select(range(data_args.max_predict_samples))
         # with training_args.main_process_first(desc="prediction dataset map pre-processing"):
-        predict_dataset = prepare_dataset(predict_dataset, pipeline, **map_kwargs)
+        test_dataset = prepare_dataset(test_dataset, pipeline, **map_kwargs)
+        predict_raw_dataset = prepare_dataset(predict_raw_dataset, pipeline, **map_kwargs)
+        predict_dataset = datasets.concatenate_datasets([test_dataset, predict_raw_dataset])
 
     config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset)
 
@@ -383,6 +389,18 @@ def run_train(
 
         # trainer.log_metrics("eval", metrics)
         trainer.save_metrics("final_eval", metrics)
+
+    # Evaluation
+    if training_args.do_predict:
+        logger.info("*** Test ***")
+        trainer.test_dataset = test_dataset
+        metrics = trainer.evaluate(test_dataset, metric_key_prefix="test_eval")
+
+        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(test_dataset)
+        metrics["final_eval_samples"] = min(max_eval_samples, len(test_dataset))
+
+        # trainer.log_metrics("eval", metrics)
+        trainer.save_metrics("test_eval", metrics)
 
     # Predict
     if training_args.do_predict:

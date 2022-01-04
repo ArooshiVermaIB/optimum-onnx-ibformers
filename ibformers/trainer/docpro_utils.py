@@ -225,8 +225,18 @@ class DocProCallback(TrainerCallback):
                 self.set_status({"evaluation_results": metrics, "progress": state.global_step / state.max_steps})
 
                 self.evaluation_results.append(metrics)
+
+            elif "test_eval_loss" in kwargs["metrics"]:
+                # write final evaluation on test-marked documents.
+                metrics = {}
+                metrics["exact_match"] = kwargs["metrics"]["test_eval_exact_match"]
+                metrics["precision"] = kwargs["metrics"]["test_eval_precision"]
+                metrics["recall"] = kwargs["metrics"]["test_eval_recall"]
+                metrics["f1"] = kwargs["metrics"]["test_eval_f1"]
+                self.set_status({"evaluation_results": metrics, "progress": state.global_step / state.max_steps})
+                self.evaluation_results.append(metrics)
+
             else:
-                # ignore last evaluation call
                 pass
 
     def write_metrics(self):

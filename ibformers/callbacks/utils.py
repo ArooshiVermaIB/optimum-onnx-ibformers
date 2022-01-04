@@ -2,7 +2,7 @@ import logging
 from copy import deepcopy
 from typing import Dict, Any, Optional
 
-VALID_PREFIXES = ["train", "eval", "final_eval"]
+VALID_PREFIXES = ["train", "eval", "final_eval", "test_eval"]
 
 
 def _is_metric(logs: Dict[str, Any]) -> bool:
