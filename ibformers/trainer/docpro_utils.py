@@ -389,8 +389,10 @@ class DocProCallback(TrainerCallback):
         self.write_metrics()
         self.write_predictions(predictions)
 
-        first_doc_pred = list(predictions.values())[0]
-        label_names = list(first_doc_pred["entities"].keys())
+        id2label = kwargs["model"].config.ib_id2label
+        if id2label[0] != "O":
+            logging.error(f"0 index for label should be asigned to O class. Got: {id2label[0]}")
+        label_names = [id2label[idx] for idx in range(1, len(id2label))]
         self.generate_refiner(label_names)
         self.move_data_to_ib()
         self.write_epoch_summary()
