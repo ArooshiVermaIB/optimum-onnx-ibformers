@@ -180,6 +180,16 @@ def run_train(
     load_kwargs = pipeline["dataset_load_kwargs"]
     model_class = pipeline["model_class"]
 
+    # check if base model is already downloaded
+    base_model_local_path = None
+    if model_args.model_name_or_path:
+        BASE_MODEL_CACHE_PREFIX = Path("~/.cache/instabase").expanduser()
+        _base_model_local_path = BASE_MODEL_CACHE_PREFIX / model_args.model_name_or_path
+        logging.info(f"check if {_base_model_local_path} exists")
+        if _base_model_local_path.exists():
+            base_model_local_path = _base_model_local_path
+            logging.info(f"from_pretrained() method will load base model locally from {base_model_local_path}")
+
     if model_args.model_name_or_path.startswith("instabase/"):
         # lazy import of file which is not always present in repo
         from ibformers.trainer.hf_token import HF_TOKEN
@@ -221,7 +231,7 @@ def run_train(
     tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
 
     tokenizer = AutoTokenizer.from_pretrained(
-        tokenizer_name_or_path,
+        _get_model_name_or_path(tokenizer_name_or_path, base_model_local_path),
         cache_dir=model_args.cache_dir,
         use_fast=True,
         revision=model_args.model_revision,
@@ -281,7 +291,9 @@ def run_train(
     config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset)
 
     config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+        _get_model_name_or_path(
+            model_args.config_name if model_args.config_name else model_args.model_name_or_path, base_model_local_path
+        ),
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=token,
@@ -289,7 +301,7 @@ def run_train(
     )
 
     model = model_class.from_pretrained(
-        model_args.model_name_or_path,
+        _get_model_name_or_path(model_args.model_name_or_path, base_model_local_path),
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         config=config,
         cache_dir=model_args.cache_dir,
@@ -361,6 +373,10 @@ def run_train(
         logger.info("*** Predict ***")
 
         _ = trainer.predict(predict_dataset, metric_key_prefix="predict")
+
+
+def _get_model_name_or_path(model_name_or_path: str, base_model_path: str) -> str:
+    return base_model_path if base_model_path else model_name_or_path
 
 
 def _mp_fn(index):
