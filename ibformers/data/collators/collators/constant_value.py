@@ -80,7 +80,7 @@ class MqaIdsCollator(DefaultValueCollator):
 
 
 @dataclass
-class QAPosCollator(DefaultValueCollator):
+class QAPosCollator(BaseCollator):
     _supported_fields: ClassVar[List[str]] = ["start_positions", "end_positions"]
     _default_value: ClassVar[Any] = 0
 
