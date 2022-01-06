@@ -4,10 +4,13 @@ All notable changes to this repository will be documented in this file.
 
 
 ## [Unreleased]
-### Added
-- Add validation of dataset sizes.
+
+## [0.0.12] - 2022-1-5
 ### Fixed
 - Fix exact_match metric
+### Added
+- Add option to download base model from Instabase drive
+- Add validation of dataset sizes.
 
 ## [0.0.11] - 2021-12-30
 ### Added

@@ -54,7 +54,8 @@ UberEatsReceiptsProd:
 
 
 UberEatsXLM:
-  env: []
+  env:
+    - dogfood
   model_project_path: ml_studio_models/uber_eats
   dataset_project_path: ml_studio_datasets/uber_eats
   time_limit: 1500 # 20 minutes
@@ -64,14 +65,14 @@ UberEatsXLM:
     model_name: microsoft/layoutxlm-base
   metrics:
     precision:
-      date: 0
-      total: 0
+      date: 0.5
+      total: 0.5
     recall:
-      date: 0
-      total: 0
+      date: 0.5
+      total: 0.5
     f1:
-      date: 0
-      total: 0
+      date: 0.5
+      total: 0.5
 
 
 UberEatsV2:
@@ -88,14 +89,14 @@ UberEatsV2:
     model_name: microsoft/layoutlmv2-base-uncased
   metrics:
     precision:
-      date: 0
-      total: 0
+      date: 0.5
+      total: 0.5
     recall:
-      date: 0
-      total: 0
+      date: 0.5
+      total: 0.5
     f1:
-      date: 0
-      total: 0
+      date: 0.5
+      total: 0.5
 
 
 UberEatsBERT:
