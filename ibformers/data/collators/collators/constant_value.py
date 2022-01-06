@@ -81,8 +81,9 @@ class MqaIdsCollator(DefaultValueCollator):
 
 @dataclass
 class QAPosCollator(BaseCollator):
-    _supported_fields: ClassVar[List[str]] = ["start_positions", "end_positions"]
-    _default_value: ClassVar[Any] = 0
+    @property
+    def supported_fields(self) -> List[str]:
+        return ["start_positions", "end_positions"]
 
     def _collate_features(self, features, target_length: Optional[int] = None):
         feature_keys = self._get_feature_keys(features)
