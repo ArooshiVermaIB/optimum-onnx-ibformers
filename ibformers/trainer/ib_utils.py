@@ -439,6 +439,7 @@ def prepare_ib_params(
         mount_details=mount_details,
         model_name=model_name,
         final_model_dir=os.path.join(temp_dir, "model"),
+        fully_deterministic_eval_split=False,
     )
 
     if "epochs" in hyperparams:
