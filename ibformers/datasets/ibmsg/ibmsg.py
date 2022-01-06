@@ -2,15 +2,15 @@ import hashlib
 import logging
 import multiprocessing
 from pathlib import Path
+from typing import List, Tuple
 
 import datasets
-from datasets import BuilderConfig, DatasetInfo, DownloadManager
-from typing import List, Tuple, Union
 import numpy as np
-from ibformers.data.utils import ImageProcessor
-from ibformers.datasets.docpro_ds.docpro_ds import assert_valid_record, validate_and_fix_bboxes, get_images_from_layouts
-from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder, IBOCRRecord
+from datasets import BuilderConfig, DatasetInfo, DownloadManager
 
+from ibformers.data.utils import ImageProcessor
+from ibformers.datasets.docpro_ds.docpro_ds import assert_valid_record, validate_and_fix_bboxes
+from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder, IBOCRRecord
 
 HASH_MODULO = 1000000
 DATASET_SPLITS = 0.9, 0.07, 0.03
@@ -116,7 +116,8 @@ class Ibmsg(datasets.GeneratorBasedBuilder):
         ]
 
     def _generate_examples(self, index_content: List[Tuple[Path, Path]]):
-        with multiprocessing.Pool(8) as pool:
+        logging.warning(f"Generating {len(index_content)} examples")
+        with multiprocessing.Pool(4) as pool:
             for doc_dict in pool.imap(self._try_load_doc, index_content):
                 if doc_dict is None:
                     continue

@@ -19,7 +19,7 @@ class BboxMaskingAugmenter(BaseAugmenter):
 
     def __post_init__(self):
         if self.bbox_masking_value is None:
-            self.bbox_masking_value = getattr(self.model.config, "max_2d_position_embeddings", 1024)
+            self.bbox_masking_value = getattr(self.model.config, "max_2d_position_embeddings", 1024) - 1
 
     def augment(self, batch: Dict[str, torch.Tensor]):
         bbox = batch["bbox"]

@@ -22,6 +22,7 @@ from ibformers.data.transform import (
     build_prefix_single_qa,
     token_spans_to_start_end,
 )
+from ibformers.models.bbox_masking_models import LayoutLMForMaskedLMAndLayout
 from ibformers.models.layv1mqa import LayMQAForTokenClassification
 
 
@@ -192,7 +193,7 @@ layoutlm_mlm_bm = {
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("bboxes", "bbox")],
     "collate": get_collator_class(MLMAugmenter, BboxMaskingAugmenter),
-    "model_class": AutoModelForMaskedLM,
+    "model_class": LayoutLMForMaskedLMAndLayout,
     "compute_metrics": None,
 }
 
