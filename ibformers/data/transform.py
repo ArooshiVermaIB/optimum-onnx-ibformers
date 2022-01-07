@@ -206,10 +206,18 @@ def token_spans_to_start_end(example, **kwargs):
     should be relative to model input (question/prefix + context) tokens.
     """
     token_spans = example["entities"]["token_spans"][0]
-    if token_spans:
-        start, end = token_spans[0]
-        start += len(example["prefix_input_ids"]) + 1  # + 1 for [CLS] token
-        end += len(example["prefix_input_ids"]) + 1
-    else:  # no answer
-        start, end = 0, 0
-    return {"start_positions": start, "end_positions": end}
+    if not token_spans:  # no answer
+        return {"start_positions": 0, "end_positions": 0}
+
+    tok_start, tok_end = token_spans[0]
+    chunk_start, chunk_end = example["chunk_ranges"]
+    context_start = np.where(example["content_tokens_mask"])[0][0]
+
+    # Check if the answer is in this chunk complelely
+    if chunk_start <= tok_start and tok_end <= chunk_end:
+        tok_start += context_start - chunk_start
+        tok_end += context_start - chunk_start - 1  # inclusive of end word token
+    else:
+        tok_start, tok_end = 0, 0
+
+    return {"start_positions": tok_start, "end_positions": tok_end}

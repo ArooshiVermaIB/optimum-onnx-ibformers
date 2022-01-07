@@ -32,11 +32,11 @@ def calculate_qa_predictions(
     start_tok = start_pred["predicted_classes"][0]
     start_conf = start_pred["prediction_confidences"][0]
 
-    if start_tok + 1 < len(tok_end_logits):
-        tok_end_logits = tok_end_logits[start_tok + 1 :]
+    if start_tok < len(tok_end_logits):
+        tok_end_logits = tok_end_logits[start_tok:]
         tok_end_logits = np.expand_dims(tok_end_logits, axis=0)
         end_pred = calculate_predictions(tok_end_logits)
-        end_tok = end_pred["predicted_classes"][0] + start_tok + 1
+        end_tok = end_pred["predicted_classes"][0] + start_tok
     else:
         tok_end_logits = np.expand_dims(tok_end_logits, axis=0)
         end_pred = calculate_predictions(tok_end_logits)
@@ -45,7 +45,7 @@ def calculate_qa_predictions(
 
     conf = (start_conf + end_conf) / 2
     start_word = doc_word_map[start_tok]
-    end_word = doc_word_map[end_tok]
+    end_word = doc_word_map[end_tok] + 1
     return QAPrediction(start=start_word, end=end_word, conf=conf)
 
 
@@ -91,7 +91,12 @@ def get_qa_predictions(predictions, dataset: Dataset, qchunk: Dict[Text, int]) -
     start_logits, end_logits = predictions.predictions
     from_idx = qchunk["from_idx"]
     to_idx = qchunk["to_idx"]
-    doc = dataset[from_idx]
+
+    # Get the chunk which contains the answer otherwise get last/any chunk
+    for idx in range(from_idx, to_idx):
+        doc = dataset[from_idx]
+        if doc["start_positions"] > 0:
+            break
 
     # Gathering relevant feature chunks
     word_map_lst = dataset["word_map"][from_idx:to_idx]
@@ -107,13 +112,14 @@ def get_qa_predictions(predictions, dataset: Dataset, qchunk: Dict[Text, int]) -
 
     # Calculate Predictions and goldens
     pred_ans = calculate_qa_predictions(tok_start_logits, tok_end_logits, doc_word_map)
-    prefix_tok_len = len(doc["prefix_input_ids"]) + 1
+    context_start = np.where(doc["content_tokens_mask"])[0][0]
+    chunk_start = doc["chunk_ranges"][0]
     if doc["start_positions"] == doc["end_positions"] == 0:  # no answer
         start_word = end_word = 0
     else:
         # Convert positions w.r.t. context
-        start_word = doc_word_map[doc["start_positions"] - prefix_tok_len]
-        end_word = doc_word_map[doc["end_positions"] - prefix_tok_len]
+        start_word = doc_word_map[doc["start_positions"] + chunk_start - context_start]
+        end_word = doc_word_map[doc["end_positions"] + chunk_start - context_start] + 1
     gold_ans = QAPrediction(start=start_word, end=end_word, conf=0)
     return pred_ans, gold_ans
 

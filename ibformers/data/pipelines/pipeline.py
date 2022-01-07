@@ -154,7 +154,7 @@ plain_sl = {
 
 single_qa = {
     "dataset_load_kwargs": {"use_image": False},
-    "preprocess": [build_prefix_single_qa, tokenize, token_spans_to_start_end, produce_chunks],
+    "preprocess": [build_prefix_single_qa, tokenize, produce_chunks, token_spans_to_start_end],
     "column_mapping": [("token_label_ids", "labels")],
     "collate": get_collator_class(),
     "model_class": AutoModelForQuestionAnswering,
