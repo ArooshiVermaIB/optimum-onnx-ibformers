@@ -11,12 +11,10 @@ from typing import List
 import wandb
 from transformers import HfArgumentParser
 
-from examples.run_annotator_train import InstabaseSDKDummy
 from ibformers.trainer.train import run_hyperparams_and_cmdline_train
 from .config import BENCHMARKS_REGISTRY, MODEL_PARAMS_REGISTRY
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 WANDB_DEFAULT_PROJECT = "benchmark-test"
 WANDB_DEFAULT_ENTITY = "instabase"
@@ -112,6 +110,9 @@ def _validate_params(params: Namespace):
 
 
 if __name__ == "__main__":
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.INFO)
+
     parser = HfArgumentParser(BenchmarkArguments)
     benchmark_args, _ = parser.parse_known_args()
     _validate_params(benchmark_args)

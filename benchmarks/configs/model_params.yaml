@@ -17,6 +17,7 @@ _default:
     do_train: true
     do_eval: true
     do_predict: true
+    logging_strategy: epoch
     evaluation_strategy: epoch
     save_strategy: epoch
     load_best_model_at_end: true
@@ -85,4 +86,3 @@ microsoft/layoutlmv2-large-uncased:
     per_device_train_eval_size: 2
     gradient_accumulation_steps: 4
     pipeline_name: layoutlmv2_sl
-

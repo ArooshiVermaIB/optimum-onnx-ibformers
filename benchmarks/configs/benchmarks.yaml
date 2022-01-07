@@ -30,6 +30,14 @@ w2:
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/w2-ml-studio
     extraction_class_name: W2_Marketplace_v2_v8
 
+w2-v8:
+  name: W2
+  hyperparams:
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/w2-v2-v8
+    extraction_class_name: W2_Marketplace_v2_v8
+
 kleister-nda:
   name: kleister-nda
   hyperparams:

@@ -8,6 +8,8 @@ from datasets import Dataset
 from ibformers.data.predict import get_predictions_for_sl
 from ibformers.data.predict_qa import get_predictions_for_qa
 
+logger = logging.getLogger(__name__)
+
 
 def iou_score(y_true: Mapping[str, List[int]], y_pred: Mapping[str, List[int]], all_tags: List[str]) -> Dict[str, int]:
     result = {}
@@ -110,8 +112,8 @@ def compute_legacy_metrics(label_list: List[str], pred_dict: Dict[str, Any]) -> 
 
     average_results = calculate_average_metrics(token_level_df)
 
-    logging.info("EVALUATION RESULTS")
-    logging.info(token_level_df)
+    logger.info("EVALUATION RESULTS")
+    logger.info(token_level_df)
     token_level_results = token_level_df.fillna("NAN")[["precision", "recall", "f1"]].to_dict()
     results = {**doc_level_metrics, **token_level_results, **average_results}
 
@@ -156,7 +158,7 @@ def compute_legacy_metrics_for_sl(
         label_mismatch_text = "  ".join(mismatches[:max_examples])
         if len(mismatches) > 0:
             mismatches_text += f"{lab}:\n{label_mismatch_text}\n"
-    logging.info(mismatches_text)
+    logger.info(mismatches_text)
 
     results = compute_legacy_metrics(label_list, pred_dict)
     return results
