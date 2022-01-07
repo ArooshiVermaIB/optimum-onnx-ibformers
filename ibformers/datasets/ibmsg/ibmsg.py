@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import multiprocessing
+from collections import Counter
 from pathlib import Path
 from typing import List, Tuple
 
@@ -14,6 +15,9 @@ from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder, IBOCRRecord
 
 HASH_MODULO = 1000000
 DATASET_SPLITS = 0.9, 0.07, 0.03
+
+
+logger = logging.getLogger(__name__)
 
 
 class IbmsgConfig(BuilderConfig):
@@ -88,6 +92,8 @@ class Ibmsg(datasets.GeneratorBasedBuilder):
         index_path = Path(self.config.data_files["train"])
         index_content = self._load_index(index_path)
         splits = [self.get_split(path) for _, path in index_content]
+        counts = Counter(splits)
+        logger.info(f"Dataset counts: {counts.most_common()}")
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
@@ -116,8 +122,8 @@ class Ibmsg(datasets.GeneratorBasedBuilder):
         ]
 
     def _generate_examples(self, index_content: List[Tuple[Path, Path]]):
-        logging.warning(f"Generating {len(index_content)} examples")
-        with multiprocessing.Pool(4) as pool:
+        logger.info(f"Generating {len(index_content)} examples")
+        with multiprocessing.Pool(8) as pool:
             for doc_dict in pool.imap(self._try_load_doc, index_content):
                 if doc_dict is None:
                     continue
