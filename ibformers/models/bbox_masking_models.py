@@ -15,12 +15,7 @@ class LayoutLMForMaskedLMAndLayout(LayoutLMForMaskedLM):
         self.yh_classifier = nn.Linear(config.hidden_size, config.max_2d_position_embeddings)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-        self.indx_to_classifier_mapping = {
-            0: self.xl_classifier,
-            1: self.yl_classifier,
-            2: self.xh_classifier,
-            3: self.yh_classifier,
-        }
+        self.init_weights()
 
     def forward(
         self,
@@ -59,7 +54,12 @@ class LayoutLMForMaskedLMAndLayout(LayoutLMForMaskedLM):
 
         losses = []
         loss_fct = CrossEntropyLoss(ignore_index=-100)
-        for bbox_idx, bbox_classifier in self.indx_to_classifier_mapping.items():
+        for bbox_idx, bbox_classifier in (
+            (0, self.xl_classifier),
+            (1, self.yl_classifier),
+            (2, self.xh_classifier),
+            (3, self.yh_classifier),
+        ):
             logits = bbox_classifier(sequence_output)
             labels = bbox_labels[:, :, bbox_idx]
             loss = loss_fct(logits.view(-1, 1024), labels.view(-1))
