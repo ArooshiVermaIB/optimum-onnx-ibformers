@@ -44,6 +44,7 @@ from transformers.utils.versions import require_version
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
+from ibformers.models.bbox_masking_models import LayoutLMForMaskedLMAndLayoutRegression
 from ibformers.trainer.arguments import (
     ModelArguments,
     EnhancedTrainingArguments,
@@ -324,6 +325,10 @@ def run_train(
         use_auth_token=token,
     )
     config.update(config_kwargs)
+
+    if model_class is LayoutLMForMaskedLMAndLayoutRegression:
+        config.bbox_scale_factor = training_args.bbox_scale_factor
+        config.smooth_loss_beta = training_args.smooth_loss_beta
 
     model = model_class.from_pretrained(
         _get_model_name_or_path(model_args.model_name_or_path, base_model_local_path),

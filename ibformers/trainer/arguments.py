@@ -66,6 +66,14 @@ class EnhancedTrainingArguments(TrainingArguments):
         metadata={"help": "Will limit amount of chunks with no labels inside"},
     )
 
+    bbox_scale_factor: float = field(
+        default=500.0, metadata={"help": "Scale factor for regression-based bbox masking task"}
+    )
+
+    smooth_loss_beta: float = field(
+        default=1.0, metadata={"help": "Beta parameter for regression-based bbox masking task"}
+    )
+
     def __post_init__(self):
         super().__post_init__()
         if self.class_weights > 1 and "labels" and self.label_smoothing_factor != 0.0:
