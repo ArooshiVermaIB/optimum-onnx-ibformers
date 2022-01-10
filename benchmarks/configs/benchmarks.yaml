@@ -54,6 +54,14 @@ receipts:
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/receipts-ml-studio
     extraction_class_name: Receipts
 
+bank_statements:
+  name: Bank Statements
+  hyperparams:
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/bank_statements
+    extraction_class_name: bank_statements_all_inputs
+
 funsd:
   name: FUNSD
   hyperparams:
