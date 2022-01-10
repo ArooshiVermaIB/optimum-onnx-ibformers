@@ -1,7 +1,8 @@
 from collections import defaultdict
 from typing import List, Dict, Any, Tuple
-from typing_extensions import TypedDict
+
 import numpy as np
+from typing_extensions import TypedDict
 
 
 def normalize_bbox(bbox: Tuple[int, int, int, int], size: Tuple[int, int]):
@@ -71,7 +72,7 @@ def create_features_from_fund_file_content(
     """
 
     features = defaultdict(list)
-    features["page_bboxes"].append([0, 0, *image_size])
+    features["page_bboxes"].append(np.array([0, 0, *image_size]))
 
     entity_dicts = {
         label: {
@@ -124,4 +125,8 @@ def create_features_from_fund_file_content(
             entity_dict["token_spans"].append([start_word_id, word_id_counter])
             entity_dict["text"] += f" {entity_text}"
     features["entities"] = list(entity_dicts.values())
+
+    features["bboxes"] = np.array(features["bboxes"])
+    features["word_original_bboxes"] = np.array(features["word_original_bboxes"])
+
     return features
