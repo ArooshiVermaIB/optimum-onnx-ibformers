@@ -75,7 +75,9 @@ def run_single_benchmark(benchmark_id: str, model_name_or_path: str, benchmark_a
         hyperparams["model_name_or_path"] = model_name_or_path
 
         now_str = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
-        output_path = benchmark_args.output_path / benchmark_id / f"{model_name_or_path}_{now_str}"
+        model_name_or_id_for_output = model_name_or_path.replace("/", "_")
+        output_path = benchmark_args.output_path / benchmark_id / f"{model_name_or_id_for_output}_{now_str}"
+
         dataset_hyperparams = benchmark_config.hyperparams.copy()
         hyperparams.update(**dataset_hyperparams)
         hyperparams["output_dir"] = output_path
