@@ -4,7 +4,7 @@ import logging
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Any, Dict, TypeVar, Tuple
+from typing import Optional, Any, Dict, TypeVar, Tuple, Union
 
 from transformers import HfArgumentParser, TrainingArguments
 from transformers.hf_argparser import DataClass
@@ -53,6 +53,13 @@ class EnhancedTrainingArguments(TrainingArguments):
     class_weights: float = field(
         default=1.0,
         metadata={"help": "Will be used to change the weight of the classes during loss computation"},
+    )
+    early_stopping_patience: int = field(
+        default=0,
+        metadata={
+            "help": "The number of epochs to wait before stopping if there is no improvement on validation "
+            "set. 0 means disabled early stopping."
+        },
     )
 
     def __post_init__(self):
@@ -148,6 +155,23 @@ class DataAndPipelineArguments:
         metadata={
             "help": "Extraction class used to filter records from dataset. "
             "Only one can be used to train extraction model"
+        },
+    )
+    validation_set_size: float = field(
+        default=0.0,
+        metadata={
+            "help": "The size of the validation size as a fraction of train set. If 0, no validation set is "
+            "created, and the test set serves as validation. There is no early stopping available "
+            "in that case"
+        },
+    )
+    fully_deterministic_eval_split: bool = field(
+        default=False,
+        metadata={
+            "help": "If True, the splits will be created in a fully deterministic fashion, i.e. "
+            "each document id will always end up in the same split. This might result in "
+            "invalid splits for small datasets. If False, the specified set size will be "
+            "selected."
         },
     )
 

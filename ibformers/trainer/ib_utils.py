@@ -6,15 +6,15 @@ import tempfile
 import uuid
 from pathlib import Path
 from typing import Dict, Optional, Any, Iterable, Tuple
-from typing_extensions import TypedDict
+
 import boto3
 import shutil
 import zipfile
 
 from transformers import TrainerCallback, HfArgumentParser
+from typing_extensions import TypedDict
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
-from ibformers.trainer.train import run_train
 from ibformers.trainer.arguments import (
     ModelArguments,
     DataAndPipelineArguments,
@@ -22,10 +22,10 @@ from ibformers.trainer.arguments import (
     update_params_with_commandline,
     EnhancedTrainingArguments,
 )
-
-from instabase.storage.fileservice import FileService
+from ibformers.trainer.train import run_train
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase, default_max_write_size
+from instabase.storage.fileservice import FileService
 from instabase.utils.rpc.file_client import ThriftGRPCFileClient
 
 # imports for unzipping functionality
@@ -439,6 +439,7 @@ def prepare_ib_params(
         mount_details=mount_details,
         model_name=model_name,
         final_model_dir=os.path.join(temp_dir, "model"),
+        fully_deterministic_eval_split=False,
     )
 
     if "epochs" in hyperparams:
@@ -496,6 +497,23 @@ def prepare_ib_params(
 
     if "class_weights" in hyperparams:
         out_dict["class_weights"] = hyperparams.pop("class_weights")
+
+    # early stopping
+    early_stopping_patience = hyperparams.pop("early_stopping_patience", 0)
+    validation_set_size = hyperparams.pop("validation_set_size", 0)
+    if early_stopping_patience > 0 and validation_set_size == 0:
+        logging.warning(
+            f"Requested early stopping by setting `early_stopping_patience` > 0, "
+            f"but validation_set_size is equal to 0. Disabling early stopping."
+        )
+        early_stopping_patience = 0
+    out_dict["early_stopping_patience"] = early_stopping_patience
+    out_dict["validation_set_size"] = validation_set_size
+    if early_stopping_patience > 0:
+        out_dict["save_strategy"] = "epoch"
+        out_dict["load_best_model_at_end"] = True
+        out_dict["save_total_limit"] = 1
+        out_dict["metric_for_best_model"] = hyperparams.pop("metric_for_best_model", "macro_f1")
 
     if hyperparams:
         logging.warning(f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}")

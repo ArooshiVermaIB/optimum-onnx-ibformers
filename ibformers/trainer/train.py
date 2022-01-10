@@ -35,6 +35,7 @@ from transformers import (
     HfArgumentParser,
     PreTrainedTokenizerFast,
     set_seed,
+    EarlyStoppingCallback,
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
@@ -53,7 +54,12 @@ from ibformers.trainer.arguments import (
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.12.3")
-from ibformers.trainer.train_utils import split_train_with_column, prepare_config_kwargs, validate_dataset_sizes
+from ibformers.trainer.train_utils import (
+    split_train_with_column,
+    prepare_config_kwargs,
+    split_eval_from_train,
+    validate_dataset_sizes,
+)
 from ibformers.trainer.trainer import IbTrainer
 
 require_version(
@@ -126,11 +132,11 @@ def run_cmdline_train():
 
 
 def run_train(
-    model_args,
-    data_args,
-    training_args,
-    ib_args,
-    augmenter_args,
+    model_args: ModelArguments,
+    data_args: DataAndPipelineArguments,
+    training_args: EnhancedTrainingArguments,
+    ib_args: IbArguments,
+    augmenter_args: AugmenterArguments,
     extra_callbacks=None,
     extra_load_kwargs=None,
 ):
@@ -223,7 +229,13 @@ def run_train(
 
     # workaround currently only for docpro dataset which require loading into single dataset as information about split
     # could be obtained after loading a record
-    if "split" in next(iter(raw_datasets.column_names.values())):
+    is_docpro_training = "split" in next(iter(raw_datasets.column_names.values()))
+
+    if is_docpro_training and training_args.early_stopping_patience > 0:
+        raw_datasets = split_eval_from_train(
+            raw_datasets, data_args.validation_set_size, data_args.fully_deterministic_eval_split
+        )
+    elif is_docpro_training:
         raw_datasets = split_train_with_column(raw_datasets)
 
     validate_dataset_sizes(raw_datasets)
@@ -282,11 +294,22 @@ def run_train(
     if training_args.do_predict:
         if "test" not in raw_datasets:
             raise ValueError("--do_predict requires a test dataset")
-        predict_dataset = raw_datasets["test"]
+        if "predict" not in raw_datasets:
+            raise ValueError("--do_predict requires a predict dataset")
+        test_dataset = raw_datasets["test"]
+        predict_raw_dataset = raw_datasets["predict"]
         if data_args.max_predict_samples is not None:
-            predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+            test_dataset = test_dataset.select(range(data_args.max_predict_samples))
+            predict_raw_dataset = predict_raw_dataset.select(range(data_args.max_predict_samples))
         # with training_args.main_process_first(desc="prediction dataset map pre-processing"):
-        predict_dataset = prepare_dataset(predict_dataset, pipeline, **map_kwargs)
+        test_dataset = prepare_dataset(test_dataset, pipeline, **map_kwargs)
+        predict_raw_dataset = prepare_dataset(predict_raw_dataset, pipeline, **map_kwargs)
+
+        # we have to check this manually, since the predict_raw_dataset will have different column set if empty
+        if len(predict_raw_dataset) > 0:
+            predict_dataset = datasets.concatenate_datasets([test_dataset, predict_raw_dataset])
+        else:
+            predict_dataset = test_dataset
 
     config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset)
 
@@ -313,6 +336,10 @@ def run_train(
     callbacks = []
     if extra_callbacks is not None:
         callbacks.extend(extra_callbacks)
+
+    if training_args.early_stopping_patience > 0:
+        early_stopping = EarlyStoppingCallback(training_args.early_stopping_patience)
+        callbacks.append(early_stopping)
 
     # Data collator
     data_collator = collate_fn(
@@ -367,6 +394,18 @@ def run_train(
 
         # trainer.log_metrics("eval", metrics)
         trainer.save_metrics("final_eval", metrics)
+
+    # Evaluation
+    if training_args.do_predict:
+        logger.info("*** Test ***")
+        trainer.test_dataset = test_dataset
+        metrics = trainer.evaluate(test_dataset, metric_key_prefix="test_eval")
+
+        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(test_dataset)
+        metrics["final_eval_samples"] = min(max_eval_samples, len(test_dataset))
+
+        # trainer.log_metrics("eval", metrics)
+        trainer.save_metrics("test_eval", metrics)
 
     # Predict
     if training_args.do_predict:

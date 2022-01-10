@@ -317,16 +317,16 @@ def get_docpro_ds_split(anno: Optional[Dict]):
     :return: Tuple of boolean indictating whether file is marked as test file and split information
     """
     if anno is None:
-        return False, "test"
+        return False, "predict"
     exist_any_annotations = any(
         [len(ann.get("words", [])) > 0 for fld in anno.get("fields", []) for ann in fld["annotations"]]
     )
     if not exist_any_annotations:
-        return False, "test"
+        return False, "predict"
     if anno["is_test_file"]:
         # instabase doesn't support yet separation of val and test sets.
         # TODO: we need to change that to have separate labeled sets for val and test
-        return True, "validation+test"
+        return True, "test"
 
     return False, "train"
 

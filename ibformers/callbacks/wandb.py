@@ -30,7 +30,7 @@ class ExtendedWandbCallback(WandbCallback):
         metric_names = ["f1", "precision", "recall"]
         table_rows = defaultdict(list)
         for metric in metric_names:
-            metric_subdict = metrics_dict[f"final_eval_{metric}"]
+            metric_subdict = metrics_dict[f"test_eval_{metric}"]
             for dp_name, metric_value in metric_subdict.items():
                 if metric_value == "NAN":
                     metric_value = None
@@ -77,8 +77,8 @@ class ExtendedWandbCallback(WandbCallback):
         if self._wandb is None:
             return
         metrics = kwargs.get("metrics").copy()  # type: ignore
-        if "final_eval_predictions" in metrics:
-            predictions = metrics.pop("final_eval_predictions")
+        if "test_eval_predictions" in metrics:
+            predictions = metrics.pop("test_eval_predictions")
             self._log_summary_metrics(metrics)
             self._log_predictions(predictions)
 
