@@ -148,7 +148,6 @@ NYDriversLicensesV2:
 NYDriversLicensesEarlyStopping:
   env:
     - dogfood
-    - doc-insights-sandbox
   model_project_path: ml_studio_models/driver_licenses
   dataset_project_path: ml_studio_datasets/driver_licenses
   time_limit: 1200 # 20 minutes
