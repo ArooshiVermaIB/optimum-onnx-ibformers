@@ -4,9 +4,10 @@ import logging
 import tempfile
 from argparse import Namespace
 from dataclasses import dataclass, field
+from datetime import datetime
 from multiprocessing import Process
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import wandb
 from transformers import HfArgumentParser
@@ -20,34 +21,61 @@ WANDB_DEFAULT_PROJECT = "benchmark-test"
 WANDB_DEFAULT_ENTITY = "instabase"
 
 
-def configure_wandb(model_name_or_path: str, benchmark_id: str):
+@dataclass
+class BenchmarkArguments:
+    models_to_run: List[str] = field(
+        default_factory=lambda: MODEL_PARAMS_REGISTRY.available_configs,
+        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"},
+    )
+    output_path: Path = field(default=None, metadata={"help": "Path where the benchmark results will be stored to."})
+    benchmarks_to_run: List[str] = field(
+        default_factory=lambda: BENCHMARKS_REGISTRY.available_configs,
+        metadata={f"help": f"Name of challenge to run. Available: f{BENCHMARKS_REGISTRY.available_configs}"},
+    )
+    run_in_subprocess: bool = field(default=False)
+    model_config: str = field(
+        default=None,
+        metadata={
+            "help": f"Huggingface-compatible identifier of base model for `models_to_run`. The params will be "
+            f"loaded from selected model config entry."
+        },
+    )
+    extra_tags: List[str] = field(
+        default_factory=lambda: [],
+        metadata={"help": f"Extra wandb tags for all jobs in this run."},
+    )
+
+
+def configure_wandb(model_name_or_path: str, benchmark_id: str, benchmark_args: BenchmarkArguments):
     wandb.ensure_configured()  # TODO: does it actually check if wandb works properly?
 
     wandb.init(
-        project=WANDB_DEFAULT_PROJECT, entity=WANDB_DEFAULT_ENTITY, tags=[model_name_or_path, benchmark_id], reinit=True
+        project=WANDB_DEFAULT_PROJECT,
+        entity=WANDB_DEFAULT_ENTITY,
+        tags=[model_name_or_path, benchmark_id] + benchmark_args.extra_tags,
+        reinit=True,
     )
 
     wandb.log({"task_name": benchmark_id})
 
 
-def run_single_benchmark(
-    benchmark_id: str,
-    model_name_or_path: str,
-    output_path: Path,
-    model_config_name: Optional[str] = None,
-    supress_errors: bool = False,
-):
+def run_single_benchmark(benchmark_id: str, model_name_or_path: str, benchmark_args: BenchmarkArguments):
+    supress_errors = benchmark_args.run_in_subprocess
     try:
-        configure_wandb(model_name_or_path, benchmark_id)
+        configure_wandb(model_name_or_path, benchmark_id, benchmark_args)
 
         benchmark_config = BENCHMARKS_REGISTRY.get_config(benchmark_id)
-        model_config_name = model_config_name if model_config_name is not None else model_name_or_path
+        model_config_name = (
+            benchmark_args.model_config if benchmark_args.model_config is not None else model_name_or_path
+        )
         model_config = MODEL_PARAMS_REGISTRY.get_config(model_config_name)
 
         hyperparams = model_config.hyperparams.copy()
         hyperparams["report_to"] = "wandb"
         hyperparams["model_name_or_path"] = model_name_or_path
 
+        now_str = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+        output_path = benchmark_args.output_path / benchmark_id / f"{model_name_or_path}_{now_str}"
         dataset_hyperparams = benchmark_config.hyperparams.copy()
         hyperparams.update(**dataset_hyperparams)
         hyperparams["output_dir"] = output_path
@@ -66,71 +94,28 @@ def run_single_benchmark(
         wandb.finish()
 
 
-def run_benchmark_in_subprocess(
-    benchmark_id: str, model_name_or_path: str, output_path: Path, model_config_name: Optional[str]
-):
-    p = Process(
-        target=run_single_benchmark, args=(benchmark_id, model_name_or_path, output_path, model_config_name, True)
-    )
+def run_benchmark_in_subprocess(benchmark_id: str, model_name_or_path: str, benchmark_args: BenchmarkArguments):
+    p = Process(target=run_single_benchmark, args=(benchmark_id, model_name_or_path, benchmark_args))
     p.start()
     p.join()
     p.close()
 
 
-def run_benchmarks_for_single_model(
-    model_name_or_path: str,
-    output_path: Path,
-    benchmarks_to_run: List[str],
-    model_config_name: Optional[str],
-    run_in_subprocess: bool,
-):
+def run_benchmarks_for_single_model(selected_model: str, benchmark_args: BenchmarkArguments):
     # all_benchmarks = BenchmarkRegistry.available_benchmarks
-    logger.info(f"Running benchmarks for model {model_name_or_path}")
-    target_fn = run_benchmark_in_subprocess if run_in_subprocess else run_single_benchmark
-    for benchmark_id in benchmarks_to_run:
-        logger.info(f"Running benchmark {benchmark_id} for model {model_name_or_path}")
-        target_fn(benchmark_id, model_name_or_path, output_path / benchmark_id, model_config_name)
+    logger.info(f"Running benchmarks for model {selected_model}")
+    target_fn = run_benchmark_in_subprocess if benchmark_args.run_in_subprocess else run_single_benchmark
+    for selected_benchmark in benchmark_args.benchmarks_to_run:
+        logger.info(f"Running benchmark {selected_benchmark} for model {selected_model}")
+        target_fn(selected_benchmark, selected_model, benchmark_args)
 
 
-def run_benchmarks(
-    models_to_run: List[str],
-    output_path: Path,
-    benchmarks_to_run: List[str],
-    model_config_name: Optional[str],
-    run_in_subprocess: bool,
-):
-    logger.info(f"Selected models: {models_to_run}")
-    logger.info(f"Selected benchmarks: {benchmarks_to_run}")
-    for model_name_or_id in models_to_run:
-        model_name_or_id_for_output = model_name_or_id.replace("/", "_")
-        run_benchmarks_for_single_model(
-            model_name_or_id,
-            output_path / model_name_or_id_for_output,
-            benchmarks_to_run,
-            model_config_name,
-            run_in_subprocess,
-        )
-
-
-@dataclass
-class BenchmarkArguments:
-    models_to_run: List[str] = field(
-        default_factory=lambda: MODEL_PARAMS_REGISTRY.available_configs,
-        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"},
-    )
-    output_path: Path = field(default=None, metadata={"help": "Path where the benchmark results will be stored to."})
-    benchmark_to_run: List[str] = field(
-        default_factory=lambda: BENCHMARKS_REGISTRY.available_configs,
-        metadata={f"help": f"Name of challenge to run. Available: f{BENCHMARKS_REGISTRY.available_configs}"},
-    )
-    run_in_subprocess: bool = field(default=False)
-    model_config: str = field(
-        default=None,
-        metadata={
-            "help": f"Huggingface-compatible identifier of base model for `models_to_run`. The params will be "
-            f"loaded from selected model config entry."
-        },
-    )
+def run_benchmarks(benchmark_args: BenchmarkArguments):
+    logger.info(f"Selected models: {benchmark_args.models_to_run}")
+    logger.info(f"Selected benchmarks: {benchmark_args.benchmarks_to_run}")
+    for selected_model in benchmark_args.models_to_run:
+        # model_name_or_id_for_output = model_name_or_id.replace("/", "_")
+        run_benchmarks_for_single_model(selected_model, benchmark_args)
 
 
 def _validate_params(params: Namespace):
@@ -148,21 +133,11 @@ if __name__ == "__main__":
 
     parser = HfArgumentParser(BenchmarkArguments)
     benchmark_args, _ = parser.parse_known_args()
+    benchmark_args = BenchmarkArguments(**vars(benchmark_args))
     # _validate_params(benchmark_args)
     if benchmark_args.output_path is None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            run_benchmarks(
-                benchmark_args.models_to_run,
-                Path(tmp_dir),
-                benchmark_args.benchmark_to_run,
-                benchmark_args.model_config,
-                benchmark_args.run_in_subprocess,
-            )
+            benchmark_args.output_path = Path(tmp_dir)
+            run_benchmarks(benchmark_args)
     else:
-        run_benchmarks(
-            benchmark_args.models_to_run,
-            benchmark_args.output_path,
-            benchmark_args.benchmark_to_run,
-            benchmark_args.model_config,
-            benchmark_args.run_in_subprocess,
-        )
+        run_benchmarks(benchmark_args)
