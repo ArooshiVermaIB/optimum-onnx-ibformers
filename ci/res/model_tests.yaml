@@ -143,3 +143,31 @@ NYDriversLicensesV2:
       DL Number: 0.8
       Name: 0.6
       Address: 0.8
+
+
+NYDriversLicensesEarlyStopping:
+  env:
+    - dogfood
+    - doc-insights-sandbox
+  model_project_path: ml_studio_models/driver_licenses
+  dataset_project_path: ml_studio_datasets/driver_licenses
+  time_limit: 1200 # 20 minutes
+  config:
+    <<: *defaults
+    epochs: 50  # should early stop earlier
+    model_name: microsoft/layoutlm-base-uncased
+    early_stopping_patience: 2
+    validation_set_size: 0.2
+  metrics: # Lower metrics since the training set will be smaller
+    precision:
+      DL Number: 0.5
+      Name: 0.5
+      Address: 0.5
+    recall:
+      DL Number: 0.5
+      Name: 0.5
+      Address: 0.5
+    f1:
+      DL Number: 0.5
+      Name: 0.5
+      Address: 0.5
