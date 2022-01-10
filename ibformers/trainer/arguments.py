@@ -4,7 +4,7 @@ import logging
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Any, Dict, TypeVar, Tuple, Union
+from typing import Optional, Any, Dict, TypeVar, Tuple, Union, List
 
 from transformers import HfArgumentParser, TrainingArguments
 from transformers.hf_argparser import DataClass
@@ -95,14 +95,14 @@ class DataAndPipelineArguments:
         default=None,
         metadata={"help": "The configuration name of the dataset to use (via the datasets library)."},
     )
-    train_file: Optional[str] = field(
+    train_file: Optional[List[str]] = field(
         default=None, metadata={"help": "The input training data file (a csv or JSON file)."}
     )
-    validation_file: Optional[str] = field(
+    validation_file: Optional[List[str]] = field(
         default=None,
         metadata={"help": "An optional input evaluation data file to evaluate on (a csv or JSON file)."},
     )
-    test_file: Optional[str] = field(
+    test_file: Optional[List[str]] = field(
         default=None,
         metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
     )
