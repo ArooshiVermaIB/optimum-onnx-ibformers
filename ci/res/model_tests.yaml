@@ -58,7 +58,7 @@ UberEatsXLM:
     - dogfood
   model_project_path: ml_studio_models/uber_eats
   dataset_project_path: ml_studio_datasets/uber_eats
-  time_limit: 1500 # 20 minutes
+  time_limit: 1500
   config:
     <<: *defaults
     epochs: 10
@@ -75,18 +75,16 @@ UberEatsXLM:
       total: 0.5
 
 
-UberEatsV2:
+UberEatsXLMProd:
   env:
-    - dogfood
-  model_project_path: ml_studio_models/uber_eats
-  dataset_project_path: ml_studio_datasets/uber_eats
-  time_limit: 1200 # 20 minutes
+    - prod
+  model_project_path: ml_studio_models_prod/uber_eats
+  dataset_project_path: ml_studio_datasets_prod/uber_eats
+  time_limit: 1500
   config:
     <<: *defaults
     epochs: 10
-    stride: 64
-    chunk_size: 512
-    model_name: microsoft/layoutlmv2-base-uncased
+    model_name: microsoft/layoutxlm-base
   metrics:
     precision:
       date: 0.5
@@ -121,7 +119,7 @@ UberEatsBERT:
       total: 0
 
 
-NYDriversLicenses:
+NYDriversLicensesV2:
   env:
     - dogfood
   model_project_path: ml_studio_models/driver_licenses
@@ -130,7 +128,7 @@ NYDriversLicenses:
   config:
     <<: *defaults
     epochs: 15
-    model_name: microsoft/layoutlm-base-uncased
+    model_name: microsoft/layoutlmv2-base-uncased
   metrics: # TODO stop assuming higher is better
     # TODO maybe transpose this?
     precision:

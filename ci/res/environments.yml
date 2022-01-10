@@ -1,12 +1,12 @@
 dogfood:
   host: https://dogfood.instabase.com
   path: ib_annotation/data/fs/Prod Drive/datasets/ci-test-datasets-do-not-delete
-  token: RtzvlDwk2jUp1F0fj4AofiRTM34qaf # TODO: use env variable
+  token: 9BYRiWj5ueaVU6Tknkn1LrceTX5Axm # TODO: use env variable
 
 uat:
   host: https://uat.dogfood.instabase.com
   path: ib_annotation/data/fs/Prod Drive/datasets/ci-test-datasets-do-not-delete
-  token: HMxPLVjguO6wcIkzXi7wbGPWyHynVx
+  token: 9BYRiWj5ueaVU6Tknkn1LrceTX5Axm
 
 prod:
   host: https://instabase.com
