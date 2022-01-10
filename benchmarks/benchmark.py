@@ -52,7 +52,7 @@ def configure_wandb(model_name_or_path: str, benchmark_id: str, benchmark_args: 
     wandb.init(
         project=WANDB_DEFAULT_PROJECT,
         entity=WANDB_DEFAULT_ENTITY,
-        tags=[model_name_or_path, benchmark_id] + benchmark_args.extra_tags,
+        tags=["/".join(model_name_or_path.split("/")[-2:]), benchmark_id] + benchmark_args.extra_tags,
         reinit=True,
     )
 
@@ -120,11 +120,15 @@ def run_benchmarks(benchmark_args: BenchmarkArguments):
 
 def _validate_params(params: Namespace):
     unknown_models = [m for m in params.models_to_run if m not in MODEL_PARAMS_REGISTRY.available_configs]
-    unknown_benchmarks = [b for b in params.benchmark_to_run if b not in BENCHMARKS_REGISTRY.available_configs]
+    unknown_benchmarks = [b for b in params.benchmarks_to_run if b not in BENCHMARKS_REGISTRY.available_configs]
 
-    assert (
-        len(unknown_models) == 0 and len(unknown_benchmarks) == 0
-    ), f"Unknown models or/and benchmarks: {unknown_models}, {unknown_benchmarks}"
+    if len(unknown_models) == 0:
+        logging.warning(
+            f"Found models without an entry in model param config: {unknown_models}. They "
+            f"will be executed with the default parameters. "
+        )
+
+    assert len(unknown_benchmarks) == 0, f"Unknown benchmarks: {unknown_models}, {unknown_benchmarks}"
 
 
 if __name__ == "__main__":
@@ -134,7 +138,7 @@ if __name__ == "__main__":
     parser = HfArgumentParser(BenchmarkArguments)
     benchmark_args, _ = parser.parse_known_args()
     benchmark_args = BenchmarkArguments(**vars(benchmark_args))
-    # _validate_params(benchmark_args)
+    _validate_params(benchmark_args)
     if benchmark_args.output_path is None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             benchmark_args.output_path = Path(tmp_dir)
