@@ -447,7 +447,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
         elif "test" in data_files:
             # inference input is a list of parsedibocr files
             assert self.config.id2label is not None, "Need to pass directly infromation about labels for the inference"
-            classes = [self.config.id2label[i] for i in range(len(self.config.id2label))]
+            classes = list(self.config.id2label.values())
             if classes[0] != "O":
                 raise logging.error(f"loaded classes does not have required format. No O class: {classes}")
         else:
