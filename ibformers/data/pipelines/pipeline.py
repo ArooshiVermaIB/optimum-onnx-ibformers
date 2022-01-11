@@ -1,7 +1,7 @@
 import logging
 from functools import partial
 
-from transformers import AutoModelForTokenClassification, AutoModelForMaskedLM
+from transformers import AutoModelForTokenClassification, AutoModelForMaskedLM, AutoModelForQuestionAnswering
 
 from ibformers.data.chunk import produce_chunks
 from ibformers.data.collators.augmenters.bbox import BboxAugmenter
@@ -11,6 +11,7 @@ from ibformers.data.metrics import (
     compute_legacy_metrics_for_sl,
     compute_legacy_metrics_for_mqa,
     compute_metrics_for_qa_task,
+    compute_metrics_for_singleqa_task,
 )
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.transform import (
@@ -18,6 +19,8 @@ from ibformers.data.transform import (
     stack_pages,
     build_prefix_with_mqa_ids,
     fuzzy_tag_in_document,
+    build_prefix_single_qa,
+    token_spans_to_start_end,
 )
 from ibformers.models.layv1mqa import LayMQAForTokenClassification
 
@@ -149,6 +152,15 @@ plain_sl = {
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
 
+single_qa = {
+    "dataset_load_kwargs": {"use_image": False},
+    "preprocess": [build_prefix_single_qa, tokenize, produce_chunks, token_spans_to_start_end],
+    "column_mapping": [("token_label_ids", "labels")],
+    "collate": get_collator_class(),
+    "model_class": AutoModelForQuestionAnswering,
+    "compute_metrics": compute_metrics_for_singleqa_task,
+}
+
 # mlm pretraining
 
 layoutlm_mlm = {
@@ -179,4 +191,5 @@ PIPELINES = {
     "plain_sl": plain_sl,
     "plain_mlm": plain_mlm,
     "layoutlm_mlm": layoutlm_mlm,
+    "single_qa": single_qa,
 }

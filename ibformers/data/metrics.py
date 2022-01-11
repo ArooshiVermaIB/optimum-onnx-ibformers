@@ -6,6 +6,7 @@ import pandas as pd
 from datasets import Dataset
 
 from ibformers.data.predict import get_predictions_for_sl
+from ibformers.data.predict_qa import get_predictions_for_qa
 
 
 def iou_score(y_true: Mapping[str, List[int]], y_pred: Mapping[str, List[int]], all_tags: List[str]) -> Dict[str, int]:
@@ -60,46 +61,7 @@ def calculate_average_metrics(token_level_df: pd.DataFrame) -> Dict[str, Union[f
     return average_results
 
 
-def compute_legacy_metrics_for_sl(
-    predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None
-) -> Dict[str, Any]:
-    """
-    Compute metrics for sequence labelling.
-
-    The computed metrics are:
-    * exact_match (per field name)
-    * precision, recall, f1 (per field name)
-    * precision, recall, f1 (micro- and macro- averaged)
-
-    Args:
-        predictions: Tuple of prediciton, labels tensors
-        dataset: the dataset where the predictions come from
-        label_list: Optional list of label names. If none provided, it will be inferred from `labels` column in the
-         dataset
-
-    Returns:
-
-    """
-
-    if label_list is None:
-        label_list = dataset.features["labels"].feature.names
-    # get prediction dict and print mismatches
-    pred_dict = get_predictions_for_sl(predictions, dataset, label_list)
-
-    max_examples = 2
-    mismatches_text = f"MISMATCH EXAMPLES (max {max_examples} per label)\n"
-    for lab in label_list[1:]:
-        mismatches = [
-            "\tpred:\t'" + v["entities"][lab]["text"] + "'\n\tgold:\t'" + v["entities"][lab]["gold_text"] + "'\n"
-            for k, v in pred_dict.items()
-            if not v["entities"][lab]["is_match"]
-        ]
-        label_mismatch_text = "  ".join(mismatches[:max_examples])
-        if len(mismatches) > 0:
-            mismatches_text += f"{lab}:\n{label_mismatch_text}\n"
-    logging.info(mismatches_text)
-
-    # get list of document gold labels - List[Dict[List]]
+def compute_legacy_metrics(label_list: List[str], pred_dict: Dict[str, Any]) -> Dict[str, Any]:
     ground_truths: List[Dict[str, List]] = [
         {k: [wrd["idx"] for wrd in v["gold_words"]] for k, v in doc_lab["entities"].items()}
         for doc_lab in pred_dict.values()
@@ -154,7 +116,49 @@ def compute_legacy_metrics_for_sl(
     results = {**doc_level_metrics, **token_level_results, **average_results}
 
     results["predictions"] = pred_dict
+    return results
 
+
+def compute_legacy_metrics_for_sl(
+    predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None
+) -> Dict[str, Any]:
+    """
+    Compute metrics for sequence labelling.
+
+    The computed metrics are:
+    * exact_match (per field name)
+    * precision, recall, f1 (per field name)
+    * precision, recall, f1 (micro- and macro- averaged)
+
+    Args:
+        predictions: Tuple of prediciton, labels tensors
+        dataset: the dataset where the predictions come from
+        label_list: Optional list of label names. If none provided, it will be inferred from `labels` column in the
+         dataset
+
+    Returns:
+
+    """
+
+    if label_list is None:
+        label_list = dataset.features["labels"].feature.names
+    # get prediction dict and print mismatches
+    pred_dict = get_predictions_for_sl(predictions, dataset, label_list)
+
+    max_examples = 2
+    mismatches_text = f"MISMATCH EXAMPLES (max {max_examples} per label)\n"
+    for lab in label_list[1:]:
+        mismatches = [
+            "\tpred:\t'" + v["entities"][lab]["text"] + "'\n\tgold:\t'" + v["entities"][lab]["gold_text"] + "'\n"
+            for k, v in pred_dict.items()
+            if not v["entities"][lab]["is_match"]
+        ]
+        label_mismatch_text = "  ".join(mismatches[:max_examples])
+        if len(mismatches) > 0:
+            mismatches_text += f"{lab}:\n{label_mismatch_text}\n"
+    logging.info(mismatches_text)
+
+    results = compute_legacy_metrics(label_list, pred_dict)
     return results
 
 
@@ -195,3 +199,16 @@ def compute_metrics_for_qa_task(predictions: Tuple, dataset: Dataset):
     dummy_label_list = [f"class_{i}" for i in range(num_labels)]
 
     return compute_legacy_metrics_for_sl(predictions, dataset, dummy_label_list)
+
+
+def compute_metrics_for_singleqa_task(predictions: Tuple, dataset: Dataset):
+    """
+    Function will create dummy label list to compute metrics for token classification task
+    :param predictions:
+    :param dataset:
+    :return:
+    """
+    label_list = dataset.features["labels"].feature.names
+    pred_dict = get_predictions_for_qa(predictions, dataset)
+    results = compute_legacy_metrics(label_list, pred_dict)
+    return results

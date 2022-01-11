@@ -109,6 +109,22 @@
         }
       },
       {
+        "name": "SingleQA_base",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "chunk_size": 512,
+          "stride": 64,
+          "epochs": 10,
+          "learning_rate": 5e-05,
+          "scheduler_type": "constant_schedule_with_warmup",
+          "use_mixed_precision": true,
+          "warmup": 0.0,
+          "weight_decay": 0,
+          "model_name":"bert-base-uncased",
+          "pipeline_name": "single_qa"
+        }
+      },
+      {
         "name": "legal_natural_language",
         "default_hyperparameters": {
           "batch_size": 2,

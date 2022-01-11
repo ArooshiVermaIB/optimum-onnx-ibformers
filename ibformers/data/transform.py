@@ -8,6 +8,7 @@ from ibformers.data.utils import (
     convert_to_dict_of_lists,
     tag_answer_in_doc,
     feed_single_example,
+    feed_single_example_and_flatten,
     get_tokens_spans,
 )
 
@@ -179,3 +180,44 @@ def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=False, **kwarg
         "prefix_words": prefix,
         "prefix_mqa_ids": mqa_ids,
     }
+
+
+@feed_single_example_and_flatten
+def build_prefix_single_qa(example, tokenizer, **kwargs):
+    """
+    Create an example per question as required by QA model, and also keep
+    one entity per example for simplicity and to avoid any confusion later.
+    """
+    entities = example["entities"]
+    for q_idx, question in enumerate(entities["name"]):
+        new_example = {
+            "prefix_words": question.split() + [tokenizer.sep_token],
+            # Get features of a particular question only
+            "entities": {k: [v[q_idx]] for k, v in entities.items()},
+        }
+        yield {**example, **new_example}
+
+
+@feed_single_example
+def token_spans_to_start_end(example, **kwargs):
+    """
+    Create start and end positions of answer from entity token span. Token
+    spans are relative to context tokens only but start and end positions in QA
+    should be relative to model input (question/prefix + context) tokens.
+    """
+    token_spans = example["entities"]["token_spans"][0]
+    if not token_spans:  # no answer
+        return {"start_positions": 0, "end_positions": 0}
+
+    tok_start, tok_end = token_spans[0]
+    chunk_start, chunk_end = example["chunk_ranges"]
+    context_start = np.where(example["content_tokens_mask"])[0][0]
+
+    # Check if the answer is in this chunk complelely
+    if chunk_start <= tok_start and tok_end <= chunk_end:
+        tok_start += context_start - chunk_start
+        tok_end += context_start - chunk_start - 1  # inclusive of end word token
+    else:
+        tok_start, tok_end = 0, 0
+
+    return {"start_positions": tok_start, "end_positions": tok_end}

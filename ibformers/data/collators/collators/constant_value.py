@@ -77,3 +77,22 @@ class TokenClassLabelCollator(DefaultValueCollator):
 class MqaIdsCollator(DefaultValueCollator):
     _supported_fields: ClassVar[List[str]] = ["mqa_ids"]
     _default_value: ClassVar[Any] = 1
+
+
+@dataclass
+class QAPosCollator(BaseCollator):
+    @property
+    def supported_fields(self) -> List[str]:
+        return ["start_positions", "end_positions"]
+
+    def _collate_features(self, features, target_length: Optional[int] = None):
+        feature_keys = self._get_feature_keys(features)
+        assert any(
+            f in feature_keys for f in self.supported_fields
+        ), f"Neither of {self.supported_fields} columns was found in the inputs"
+        present_supported_names = [key for key in feature_keys if key in self.supported_fields]
+        batch = {}
+        for feature_name in present_supported_names:
+            feature_batch = [feature[feature_name] for feature in features]
+            batch[feature_name] = feature_batch
+        return batch

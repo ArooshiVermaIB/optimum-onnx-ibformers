@@ -190,7 +190,12 @@ def prepare_config_kwargs(ds: Dataset) -> Dict:
     else:
         raise ValueError(f"Dataset labels column is not of required type - ClassLabel")
     label_to_id = {l: i for i, l in enumerate(label_list)}
-    kwargs = dict(
-        num_labels=len(label_list), label_to_id=label_to_id, id2label={i: lab for lab, i in label_to_id.items()}
+    ib_id2label = {i: lab for lab, i in label_to_id.items()}
+    if "start_positions" in features:  # for QA model
+        return dict(ib_id2label=ib_id2label)
+    return dict(
+        num_labels=len(label_list),
+        label2id=label_to_id,
+        id2label=ib_id2label,
+        ib_id2label=ib_id2label,
     )
-    return kwargs

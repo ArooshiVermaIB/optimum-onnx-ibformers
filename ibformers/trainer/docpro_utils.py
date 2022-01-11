@@ -418,7 +418,7 @@ class DocProCallback(TrainerCallback):
         self.write_metrics()
         self.write_predictions(predictions, zip_predictions=True)
 
-        id2label = kwargs["model"].config.id2label
+        id2label = kwargs["model"].config.ib_id2label
         if id2label[0] != "O":
             logging.error(f"0 index for label should be asigned to O class. Got: {id2label[0]}")
         label_names = [id2label[idx] for idx in range(1, len(id2label))]

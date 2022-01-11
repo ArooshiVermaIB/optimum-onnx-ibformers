@@ -320,8 +320,8 @@ def run_train(
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=token,
-        **config_kwargs,
     )
+    config.update(config_kwargs)
 
     model = model_class.from_pretrained(
         _get_model_name_or_path(model_args.model_name_or_path, base_model_local_path),
