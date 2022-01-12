@@ -1,27 +1,26 @@
 import logging
 import os
+import time
 import traceback
 import urllib
 from pathlib import Path
 from typing import Tuple, List, Dict, Union, Optional, Callable, Sequence
-import time
 
 import datasets
 import numpy as np
 from datasets import BuilderConfig, Features, config
 from datasets.fingerprint import Hasher
-from torch.utils.data import IterableDataset, DataLoader
+from more_itertools import consecutive_groups
+from torch.utils.data import IterableDataset
+from typing_extensions import TypedDict
 
+from ibformers.data.utils import ImageProcessor
 from instabase.dataset_utils.shared_types import ExtractionFieldDict
 from instabase.ocr.client.libs.ibocr import (
     IBOCRRecordLayout,
     IBOCRRecord,
 )
 from instabase.ocr.client.libs.ocr_types import WordPolyDict
-from more_itertools import consecutive_groups
-from typing_extensions import TypedDict
-
-from ibformers.data.utils import ImageProcessor
 
 _DESCRIPTION = """\
 Internal Instabase Dataset format organized into set of IbDoc files.
@@ -419,6 +418,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             description="Instabase Format Datasets",
         ),
     ]
+    DEFAULT_WRITER_BATCH_SIZE = 100
 
     def __init__(self, *args, **kwargs):
         super(DocProDs, self).__init__(*args, **kwargs)
