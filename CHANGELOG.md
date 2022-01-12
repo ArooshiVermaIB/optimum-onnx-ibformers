@@ -6,6 +6,13 @@ All notable changes to this repository will be documented in this file.
 ## [Unreleased]
 ### Added
 - Add early stopping with validation dataset split.
+- QnA pipeline
+
+### Fixed
+- Decreased writer batch size for ML Studio dataset to reduce memory usage
+
+### Changed
+- Files uploaded on metric read/write are compressed for uploading
 
 ## [0.0.12] - 2022-1-5
 ### Fixed
