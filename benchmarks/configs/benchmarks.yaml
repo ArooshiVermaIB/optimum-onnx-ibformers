@@ -70,6 +70,30 @@ caag:
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/caag-ml-studio
     extraction_class_name: CREDIT_AGREEMENTS
 
+isdaa:
+  name: ISDA Agreements
+  hyperparams:
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/isdaa-ml-studio
+    extraction_class_name: ISDA_AGREEMENTS
+
+paystubs:
+  name: Paystubs
+  hyperparams:
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/paystubs-ml-studio
+    extraction_class_name: Paystub
+
+medical-records:
+  name: Medical Records
+  hyperparams:
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/medical-records-ml-studio
+    extraction_class_name: medical_records
+
 
 funsd:
   name: FUNSD
