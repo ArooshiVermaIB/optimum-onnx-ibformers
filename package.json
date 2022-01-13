@@ -21,6 +21,7 @@
         "name": "layout_base",
         "default_hyperparameters": {
           "batch_size": 2,
+          "gradient_accumulation_steps": 1,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
@@ -30,15 +31,15 @@
           "warmup": 0.0,
           "weight_decay": 0,
           "class_weights": 1.0,
-          "model_name": "microsoft/layoutlm-base-uncased",
-          "early_stopping_patience": 0,
-          "validation_set_size": 0.0
+          "max_no_annotation_examples_share": 0.7,
+          "model_name": "microsoft/layoutlm-base-uncased"
         }
       },
       {
         "name": "layout_large",
         "default_hyperparameters": {
           "batch_size": 2,
+          "gradient_accumulation_steps": 1,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
@@ -48,15 +49,15 @@
           "warmup": 0.0,
           "weight_decay": 0,
           "class_weights": 1.0,
-          "model_name": "microsoft/layoutlm-large-uncased",
-          "early_stopping_patience": 0,
-          "validation_set_size": 0.0
+          "max_no_annotation_examples_share": 0.7,
+          "model_name": "microsoft/layoutlm-large-uncased"
         }
       },
       {
         "name": "layout_multilingual",
         "default_hyperparameters": {
           "batch_size": 2,
+          "gradient_accumulation_steps": 1,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
@@ -66,15 +67,15 @@
           "warmup": 0.0,
           "weight_decay": 0,
           "class_weights": 1.0,
-          "model_name": "microsoft/layoutxlm-base",
-          "early_stopping_patience": 0,
-          "validation_set_size": 0.0
+          "max_no_annotation_examples_share": 0.7,
+          "model_name": "microsoft/layoutxlm-base"
         }
       },
       {
         "name": "layoutv2",
         "default_hyperparameters": {
           "batch_size": 2,
+          "gradient_accumulation_steps": 1,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
@@ -84,15 +85,15 @@
           "warmup": 0.0,
           "weight_decay": 0,
           "class_weights": 1.0,
-          "model_name": "microsoft/layoutlmv2-base-uncased",
-          "early_stopping_patience": 0,
-          "validation_set_size": 0.0
+          "max_no_annotation_examples_share": 0.7,
+          "model_name": "microsoft/layoutlmv2-base-uncased"
         }
       },
       {
         "name": "LayoutMultiQA_base",
         "default_hyperparameters": {
           "batch_size": 2,
+          "gradient_accumulation_steps": 1,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
@@ -102,16 +103,16 @@
           "warmup": 0.0,
           "weight_decay": 0,
           "class_weights": 1.0,
+          "max_no_annotation_examples_share": 0.7,
           "model_name":"instabase/laymqav1-base",
-          "pipeline_name": "laymqav1",
-          "early_stopping_patience": 0,
-          "validation_set_size": 0.0
+          "pipeline_name": "laymqav1"
         }
       },
       {
         "name": "SingleQA_base",
         "default_hyperparameters": {
           "batch_size": 2,
+          "gradient_accumulation_steps": 1,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
@@ -120,16 +121,16 @@
           "use_mixed_precision": true,
           "warmup": 0.0,
           "weight_decay": 0,
+          "max_no_annotation_examples_share": 0.7,
           "model_name":"bert-base-uncased",
-          "pipeline_name": "single_qa",
-          "early_stopping_patience": 0,
-          "validation_set_size": 0.0
+          "pipeline_name": "single_qa"
         }
       },
       {
         "name": "legal_natural_language",
         "default_hyperparameters": {
           "batch_size": 2,
+          "gradient_accumulation_steps": 1,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
@@ -140,15 +141,15 @@
           "weight_decay": 0,
           "pipeline_name": "plain_sl",
           "class_weights": 1.0,
-          "model_name": "nlpaueb/legal-bert-base-uncased",
-          "early_stopping_patience": 0,
-          "validation_set_size": 0.0
+          "max_no_annotation_examples_share": 0.7,
+          "model_name": "nlpaueb/legal-bert-base-uncased"
         }
       },
       {
         "name": "natural_language",
         "default_hyperparameters": {
           "batch_size": 2,
+          "gradient_accumulation_steps": 1,
           "chunk_size": 512,
           "stride": 64,
           "epochs": 10,
@@ -159,9 +160,8 @@
           "weight_decay": 0,
           "pipeline_name": "plain_sl",
           "class_weights": 1.0,
-          "model_name": "bert-base-uncased",
-          "early_stopping_patience": 0,
-          "validation_set_size": 0.0
+          "max_no_annotation_examples_share": 0.7,
+          "model_name": "bert-base-uncased"
         }
       }
     ]
