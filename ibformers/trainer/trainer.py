@@ -151,7 +151,7 @@ class IbTrainer(Trainer):
                     generator.manual_seed(int(torch.empty((), dtype=torch.int64).random_().item()))
 
                 no_ann_weight: float = max_no_annotation / num_no_annotations
-                weights = [1 if is_ann else no_ann_weight for is_ann in has_annotations]
+                weights = [1.0 if is_ann else no_ann_weight for is_ann in has_annotations]
 
                 return WeightedRandomSampler(
                     replacement=False, weights=weights, num_samples=num_samples, generator=generator
