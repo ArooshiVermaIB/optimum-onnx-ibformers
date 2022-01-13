@@ -62,6 +62,15 @@ bank_statements:
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/bank_statements
     extraction_class_name: bank_statements_all_inputs
 
+caag:
+  name: Credit Agreements
+  hyperparams:
+    dataset_name_or_path: docpro_ds
+    dataset_config_name: docpro_ds
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/caag-ml-studio
+    extraction_class_name: CREDIT_AGREEMENTS
+
+
 funsd:
   name: FUNSD
   hyperparams:
