@@ -264,6 +264,7 @@ class LayMQAForTokenClassification(LayoutLMPreTrainedModel):
         self.mqa_head = LayMQAHead(config)
         self.mqa_size = config.mqa_size
         self.config.num_labels = config.mqa_size
+        self.num_labels = config.mqa_size
 
         self.init_weights()
 
