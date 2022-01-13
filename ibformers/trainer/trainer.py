@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from datasets import IterableDataset
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 from transformers.integrations import WandbCallback, is_wandb_available
 from transformers.trainer import Trainer
 from transformers import EvalPrediction, is_torch_tpu_available, AdamW
@@ -30,8 +30,8 @@ from ibformers.callbacks.wandb import ExtendedWandbCallback
 
 logger = logging.get_logger(__name__)
 
-_is_torch_generator_available = False
-_is_native_amp_available = False
+_is_torch_generator_available = True
+_is_native_amp_available = True
 
 
 if is_in_notebook():
@@ -101,6 +101,65 @@ class IbTrainer(Trainer):
             return (loss, outputs) if return_outputs else loss
         else:
             return super().compute_loss(model, inputs, return_outputs)
+
+    def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
+
+        if self.args.max_no_annotation_examples_share < 1.0:
+            # Build the sampler.
+            max_no_annotation_examples_share = self.args.max_no_annotation_examples_share
+            col_names = self.train_dataset.column_names
+            # QA task
+            if "start_positions" in col_names and "end_positions" in col_names:
+                labels = self.train_dataset["start_positions"]
+            # Token classification task
+            elif "labels" in col_names:
+                labels = self.train_dataset["labels"]
+                if not isinstance(labels[0], list):
+                    raise ValueError("max_no_annotation_examples_share expect token_classification task")
+            else:
+                raise ValueError(
+                    "max_no_annotation_examples_share parameter is supported only with "
+                    "token_classification and qa pipelines. It require specific labels column"
+                )
+
+            has_annotations = np.array([(np.array(lab) > 0).sum().item() > 0 for lab in labels])
+            ratio_of_unannotated_to_annotated = max_no_annotation_examples_share / (
+                1 - max_no_annotation_examples_share
+            )
+            num_annotations = int(has_annotations.sum())
+            num_no_annotations = len(has_annotations) - num_annotations
+            max_no_annotation = round(ratio_of_unannotated_to_annotated * has_annotations.sum())
+            num_samples = num_annotations + max_no_annotation
+
+            if max_no_annotation < num_no_annotations:
+                logger.warning(
+                    f"Limitting number of training chunks from {len(has_annotations)} "
+                    f"to {num_samples} due to high ratio of no annotation chunks"
+                )
+                if self.args.group_by_length:
+                    logger.error(
+                        "group_by_length param is not supported together with max_no_annotation_examples_share. "
+                        "Future processing will ignore group_by_length"
+                    )
+                if self.args.world_size > 1:
+                    # TODO: implement DistributedWeightedRandomSampler
+                    raise ValueError("max_no_annotation_examples_share is not supported in the multi-gpu setting")
+
+                generator = None
+                if self.args.world_size <= 1 and _is_torch_generator_available:
+                    generator = torch.Generator()
+                    generator.manual_seed(int(torch.empty((), dtype=torch.int64).random_().item()))
+
+                no_ann_weight: float = max_no_annotation / num_no_annotations
+                weights = [1 if is_ann else no_ann_weight for is_ann in has_annotations]
+
+                return WeightedRandomSampler(
+                    replacement=False, weights=weights, num_samples=num_samples, generator=generator
+                )
+            else:
+                return super()._get_train_sampler()
+        else:
+            return super()._get_train_sampler()
 
     def evaluation_loop(
         self,

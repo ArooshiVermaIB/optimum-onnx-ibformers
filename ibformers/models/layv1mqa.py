@@ -263,6 +263,7 @@ class LayMQAForTokenClassification(LayoutLMPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.mqa_head = LayMQAHead(config)
         self.mqa_size = config.mqa_size
+        self.config.num_labels = config.mqa_size
 
         self.init_weights()
 
@@ -324,11 +325,11 @@ class LayMQAForTokenClassification(LayoutLMPreTrainedModel):
 
             if attention_mask is not None:
                 active_loss = attention_mask.view(-1) == 1
-                active_logits = logits.view(-1, self.mqa_size)[active_loss]
+                active_logits = logits.view(-1, self.num_labels)[active_loss]
                 active_labels = labels.view(-1)[active_loss]
                 loss = loss_fct(active_logits, active_labels)
             else:
-                loss = loss_fct(logits.view(-1, self.num_extra), labels.view(-1))
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
         if not return_dict:
             output = (logits,) + outputs[2:]

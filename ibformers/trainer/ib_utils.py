@@ -498,6 +498,9 @@ def prepare_ib_params(
     if "class_weights" in hyperparams:
         out_dict["class_weights"] = hyperparams.pop("class_weights")
 
+    if "max_no_annotation_examples_share" in hyperparams:
+        out_dict["max_no_annotation_examples_share"] = hyperparams.pop("max_no_annotation_examples_share")
+
     # early stopping
     early_stopping_patience = hyperparams.pop("early_stopping_patience", 0)
     validation_set_size = hyperparams.pop("validation_set_size", 0)
