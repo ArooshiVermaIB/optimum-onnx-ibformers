@@ -121,7 +121,9 @@
           "warmup": 0.0,
           "weight_decay": 0,
           "model_name":"bert-base-uncased",
-          "pipeline_name": "single_qa"
+          "pipeline_name": "single_qa",
+          "early_stopping_patience": 0,
+          "validation_set_size": 0.0
         }
       },
       {

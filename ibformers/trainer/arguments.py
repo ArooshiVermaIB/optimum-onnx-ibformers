@@ -61,6 +61,10 @@ class EnhancedTrainingArguments(TrainingArguments):
             "set. 0 means disabled early stopping."
         },
     )
+    max_no_annotation_examples_share: float = field(
+        default=1.0,
+        metadata={"help": "Will limit amount of chunks with no labels inside"},
+    )
 
     def __post_init__(self):
         super().__post_init__()
