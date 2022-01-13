@@ -128,16 +128,16 @@ class IbTrainer(Trainer):
             )
             num_annotations = int(has_annotations.sum())
             num_no_annotations = len(has_annotations) - num_annotations
-            max_no_annotation = round(ratio_of_unannotated_to_annotated * has_annotations.sum())
+            max_no_annotation = round(ratio_of_unannotated_to_annotated * num_annotations)
             num_samples = num_annotations + max_no_annotation
 
             if max_no_annotation < num_no_annotations:
-                logger.warning(
+                logger.info(
                     f"Limitting number of training chunks from {len(has_annotations)} "
                     f"to {num_samples} due to high ratio of no annotation chunks"
                 )
                 if self.args.group_by_length:
-                    logger.error(
+                    logger.warning(
                         "group_by_length param is not supported together with max_no_annotation_examples_share. "
                         "Future processing will ignore group_by_length"
                     )
