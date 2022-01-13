@@ -7,6 +7,7 @@ All notable changes to this repository will be documented in this file.
 ### Added
 - Add early stopping with validation dataset split.
 - QnA pipeline
+- Add possibility to limit chunks without annotations - useful for long documents
 
 ### Fixed
 - Decreased writer batch size for ML Studio dataset to reduce memory usage
