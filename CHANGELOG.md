@@ -3,7 +3,7 @@
 All notable changes to this repository will be documented in this file.
 
 
-## [Unreleased]
+## [0.1.0] - 2022-01-13
 ### Added
 - Add early stopping with validation dataset split.
 - QnA pipeline
@@ -15,7 +15,7 @@ All notable changes to this repository will be documented in this file.
 ### Changed
 - Files uploaded on metric read/write are compressed for uploading
 
-## [0.0.12] - 2022-1-5
+## [0.0.12] - 2022-01-05
 ### Fixed
 - Fix exact_match metric
 ### Added
