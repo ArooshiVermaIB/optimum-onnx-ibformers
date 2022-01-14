@@ -14,14 +14,19 @@ import logging
 from asyncio import Semaphore
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Tuple
 
 import fire
 
 from ci.lib.config import load_environments
 from ci.lib.ibapi import Instabase
-from ibformers.datasets.ibds.ibds import _read_parsedibocr
-from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder
+from instabase.ocr.client.libs.ibocr import (
+    ParsedIBOCRBuilder,
+    IBOCRRecord,
+    IBOCRRecordLayout,
+    ParsedIBOCR,
+)
+from instabase.ocr.client.libs.ocr_types import WordPolyDict
 
 
 @dataclass
@@ -33,6 +38,23 @@ class DownloaderConfig:
 
     def __post_init__(self):
         self.download_semaphore = Semaphore(self.max_concurrent_downloads)
+
+
+def _read_parsedibocr(builder: ParsedIBOCR) -> Tuple[List[WordPolyDict], List[IBOCRRecordLayout]]:
+    """Open an ibdoc or ibocr using the ibfile and return the words and layout information for each page"""
+    words = []
+    layouts = []
+    record: IBOCRRecord
+    # Assuming each record is a page in order and each record is single-page
+    # Assuming nothing weird is going on with page numbers
+    for record in builder.get_ibocr_records():
+        words += [i for j in record.get_lines() for i in j]
+        l = record.get_metadata_list()
+        layouts.extend([i.get_layout() for i in l])
+
+    assert all(word["page"] in range(len(layouts)) for word in words), "Something with the page numbers went wrong"
+
+    return words, layouts
 
 
 async def get_image_paths_from_content(content: bytes, save_path: Path) -> List[Path]:
@@ -124,14 +146,15 @@ class ProjectDownloader(object):
         output_path: str,
         download_images: bool = False,
         max_concurrent_downloads: int = 10,
+        token: str = None,
     ):
         envs = load_environments()
-
         env_config = envs[env_name]
+        token = env_config["token"] if token is None else token
         self._sdk = Instabase(
             name=env_name,
             host=env_config["host"],
-            token=env_config["token"],
+            token=token,
             root_path="",
         )
 

@@ -237,7 +237,8 @@ def run_train(
         )
     elif is_docpro_training:
         raw_datasets = split_train_with_column(raw_datasets)
-
+    for key, dataset in raw_datasets.items():
+        logger.warning(f"Dataset: {key} has {len(dataset)} examples.")
     validate_dataset_sizes(raw_datasets)
 
     tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path

@@ -1,12 +1,9 @@
 # coding=utf-8
 import json
 import os
-from collections import defaultdict
 
 import datasets
 from PIL import Image
-import numpy as np
-from typing import Any, Dict, Tuple
 
 from ibformers.data.utils import ImageProcessor
 from ibformers.datasets.utils import create_features_from_fund_file_content, enrich_features_with_images
@@ -62,10 +59,10 @@ class Funsd(datasets.GeneratorBasedBuilder):
         ds_features = {
             "id": datasets.Value("string"),
             "words": datasets.Sequence(datasets.Value("string")),
-            "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int64"))),
-            "word_original_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("float32"), length=4)),
+            "bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
+            "word_original_bboxes": datasets.Array2D(shape=(None, 4), dtype="float32"),
             "word_page_nums": datasets.Sequence(datasets.Value("int32")),
-            "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+            "page_bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
             "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
             "bio_token_label_ids": datasets.Sequence(
                 datasets.features.ClassLabel(
