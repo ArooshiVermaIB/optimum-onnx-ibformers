@@ -143,6 +143,21 @@ from_docvqa_to_mqa = {
     "compute_metrics": compute_metrics_for_qa_task,
 }
 
+from_websrc_to_mqa = {
+    "dataset_load_kwargs": {"use_image": False},
+    "preprocess": [
+        build_prefix_with_mqa_ids,
+        tokenize,
+        norm_bboxes_for_layoutlm,
+        produce_chunks,
+    ],
+    "preprocess_kwargs": {"convert_to_question": False, "shuffle_mqa_ids": True},
+    "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
+    "collate": get_collator_class(BboxAugmenter),
+    "model_class": LayMQAForTokenClassification,
+    "compute_metrics": compute_metrics_for_qa_task,
+}
+
 plain_sl = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, produce_chunks],
@@ -192,4 +207,5 @@ PIPELINES = {
     "plain_mlm": plain_mlm,
     "layoutlm_mlm": layoutlm_mlm,
     "single_qa": single_qa,
+    "from_websrc_to_mqa": from_websrc_to_mqa,
 }

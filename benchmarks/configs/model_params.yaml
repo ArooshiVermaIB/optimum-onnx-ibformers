@@ -50,6 +50,12 @@ instabase/laymqav1-base:
     <<: *defaults
     pipeline_name: laymqav1
 
+instabase/laymqav1-websrc-base:
+  name: LayoutMultiQA_base
+  hyperparams:
+    <<: *defaults
+    pipeline_name: laymqav1
+
 nlpaueb/legal-bert-base-uncased:
   name: legal_natural_language
   hyperparams:

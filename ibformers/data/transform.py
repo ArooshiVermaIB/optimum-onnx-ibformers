@@ -132,10 +132,13 @@ def stack_pages(example, **kwargs):
 
 
 @feed_single_example
-def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=False, **kwargs):
+def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=False, convert_to_question=True, **kwargs):
     entities = example["entities"]
     mqa_size = 20
     pad_mqa_id = 1
+
+    # limit entities to max 17 ent
+    # entities = {k: v[:17] for k, v in entities.items()}
 
     # all_extra_tokens = tokenizer.additional_special_tokens
     # special_token_to_extra_id = {tok: idx for idx, tok in enumerate(all_extra_tokens)}
@@ -159,7 +162,8 @@ def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=False, **kwarg
     # if shuffle_mqa_ids:
     #     shuffle(prefix)
     # make it sound like a natural question
-    prefix = [f"what is the {ent.replace('_', ' ')}?" for ent in prefix]
+    if convert_to_question:
+        prefix = [f"what is the {ent.replace('_', ' ')}?" for ent in prefix]
     prefix = prefix + [tokenizer.sep_token]
     mqa_ids = used_mqa_ids + [1]
 

@@ -177,6 +177,16 @@ def create_splits_with_column(split_lst: List[str], train_ds: Dataset):
     return splitted_dataset
 
 
+def get_label_list(labels):
+    unique_labels = set()
+    for label in labels:
+        unique_labels = unique_labels | set(label)
+    label_list = list(unique_labels)
+    label_list = [l for l in label_list if l != -100]
+    label_list.sort()
+    return label_list
+
+
 def prepare_config_kwargs(ds: Dataset) -> Dict:
     """
     Function prepares a dictionary of parameters suited to given dataset.
@@ -188,7 +198,9 @@ def prepare_config_kwargs(ds: Dataset) -> Dict:
     if isinstance(features["labels"].feature, ClassLabel):
         label_list = features["labels"].feature.names
     else:
-        raise ValueError(f"Dataset labels column is not of required type - ClassLabel")
+        logging.warning(f"Dataset labels column is not of required type - ClassLabel")
+        label_list = get_label_list(ds["labels"])
+
     label_to_id = {l: i for i, l in enumerate(label_list)}
     ib_id2label = {i: lab for lab, i in label_to_id.items()}
     if "start_positions" in features:  # for QA model

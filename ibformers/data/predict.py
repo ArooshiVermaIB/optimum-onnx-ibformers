@@ -293,11 +293,11 @@ def extract_entity_words(
         class_idx = prediction_idxs[idx]
         conf = 0 if is_gold else doc["prediction_confidences"][idx]
         tag_name = label_list[class_idx]
-        if "word_original_bboxes" in doc:
+        if "word_original_bboxes" in doc and doc["word_original_bboxes"] is not None:
             org_bbox = doc["word_original_bboxes"][idx]
         else:
             org_bbox = [0, 0, 0, 0]
-        if "word_page_nums" in doc:
+        if "word_page_nums" in doc and doc["word_page_nums"] is not None:
             page = doc["word_page_nums"][idx]
         else:
             page = 0
