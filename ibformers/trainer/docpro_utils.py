@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import shutil
@@ -6,12 +5,18 @@ import traceback
 import uuid
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-import pandas as pd
 
+import pandas as pd
 from transformers import HfArgumentParser, TrainerCallback
 
-from ibformers.trainer.train import run_train
 from ibformers.data.collators.augmenters.args import AugmenterArguments
+from ibformers.trainer.arguments import (
+    ModelArguments,
+    DataAndPipelineArguments,
+    IbArguments,
+    EnhancedTrainingArguments,
+    ExtraModelArguments,
+)
 from ibformers.trainer.ib_utils import (
     MountDetails,
     prepare_ib_params,
@@ -20,6 +25,7 @@ from ibformers.trainer.ib_utils import (
     upload_dir,
 )
 from ibformers.trainer.refiner_module_generator import write_refiner_program
+from ibformers.trainer.train import run_train
 from ibformers.trainer.arguments import ModelArguments, DataAndPipelineArguments, IbArguments, EnhancedTrainingArguments
 from ibformers.utils.zip_dir import zip_dir
 from instabase.dataset_utils.sdk import LocalDatasetSDK, RemoteDatasetSDK, DatasetSDK
@@ -504,6 +510,7 @@ def run_train_doc_pro(
             EnhancedTrainingArguments,
             IbArguments,
             AugmenterArguments,
+            ExtraModelArguments,
         )
     )
 
@@ -532,7 +539,7 @@ def run_train_doc_pro(
         logging.warning("Setting up debbuging mode (CUDA_LAUNCH_BLOCKING=1)")
         os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-    model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hparams_dict)
+    model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(hparams_dict)
 
     callback = DocProCallback(
         dataset_list=dataset_list,
@@ -552,6 +559,7 @@ def run_train_doc_pro(
         training_args,
         ib_args,
         augmenter_args,
+        extra_model_args,
         extra_callbacks=[callback],
         extra_load_kwargs={"ibsdk": ibsdk, "extraction_class_name": extraction_class_name},
     )

@@ -1,6 +1,9 @@
+from typing import Optional
+
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss, SmoothL1Loss
+from transformers import LayoutLMConfig
 from transformers.modeling_outputs import TokenClassifierOutput
 from transformers.models.layoutlm import LayoutLMForMaskedLM
 
@@ -75,12 +78,21 @@ class LayoutLMForMaskedLMAndLayout(LayoutLMForMaskedLM):
         )
 
 
+class LayoutLMForBboxMaskingRegressionConfig(LayoutLMConfig):
+    def __init__(self, bbox_scale_factor: Optional[float] = 500.0, smooth_loss_beta: Optional[float] = 1.0, **kwargs):
+        super().__init__(**kwargs)
+        self.bbox_scale_factor = bbox_scale_factor if bbox_scale_factor is not None else bbox_scale_factor
+        self.smooth_loss_beta = smooth_loss_beta if smooth_loss_beta is not None else smooth_loss_beta
+
+
 class LayoutLMForMaskedLMAndLayoutRegression(LayoutLMForMaskedLM):
+    config_class = LayoutLMForBboxMaskingRegressionConfig
+
     def __init__(self, config):
         super().__init__(config)
 
-        self.bbox_scale_factor = getattr(config, "bbox_scale_factor", 500)
-        self.smooth_loss_beta = getattr(config, "smooth_loss_beta", 1.0)
+        self.bbox_scale_factor = config.bbox_scale_factor
+        self.smooth_loss_beta = config.smooth_loss_beta
 
         self.bbox_regressor = nn.Linear(config.hidden_size, 4)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)

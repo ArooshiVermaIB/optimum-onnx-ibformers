@@ -44,13 +44,13 @@ from transformers.utils.versions import require_version
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
-from ibformers.models.bbox_masking_models import LayoutLMForMaskedLMAndLayoutRegression
 from ibformers.trainer.arguments import (
     ModelArguments,
     EnhancedTrainingArguments,
     DataAndPipelineArguments,
     IbArguments,
     update_params_with_commandline,
+    ExtraModelArguments,
 )
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -79,11 +79,12 @@ def run_hyperparams_and_cmdline_train(hyperparams: Dict):
             EnhancedTrainingArguments,
             IbArguments,
             AugmenterArguments,
+            ExtraModelArguments,
         )
     )
-    model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hyperparams)
-    model_args, data_args, training_args, ib_args, augmenter_args = update_params_with_commandline(
-        (model_args, data_args, training_args, ib_args, augmenter_args)
+    model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(hyperparams)
+    model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = update_params_with_commandline(
+        (model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args)
     )
 
     # workaround for docpro params
@@ -96,6 +97,7 @@ def run_hyperparams_and_cmdline_train(hyperparams: Dict):
         training_args,
         ib_args,
         augmenter_args,
+        extra_model_args,
         extra_callbacks=[],
         extra_load_kwargs={
             "extraction_class_name": data_args.extraction_class_name,
@@ -112,12 +114,13 @@ def run_cmdline_train():
             EnhancedTrainingArguments,
             IbArguments,
             AugmenterArguments,
+            ExtraModelArguments,
         )
     )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_json_file(
+        model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_json_file(
             json_file=os.path.abspath(sys.argv[1])
         )
     else:
@@ -127,9 +130,10 @@ def run_cmdline_train():
             training_args,
             ib_args,
             augmenter_args,
+            extra_model_args,
         ) = parser.parse_args_into_dataclasses()
 
-    run_train(model_args, data_args, training_args, ib_args, augmenter_args)
+    run_train(model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args)
 
 
 def run_train(
@@ -138,6 +142,7 @@ def run_train(
     training_args: EnhancedTrainingArguments,
     ib_args: IbArguments,
     augmenter_args: AugmenterArguments,
+    extra_model_args: ExtraModelArguments,
     extra_callbacks=None,
     extra_load_kwargs=None,
 ):
@@ -316,19 +321,18 @@ def run_train(
 
     config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset)
 
-    config = AutoConfig.from_pretrained(
+    config_class = getattr(model_class, "config_class", AutoConfig)
+    config = config_class.from_pretrained(
         _get_model_name_or_path(
             model_args.config_name if model_args.config_name else model_args.model_name_or_path, base_model_local_path
         ),
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=token,
+        **config_kwargs,
+        **asdict(extra_model_args),
     )
     config.update(config_kwargs)
-
-    if model_class is LayoutLMForMaskedLMAndLayoutRegression:
-        config.bbox_scale_factor = training_args.bbox_scale_factor
-        config.smooth_loss_beta = training_args.smooth_loss_beta
 
     model = model_class.from_pretrained(
         _get_model_name_or_path(model_args.model_name_or_path, base_model_local_path),

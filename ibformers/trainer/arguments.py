@@ -45,6 +45,22 @@ class ModelArguments:
 
 
 @dataclass
+class ExtraModelArguments:
+    """
+    Arguments specific to the custom models and configs. They will be passed to model config.
+    It is advised to set defaults here to None, as they will be added to every model config initialization.
+    """
+
+    bbox_scale_factor: Optional[float] = field(
+        default=None, metadata={"help": "Scale factor for regression-based bbox masking task"}
+    )
+
+    smooth_loss_beta: Optional[float] = field(
+        default=None, metadata={"help": "Beta parameter for regression-based bbox masking task"}
+    )
+
+
+@dataclass
 class EnhancedTrainingArguments(TrainingArguments):
     """
     Extra training arguments passed to the training loop. Enhance to the transformers.TrainingArguments
@@ -64,14 +80,6 @@ class EnhancedTrainingArguments(TrainingArguments):
     max_no_annotation_examples_share: float = field(
         default=1.0,
         metadata={"help": "Will limit amount of chunks with no labels inside"},
-    )
-
-    bbox_scale_factor: float = field(
-        default=500.0, metadata={"help": "Scale factor for regression-based bbox masking task"}
-    )
-
-    smooth_loss_beta: float = field(
-        default=1.0, metadata={"help": "Beta parameter for regression-based bbox masking task"}
     )
 
     def __post_init__(self):
