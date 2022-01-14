@@ -129,17 +129,7 @@ def run_cmdline_train():
             augmenter_args,
         ) = parser.parse_args_into_dataclasses()
 
-    run_train(
-        model_args,
-        data_args,
-        training_args,
-        ib_args,
-        augmenter_args,
-        extra_load_kwargs={
-            "extraction_class_name": data_args.extraction_class_name,
-            "download_config": DownloadConfig(max_retries=3),
-        },
-    )
+    run_train(model_args, data_args, training_args, ib_args, augmenter_args)
 
 
 def run_train(
