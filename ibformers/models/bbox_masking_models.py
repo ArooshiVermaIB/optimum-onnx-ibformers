@@ -81,8 +81,8 @@ class LayoutLMForMaskedLMAndLayout(LayoutLMForMaskedLM):
 class LayoutLMForBboxMaskingRegressionConfig(LayoutLMConfig):
     def __init__(self, bbox_scale_factor: Optional[float] = 500.0, smooth_loss_beta: Optional[float] = 1.0, **kwargs):
         super().__init__(**kwargs)
-        self.bbox_scale_factor = bbox_scale_factor if bbox_scale_factor is not None else bbox_scale_factor
-        self.smooth_loss_beta = smooth_loss_beta if smooth_loss_beta is not None else smooth_loss_beta
+        self.bbox_scale_factor = bbox_scale_factor if bbox_scale_factor is not None else 500.0
+        self.smooth_loss_beta = smooth_loss_beta if smooth_loss_beta is not None else 1.0
 
 
 class LayoutLMForMaskedLMAndLayoutRegression(LayoutLMForMaskedLM):

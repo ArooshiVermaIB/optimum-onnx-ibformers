@@ -329,8 +329,7 @@ def run_train(
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=token,
-        **config_kwargs,
-        **asdict(extra_model_args),
+        **asdict(extra_model_args, dict_factory=lambda x: {k: v for (k, v) in dict(x).items() if v is not None}),
     )
     config.update(config_kwargs)
 
