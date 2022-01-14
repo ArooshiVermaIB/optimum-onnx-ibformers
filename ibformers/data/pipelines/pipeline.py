@@ -5,6 +5,7 @@ from transformers import AutoModelForTokenClassification, AutoModelForMaskedLM, 
 
 from ibformers.data.chunk import produce_chunks
 from ibformers.data.collators.augmenters.bbox import BboxAugmenter
+from ibformers.data.collators.augmenters.bbox_masking import BboxMaskingAugmenter
 from ibformers.data.collators.augmenters.mlm import MLMAugmenter
 from ibformers.data.collators.collmenter import get_collator_class
 from ibformers.data.metrics import (
@@ -16,12 +17,12 @@ from ibformers.data.metrics import (
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.transform import (
     norm_bboxes_for_layoutlm,
-    stack_pages,
     build_prefix_with_mqa_ids,
     fuzzy_tag_in_document,
     build_prefix_single_qa,
     token_spans_to_start_end,
 )
+from ibformers.models.bbox_masking_models import LayoutLMForMaskedLMAndLayout, LayoutLMForMaskedLMAndLayoutRegression
 from ibformers.models.layv1mqa import LayMQAForTokenClassification
 
 
@@ -187,6 +188,25 @@ layoutlm_mlm = {
     "compute_metrics": None,
 }
 
+layoutlm_mlm_bm = {
+    "dataset_load_kwargs": {},
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "column_mapping": [("bboxes", "bbox")],
+    "collate": get_collator_class(MLMAugmenter, BboxMaskingAugmenter),
+    "model_class": LayoutLMForMaskedLMAndLayout,
+    "compute_metrics": None,
+}
+
+
+layoutlm_mlm_bm_regresssion = {
+    "dataset_load_kwargs": {},
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "column_mapping": [("bboxes", "bbox")],
+    "collate": get_collator_class(MLMAugmenter, BboxMaskingAugmenter),
+    "model_class": LayoutLMForMaskedLMAndLayoutRegression,
+    "compute_metrics": None,
+}
+
 
 plain_mlm = {
     "dataset_load_kwargs": {},
@@ -208,4 +228,6 @@ PIPELINES = {
     "layoutlm_mlm": layoutlm_mlm,
     "single_qa": single_qa,
     "from_websrc_to_mqa": from_websrc_to_mqa,
+    "layoutlm_mlm_bm": layoutlm_mlm_bm,
+    "layoutlm_mlm_bm_regresssion": layoutlm_mlm_bm_regresssion,
 }

@@ -4,7 +4,7 @@ import logging
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Any, Dict, TypeVar, Tuple, Union
+from typing import Optional, Any, Dict, TypeVar, Tuple
 
 from transformers import HfArgumentParser, TrainingArguments
 from transformers.hf_argparser import DataClass
@@ -41,6 +41,22 @@ class ModelArguments:
             "help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
             "with private models)."
         },
+    )
+
+
+@dataclass
+class ExtraModelArguments:
+    """
+    Arguments specific to the custom models and configs. They will be passed to model config.
+    It is advised to set defaults here to None, as they will be added to every model config initialization.
+    """
+
+    bbox_scale_factor: Optional[float] = field(
+        default=None, metadata={"help": "Scale factor for regression-based bbox masking task"}
+    )
+
+    smooth_loss_beta: Optional[float] = field(
+        default=None, metadata={"help": "Beta parameter for regression-based bbox masking task"}
     )
 
 
