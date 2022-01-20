@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 import pandas as pd
-from transformers import HfArgumentParser, TrainerCallback
+from transformers import HfArgumentParser, TrainerCallback, TrainerState
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.trainer.arguments import (
@@ -121,6 +121,10 @@ class DocProCallback(TrainerCallback):
     # list of files/dirs which will not be copied into the package
     ibformers_do_not_copy = ["hf_token.py"]
 
+
+    # For UX purposes, avoid setting progress bar to 100% until upload finishes
+    PROGRESS_BAR_LIMIT: float = 0.95
+
     def __init__(
         self,
         dataset_list: List[DatasetSDK],
@@ -188,34 +192,51 @@ class DocProCallback(TrainerCallback):
         logging.info("Final state of the Model Artifact folder structure:")
         _print_dir(self.save_folder)
 
-        logging.info("Uploading")
-        self.job_metadata_client.update_message("UPLOADING MODEL")
+        self.job_metadata_client.update_message("Uploading model.", log=True)
         upload_dir(
             sdk=self.ibsdk,
             local_folder=self.save_folder,
             remote_folder=self.ib_save_path,
             mount_details=self.mount_details,
         )
-        logging.info("Uploaded")
+        logging.info("Uploaded model")
         if self._zipped:
-            logging.info("Unzipping")
+            logging.info("Unzipping model files")
             for path in self._zipped:
                 logging.debug(f"Unzipping file {os.path.join(self.ib_save_path, path)}")
                 full_ib_path = os.path.join(self.ib_save_path, path)
                 self.ibsdk.unzip(full_ib_path, os.path.splitext(full_ib_path)[0], remove=True)
-            logging.info("Unzipped")
+            logging.info("Unzipped model files")
+        
+        self.set_status({"progress": 1.0})
+
+    def update_message(self, message: str, log: bool = False):
+        if log:
+            logging.info(message)
+        self.job_metadata_client.update_message(message)
 
     def set_status(self, new_status: Dict):
         self.job_status.update(new_status)
         self.job_metadata_client.update_metadata(self.job_status)
 
+    def set_training_progress(self, state: TrainerState):
+        progress = 0.0
+        if state.max_steps != 0:
+            progress = self.PROGRESS_BAR_LIMIT * (state.global_step / state.max_steps)
+        self.set_status({"progress": progress})
+
     def on_step_end(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
-            self.set_status({"progress": state.global_step / state.max_steps})
+            self.set_training_progress(state)
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        if state.is_local_process_zero:
+            self.job_metadata_client.update_message("Model training in progress.")
+            self.set_training_progress(state)
 
     def on_train_end(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
-            self.set_status({"progress": state.global_step / state.max_steps})
+            self.set_training_progress(state)
 
     def on_evaluate(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
@@ -340,6 +361,7 @@ class DocProCallback(TrainerCallback):
         # Now write the predictions
         prediction_writer = self.prediction_writer
 
+        self.update_message("Writing prediction results.")
         logging.info("Writing prediction results to IB")
         try:
             for record_name, record_value in predictions_dict.items():
@@ -400,7 +422,7 @@ class DocProCallback(TrainerCallback):
         self.set_status({"predictions_uuid": uuid.uuid4().hex})
 
     def generate_refiner(self, label_names):
-        logging.info("Generating the Refiner module for this model...")
+        self.update_message("Generating Refiner module.", log=True)
 
         try:
             ib_model_path = os.path.join(self.ib_save_path, "artifact")
