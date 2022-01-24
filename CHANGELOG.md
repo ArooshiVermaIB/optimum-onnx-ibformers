@@ -2,6 +2,11 @@
 
 All notable changes to this repository will be documented in this file.
 
+## [Unreleased] - 2022-xx-xx
+
+### Changed
+- Progress bar in ML Studio will not show 100% until job complete.
+- Improved status messages in ML Studio.
 
 ## [0.1.0] - 2022-01-13
 ### Added
