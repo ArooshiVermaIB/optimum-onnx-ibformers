@@ -62,7 +62,7 @@ parser.add_argument(
 parser.add_argument(
     "--package",
     dest="package",
-    default="ibformers",
+    default="ibformers_extraction",
     help="The name of the package to unpublish",
 )
 parser.add_argument(

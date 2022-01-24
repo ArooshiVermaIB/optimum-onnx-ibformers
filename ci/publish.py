@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from enum import Enum
 import json
 import logging
 import os
@@ -16,6 +17,11 @@ from .lib.config import (
 from .lib.ibapi import Instabase, MarketplaceRequestResponse
 
 
+class PackageType(Enum):
+    EXTRACTION: str = "ibformers_extraction"
+    CLASSIFICATION: str = "ibformers_classification"
+
+
 def version_is_new(
     marketplace_list: MarketplaceRequestResponse, env_name, package_name: str, package_version: str
 ) -> bool:
@@ -23,17 +29,17 @@ def version_is_new(
     Check whether the given package name and package version is present on the given Instabase environment.
     Returns "true" if the given package name-version pair is *absent* from the environment.
     """
-    if marketplace_list['status'] != "OK":
+    if marketplace_list["status"] != "OK":
         raise RuntimeError(f"Failed to retrieve marketplace list for environment '{env_name}'")
-    apps = marketplace_list['apps']
-    published_package_list = [i for i in apps if i['name'] == package_name]
+    apps = marketplace_list["apps"]
+    published_package_list = [i for i in apps if i["name"] == package_name]
     assert (
         len(published_package_list) < 2
     ), f"Found multiple packages in environment '{env_name}' with name '{package_name}'"
     if len(published_package_list) == 0:
         logging.debug(f"No version of {package_name} found on {env_name}")
         return True
-    available_versions = published_package_list[0]['available_versions']
+    available_versions = published_package_list[0]["available_versions"]
     logging.debug(f"Found available versions {available_versions} for {package_name} in {env_name}")
     return package_version not in available_versions
 
@@ -72,13 +78,13 @@ async def publish(package: str, env_name: str):
 
     envs = load_environments()
 
-    package_location = abspath(f'../../{package}')
-    package_json_location = Path(package_location).parent / 'package.json'
+    package_location = abspath(f"../../ibformers")
+    package_json_location = Path(package_location).parent / f"ci/package_config/{package}.json"
     logging.debug(f"Loading package.json from '{package_json_location}'")
     with open(package_json_location) as f:
         package_json = json.load(f)
-    package_name = package_json['name']
-    package_version = package_json['version']
+    package_name = package_json["name"]
+    package_version = package_json["version"]
 
     env_dict = dict(envs).get(env_name)
     if env_dict is None:
@@ -87,36 +93,36 @@ async def publish(package: str, env_name: str):
 
     sdk = Instabase(
         name=env_name,
-        host=env_dict['host'],
-        token=env_dict['token'],
-        root_path=env_dict['path'],
+        host=env_dict["host"],
+        token=env_dict["token"],
+        root_path=env_dict["path"],
     )
 
-    zip_bytes = zip_project(package_location)
+    zip_bytes = zip_project(package_location, package)
 
     return await sync_and_publish(
         sdk,
-        env_dict['path'],
+        env_dict["path"],
         zip_bytes,
         package_name=package_name,
         package_version=package_version,
     )
 
 
-parser = argparse.ArgumentParser(description='Publish ibformers package')
-parser.add_argument('--environment', dest='environment', help="environment package will be published to")
+parser = argparse.ArgumentParser(description="Publish ibformers package")
+parser.add_argument("--environment", dest="environment", help="environment package will be published to")
 
 parser.add_argument(
-    '--log-level',
-    dest='log_level',
-    default='INFO',
+    "--log-level",
+    dest="log_level",
+    default="INFO",
     help="DEBUG, INFO, WARNING, ERROR. Defaults to INFO",
 )
 parser.add_argument(
-    '--package',
-    dest='package',
-    default='ibformers',
-    help="The location of the package to publish, relative to the ibformers root directory, Defaults to ibformers",
+    "--package",
+    dest="package",
+    default=PackageType.EXTRACTION.value,
+    help=f"The location of the package to publish, relative to the ibformers root directory. Options are {PackageType.EXTRACTION.value} and {PackageType.CLASSIFICATION.value}.",
 )
 
 if __name__ == "__main__":
@@ -124,7 +130,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(
         level=namespace.log_level,
-        format='[%(levelname)s] [%(asctime)s] [%(name)s] (%(module)s.%(funcName)s:%(lineno)d) %(message)s',
+        format="[%(levelname)s] [%(asctime)s] [%(name)s] (%(module)s.%(funcName)s:%(lineno)d) %(message)s",
     )
     package = namespace.package
     env_name = namespace.environment

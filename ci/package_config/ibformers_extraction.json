@@ -1,5 +1,5 @@
 {
-  "name": "ibformers",
+  "name": "ibformers_extraction",
   "version": "0.1.0",
   "keywords": "models, transformers",
   "category": "model-training",

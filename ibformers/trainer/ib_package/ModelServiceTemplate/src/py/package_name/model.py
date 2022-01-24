@@ -3,7 +3,7 @@ import json
 import os
 import sys
 
-# TODO: remove once packages paths defined in package.json will be added to PYTHONPATH
+# TODO: remove once packages paths defined in extraction.json will be added to PYTHONPATH
 from datasets.data_files import DataFilesDict
 
 from ibformers.trainer.arguments import EnhancedTrainingArguments

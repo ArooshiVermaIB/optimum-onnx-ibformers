@@ -1,0 +1,40 @@
+{
+  "name": "ibformers_classification",
+  "version": "0.1.0",
+  "keywords": "models, transformers",
+  "category": "model-training",
+  "short_description": "Training scripts for transformers",
+  "long_description": "Training scripts for transformers",
+  "authors": [
+    "Instabase"
+  ],
+  "beta": true,
+  "solution_type": "pypkg",
+  "model_training": {
+    "sources": [
+      "ibformers"
+    ],
+    "function": "ibformers.trainer.docpro_utils.run_train_doc_pro",
+    "function_annotator": "ibformers.trainer.ib_utils.run_train_annotator",
+    "base_models": [
+      {
+        "name": "layout_base",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "gradient_accumulation_steps": 1,
+          "chunk_size": 512,
+          "stride": 64,
+          "epochs": 10,
+          "learning_rate": 5e-05,
+          "scheduler_type": "constant_schedule_with_warmup",
+          "use_mixed_precision": true,
+          "warmup": 0.0,
+          "weight_decay": 0,
+          "class_weights": 1.0,
+          "max_no_annotation_examples_share": 0.7,
+          "model_name": "microsoft/layoutlm-base-uncased"
+        }
+      }
+    ]
+  }
+}

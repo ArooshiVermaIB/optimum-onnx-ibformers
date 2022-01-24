@@ -15,7 +15,7 @@ from typing import List, Dict, Any, NamedTuple, Mapping, Optional, Union
 
 from typing_extensions import TypedDict
 
-from .lib.build import zip_project
+from .lib.build import zip_project, PackageType
 from .lib.config import (
     load_environments,
     PROJECT_ROOT,
@@ -323,7 +323,7 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
     remote_code_loation = "ibformers_%s" % uuid.uuid4().hex
 
     if train:
-        zip_bytes = zip_project(PROJECT_ROOT)
+        zip_bytes = zip_project(PROJECT_ROOT, PackageType.EXTRACTION.value)
         sync_tasks[test_environment] = asyncio.create_task(sync_and_unzip(sdk, zip_bytes, remote_code_loation))
         del zip_bytes
 

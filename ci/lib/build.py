@@ -6,10 +6,10 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 
-TO_SKIP = ["__pycache__", ".DS_Store", "example"]
+TO_SKIP = ["__pycache__", ".DS_Store", ".gitignore"]
 
 
-def zip_project(root_location: str) -> bytes:
+def zip_project(root_location: str, package_type: str) -> bytes:
     """
     Zips the project and returns the bytes of the zip file.
     """
@@ -17,7 +17,9 @@ def zip_project(root_location: str) -> bytes:
     bytesio: BytesIO = BytesIO()
 
     root_dir = os.path.basename(root_location)
-    package_json_path = Path(root_location).parent / "package.json"
+    package_json_path = Path(root_location).parent / f"ci/package_config/{package_type}.json"
+    target_package_json_path = Path(root_location).parent / "package.json"
+
     with zipfile.ZipFile(bytesio, "w") as zip_file:
         for root, dirs, files in os.walk(
             root_location,
@@ -29,13 +31,13 @@ def zip_project(root_location: str) -> bytes:
                 if file.startswith("."):
                     logging.debug(f"Skipping file {file}")
                     continue
-                if file in [".DS_Store", "__pycache__"]:
+                if file in TO_SKIP:
                     continue
                 logging.debug(f"Adding file {file} to zip")
                 file_path = os.path.join(root, file)
                 zip_file.write(file_path, Path(root_dir) / os.path.relpath(file_path, root_location))
 
         logging.debug(f"Adding file package.json to zip")
-        zip_file.write(package_json_path, os.path.relpath(package_json_path, Path(root_location).parent))
+        zip_file.write(package_json_path, os.path.relpath(target_package_json_path, Path(root_location).parent))
 
     return bytesio.getvalue()
