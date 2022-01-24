@@ -8,18 +8,13 @@ import logging
 import os
 from pathlib import Path
 
-from .lib.build import zip_project
+from .lib.build import zip_project, PackageType
 from .lib.config import (
     load_environments,
     REMOTE_TEMP_ZIP_PATH,
     abspath,
 )
 from .lib.ibapi import Instabase, MarketplaceRequestResponse
-
-
-class PackageType(Enum):
-    EXTRACTION: str = "ibformers_extraction"
-    CLASSIFICATION: str = "ibformers_classification"
 
 
 def version_is_new(

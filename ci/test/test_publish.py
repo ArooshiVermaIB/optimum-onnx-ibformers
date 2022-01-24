@@ -8,10 +8,10 @@ import sys
 
 sys.path.append("..")  # Adds higher directory to python modules path.
 
-from ci.lib.build import zip_project
+from ci.lib.build import zip_project, PackageType
 from ci.lib.ibapi import Instabase
 from ci.lib.config import load_environments, abspath
-from ci.publish import sync_and_publish, version_is_new, PackageType
+from ci.publish import sync_and_publish, version_is_new
 
 
 class TestPublish(TestCase):

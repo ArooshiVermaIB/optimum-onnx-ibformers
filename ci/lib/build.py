@@ -9,6 +9,11 @@ from pathlib import Path
 TO_SKIP = ["__pycache__", ".DS_Store", ".gitignore"]
 
 
+class PackageType(Enum):
+    EXTRACTION: str = "ibformers_extraction"
+    CLASSIFICATION: str = "ibformers_classification"
+
+
 def zip_project(root_location: str, package_type: str) -> bytes:
     """
     Zips the project and returns the bytes of the zip file.
