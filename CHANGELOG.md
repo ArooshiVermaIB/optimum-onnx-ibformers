@@ -8,6 +8,9 @@ All notable changes to this repository will be documented in this file.
 - Progress bar in ML Studio will not show 100% until job complete.
 - Improved status messages in ML Studio.
 
+### Fixed
+- Optimize memory usage during prediction for long documents
+
 ## [0.1.0] - 2022-01-13
 ### Added
 - Add early stopping with validation dataset split.

@@ -18,11 +18,11 @@ KEYS_TO_CHUNK = [
 
 def get_chunk_ranges(input_len: int, chunk_size: int, overlap: int) -> List[Tuple[int, int]]:
     # get chunk ranges which will cover whole input size
-    assert chunk_size >= overlap, (
-        "Requested chunk size is smaller than the overlap. "
-        "This could be caused by unusually large number of prefix tokens"
-    )
-    # TODO: should we fail in this case?
+    if overlap > chunk_size // 2:
+        raise ValueError(
+            f"Overlap value ({overlap}) seems to be too high comparing to effective_chunk_size ({chunk_size})"
+            f"This could be caused by unusually large number of prefix tokens or too high stride value"
+        )
 
     if input_len < chunk_size:
         return [(0, input_len)]
@@ -100,7 +100,6 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
     range(3,6) -> [3,4,5]
     """
 
-    # TODO: check how many tokens are added and remove hardcoded "2"
     chunked = {k: _split_by_ranges(example[k], ranges=chunk_ranges) for k in KEYS_TO_CHUNK if k in example}
 
     # add images to chunks

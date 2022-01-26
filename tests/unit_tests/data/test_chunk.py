@@ -87,7 +87,7 @@ class TestChunk(unittest.TestCase):
         overlap = 32
 
         # then
-        with self.assertRaisesRegex(AssertionError, "chunk size is smaller"):
+        with self.assertRaisesRegex(ValueError, "Overlap value"):
             chunk.get_chunk_ranges(input_len, chunk_size, overlap)
 
     def test_get_single_page_chunk_ranges(self):
@@ -272,5 +272,5 @@ class TestChunk(unittest.TestCase):
         chunking_strategy = "ALL_CHUNKS"
 
         # verify
-        with self.assertRaisesRegex(AssertionError, "chunk size is smaller"):
+        with self.assertRaisesRegex(ValueError, "Overlap value"):
             list(fn_to_test(example, tokenizer, max_length, chunking_strategy, chunk_overlap))

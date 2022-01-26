@@ -191,8 +191,12 @@ def join_chunks(
     max_size = chunk_ranges[-1][-1]
     first_chunk = np.array(chunks[0])
     chunk_shape = first_chunk.shape
-    doc_arr = np.full((len(chunks), max_size, *chunk_shape[1:]), fill_value=np.nan)
+
+    # create temporary matrix to do avaraging of overlapping parts -
+    # we make assumption that for given token could belong only to 2 chunks
+    doc_arr = np.full((2, max_size, *chunk_shape[1:]), fill_value=np.nan)
     for i, (chunk, rng, content_mask) in enumerate(zip(chunks, chunk_ranges, content_mask_lst)):
+        is_even = i % 2
         rng_len = rng[1] - rng[0]
         # for the last chunk there might be padding so content mask will have different length
         if content_mask is None:
@@ -202,7 +206,7 @@ def join_chunks(
             content_chunk = chunk[content_mask_with_padding]
 
         assert len(content_chunk) == rng_len, "Length of content in the chunk should be equal to chunk range length"
-        doc_arr[i, rng[0] : rng[1]] = content_chunk
+        doc_arr[is_even, rng[0] : rng[1]] = content_chunk
 
     doc_arr_mean = np.nanmean(doc_arr, axis=0)
 

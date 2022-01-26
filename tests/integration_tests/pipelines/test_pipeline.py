@@ -24,6 +24,7 @@ class TestPipeline(unittest.TestCase):
             ("layoutlmv2_sl", "microsoft/layoutlmv2-base-uncased"),
             ("laymqav1", "instabase/laymqav1-base"),
             ("layoutlm_mlm", "microsoft/layoutlm-base-uncased"),
+            ("single_qa", "bert-base-cased"),
         ]
         cls.pipeline_tokenizer_pairs = [
             (pipeline_name, AutoTokenizer.from_pretrained(model_name, use_auth_token=HF_TOKEN))
@@ -96,7 +97,7 @@ class TestPipeline(unittest.TestCase):
         dataset = create_dataset_from_examples(example_list)
 
         # then
-        self._test_pipelines_on_dataset(dataset, False, 32, 4)
+        self._test_pipelines_on_dataset(dataset, False, 64, 4)
 
 
 if __name__ == "__main__":
