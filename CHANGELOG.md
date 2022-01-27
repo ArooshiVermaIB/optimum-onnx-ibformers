@@ -7,6 +7,8 @@ All notable changes to this repository will be documented in this file.
 ### Changed
 - Progress bar in ML Studio will not show 100% until job complete.
 - Improved status messages in ML Studio.
+- Changed the naming of the package (ibformers_extraction)
+- Changed default hyperparameters for base models
 
 ### Fixed
 - Optimize memory usage during prediction for long documents
