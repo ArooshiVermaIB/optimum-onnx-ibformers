@@ -52,52 +52,6 @@ UberEatsReceiptsProd:
       total: 0.95
 
 
-UberEatsQA:
-  env:
-    - dogfood
-  model_project_path: ml_studio_models/uber_eats
-  dataset_project_path: ml_studio_datasets/uber_eats
-  time_limit: 2000
-  config:
-    <<: *defaults
-    epochs: 10
-    model_name: bert-base-uncased
-    pipeline_name: single_qa
-  metrics:
-    precision:
-      date: 0.5
-      total: 0.5
-    recall:
-      date: 0.5
-      total: 0.5
-    f1:
-      date: 0.5
-      total: 0.5
-
-
-UberEatsQAProd:
-  env:
-    - prod
-  model_project_path: ml_studio_models_prod/uber_eats
-  dataset_project_path: ml_studio_datasets_prod/uber_eats
-  time_limit: 2000
-  config:
-    <<: *defaults
-    epochs: 10
-    model_name: bert-base-uncased
-    pipeline_name: single_qa
-  metrics:
-    precision:
-      date: 0.5
-      total: 0.5
-    recall:
-      date: 0.5
-      total: 0.5
-    f1:
-      date: 0.5
-      total: 0.5
-
-
 UberEatsBERT:
   env: []
   model_project_path: ml_studio_models/uber_eats
@@ -276,3 +230,49 @@ NYDriversLicensesXLMProd:
       DL Number: 0.5
       Name: 0.5
       Address: 0.5
+
+
+NYDriversLicensesQA:
+  env:
+    - dogfood
+  model_project_path: ml_studio_models/driver_licenses
+  dataset_project_path: ml_studio_datasets/driver_licenses
+  time_limit: 2500
+  config:
+    <<: *defaults
+    epochs: 10
+    model_name: bert-base-uncased
+    pipeline_name: single_qa
+  metrics:
+    precision:
+      date: 0.5
+      total: 0.5
+    recall:
+      date: 0.5
+      total: 0.5
+    f1:
+      date: 0.5
+      total: 0.5
+
+
+NYDriversLicensesQAProd:
+  env:
+    - dogfood
+  model_project_path: ml_studio_models_prod/driver_licenses
+  dataset_project_path: ml_studio_datasets_prod/driver_licenses
+  time_limit: 2500
+  config:
+    <<: *defaults
+    epochs: 10
+    model_name: bert-base-uncased
+    pipeline_name: single_qa
+  metrics:
+    precision:
+      date: 0.5
+      total: 0.5
+    recall:
+      date: 0.5
+      total: 0.5
+    f1:
+      date: 0.5
+      total: 0.5
