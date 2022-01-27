@@ -121,7 +121,6 @@ class DocProCallback(TrainerCallback):
     # list of files/dirs which will not be copied into the package
     ibformers_do_not_copy = ["hf_token.py"]
 
-
     # For UX purposes, avoid setting progress bar to 100% until upload finishes
     PROGRESS_BAR_LIMIT: float = 0.95
 
@@ -192,7 +191,7 @@ class DocProCallback(TrainerCallback):
         logging.info("Final state of the Model Artifact folder structure:")
         _print_dir(self.save_folder)
 
-        self.job_metadata_client.update_message("Uploading model.", log=True)
+        self.update_message("Uploading model.", log=True)
         upload_dir(
             sdk=self.ibsdk,
             local_folder=self.save_folder,
@@ -207,7 +206,7 @@ class DocProCallback(TrainerCallback):
                 full_ib_path = os.path.join(self.ib_save_path, path)
                 self.ibsdk.unzip(full_ib_path, os.path.splitext(full_ib_path)[0], remove=True)
             logging.info("Unzipped model files")
-        
+
         self.set_status({"progress": 1.0})
 
     def update_message(self, message: str, log: bool = False):
