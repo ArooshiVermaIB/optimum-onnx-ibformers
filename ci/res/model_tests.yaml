@@ -245,14 +245,17 @@ NYDriversLicensesQA:
     pipeline_name: single_qa
   metrics:
     precision:
-      date: 0.5
-      total: 0.5
+      DL Number: 0.5
+      Name: 0.5
+      Address: 0.5
     recall:
-      date: 0.5
-      total: 0.5
+      DL Number: 0.5
+      Name: 0.5
+      Address: 0.5
     f1:
-      date: 0.5
-      total: 0.5
+      DL Number: 0.5
+      Name: 0.5
+      Address: 0.5
 
 
 NYDriversLicensesQAProd:
@@ -268,11 +271,14 @@ NYDriversLicensesQAProd:
     pipeline_name: single_qa
   metrics:
     precision:
-      date: 0.5
-      total: 0.5
+      DL Number: 0.5
+      Name: 0.5
+      Address: 0.5
     recall:
-      date: 0.5
-      total: 0.5
+      DL Number: 0.5
+      Name: 0.5
+      Address: 0.5
     f1:
-      date: 0.5
-      total: 0.5
+      DL Number: 0.5
+      Name: 0.5
+      Address: 0.5
