@@ -244,18 +244,19 @@ NYDriversLicensesQA:
     model_name: bert-base-uncased
     pipeline_name: single_qa
   metrics:
+    # TODO: stablize metrics to a higher value
     precision:
-      DL Number: 0.5
-      Name: 0.5
-      Address: 0.5
+      DL Number: 0.1
+      Name: 0.1
+      Address: 0.1
     recall:
-      DL Number: 0.5
-      Name: 0.5
-      Address: 0.5
+      DL Number: 0.1
+      Name: 0.1
+      Address: 0.1
     f1:
-      DL Number: 0.5
-      Name: 0.5
-      Address: 0.5
+      DL Number: 0.1
+      Name: 0.1
+      Address: 0.1
 
 
 NYDriversLicensesQAProd:
@@ -270,15 +271,16 @@ NYDriversLicensesQAProd:
     model_name: bert-base-uncased
     pipeline_name: single_qa
   metrics:
+    # TODO: stablize metrics to a higher value
     precision:
-      DL Number: 0.5
-      Name: 0.5
-      Address: 0.5
+      DL Number: 0.1
+      Name: 0.1
+      Address: 0.1
     recall:
-      DL Number: 0.5
-      Name: 0.5
-      Address: 0.5
+      DL Number: 0.1
+      Name: 0.1
+      Address: 0.1
     f1:
-      DL Number: 0.5
-      Name: 0.5
-      Address: 0.5
+      DL Number: 0.1
+      Name: 0.1
+      Address: 0.1
