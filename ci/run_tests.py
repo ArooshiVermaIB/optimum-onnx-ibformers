@@ -165,7 +165,7 @@ async def run_inference_test(
         "Repeating 10 times to capture multiple potential pods."
     )
     for _ in range(10):
-        await sdk.unload_model(model_name)
+        await sdk.unload_model(model_name, model_version)
 
     prediction_path = training_job_path / "predictions"
     logger.debug(f"get predictions results from training job predictions path: {prediction_path}")

@@ -113,12 +113,12 @@ class Instabase:
         ),
         max_tries=3,
     )
-    async def unload_model(self, model_name: str) -> Dict[str, Any]:
+    async def unload_model(self, model_name: str, model_version: str) -> Dict[str, Any]:
         url = os.path.join(self._host, "api/v1/model-service/unload_model")
 
-        self.logger.debug(f"{self.name}: Unloading model with name <{model_name}>")
+        self.logger.debug(f"{self.name}: Unloading model with name <{model_name}> and version <{model_version}>")
 
-        data = dict(model_name=model_name)
+        data = dict(model_name=model_name, model_version=model_version)
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 url,
@@ -179,13 +179,17 @@ class Instabase:
                 resp = await r.json()
 
         self.logger.info("waiting for creating ibsolution")
-        results = await self.wait_for_job_completion(resp["job_id"], wait_time=1, is_async=True)
+
+        results = None
+        if "job_id" in resp:
+            results = await self.wait_for_job_completion(resp["job_id"], wait_time=1, is_async=True)
+
         if results:
             if results["status"] == "OK":
                 self.logger.debug(f"{self.name}: response was: {results}")
                 return True, results.get("solution_path")
-            else:
-                self.logger.error(f"{self.name}: Server Error: {results}")
+
+        self.logger.error(f"{self.name}: Server Error: {resp}")
         return False, results
 
     @backoff.on_exception(
@@ -215,7 +219,11 @@ class Instabase:
                 resp = await r.json()
 
         self.logger.info("waiting for publishing ibsolution")
-        results = await self.wait_for_job_completion(resp["job_id"], wait_time=1, is_async=True)
+
+        results = None
+        if "job_id" in resp:
+            results = await self.wait_for_job_completion(resp["job_id"], wait_time=1, is_async=True)
+
         if results:
             if results["status"] == "OK":
                 self.logger.debug(f"{self.name}: response was: {results}")
