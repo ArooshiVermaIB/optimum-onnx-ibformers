@@ -418,7 +418,7 @@ class DocProDs(datasets.GeneratorBasedBuilder):
             description="Instabase Format Datasets",
         ),
     ]
-    DEFAULT_WRITER_BATCH_SIZE = 100
+    DEFAULT_WRITER_BATCH_SIZE = 8
 
     def __init__(self, *args, **kwargs):
         super(DocProDs, self).__init__(*args, **kwargs)

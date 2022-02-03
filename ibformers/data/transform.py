@@ -209,6 +209,8 @@ def token_spans_to_start_end(example, **kwargs):
     spans are relative to context tokens only but start and end positions in QA
     should be relative to model input (question/prefix + context) tokens.
     """
+    # TODO: possibly refactor this fuction as this would require entities saved for each chunk
+    #  while, with save_memory=True entities are saved only for first chunk in doc
     token_spans = example["entities"]["token_spans"][0]
     if not token_spans:  # no answer
         return {"start_positions": 0, "end_positions": 0}

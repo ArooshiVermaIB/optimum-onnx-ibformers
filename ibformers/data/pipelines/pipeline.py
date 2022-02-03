@@ -1,6 +1,7 @@
 import logging
 from functools import partial
 
+from datasets import Dataset
 from transformers import AutoModelForTokenClassification, AutoModelForMaskedLM, AutoModelForQuestionAnswering
 
 from ibformers.data.chunk import produce_chunks
@@ -32,9 +33,7 @@ def chain(example_batch, fn_lst, **kwargs):
     return example_batch
 
 
-def pipeline_preprocess(
-    dataset, fn_lst, chain_functions=True, fn_kwargs=None, batch_size=128, num_proc=4, **map_kwargs
-):
+def pipeline_preprocess(dataset, fn_lst, chain_functions=True, fn_kwargs=None, batch_size=4, num_proc=4, **map_kwargs):
     """
     :param dataset: hf/dataset used for preprocessing
     :param fn_lst: list of functions to apply (via map method) to the dataset
@@ -53,7 +52,7 @@ def pipeline_preprocess(
 
     for fn_idx, fn in enumerate(fn_lst):
         logging.debug(f"apply function number {fn_idx} in the pipeline")
-        ds = ds.map(
+        ds: Dataset = ds.map(
             fn,
             batched=True,
             batch_size=batch_size,
@@ -171,6 +170,7 @@ plain_sl = {
 single_qa = {
     "dataset_load_kwargs": {"use_image": False},
     "preprocess": [build_prefix_single_qa, tokenize, produce_chunks, token_spans_to_start_end],
+    "preprocess_kwargs": {"save_memory": False},  # token_spans_to_start_end is after chunking and it requires entities
     "column_mapping": [("token_label_ids", "labels")],
     "collate": get_collator_class(),
     "model_class": AutoModelForQuestionAnswering,

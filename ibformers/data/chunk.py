@@ -13,6 +13,7 @@ KEYS_TO_CHUNK = [
     "word_starts",
     "word_map",
     "token_page_nums",
+    "attention_mask",
 ]
 
 
@@ -59,7 +60,7 @@ def get_single_page_chunk_ranges(input_len, chunk_size, overlap, page_nums):
 
 @feed_single_example_and_flatten
 def produce_chunks(
-    example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS", chunk_overlap=64, **kwargs
+    example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS", chunk_overlap=64, save_memory=True, **kwargs
 ) -> Sequence:
     """
     Produce chunks of required lenght
@@ -68,6 +69,7 @@ def produce_chunks(
     :param max_length: maximum lenght of the chunk (including special tokens)
     :param chunking_strategy: strategy of splitting documents into chunks
     :param chunk_overlap: overlap between consecutive chunks
+    :param save_memory: optimize memory usage by storing some document-level objects only in the first chunk
     :param kwargs:
     :return: yield single chunks
     """
@@ -82,16 +84,30 @@ def produce_chunks(
 
     if chunking_strategy == "ALL_CHUNKS":
         chunk_ranges = get_chunk_ranges(input_len, max_length - prefix_len - 2, chunk_overlap)
-        return get_chunks(example, tokenizer, chunk_ranges)
+        return get_chunks(example, tokenizer, chunk_ranges, save_memory)
     elif chunking_strategy == "SINGLE_PAGES":
         page_nums = example.get("token_page_nums")
         chunk_ranges = get_single_page_chunk_ranges(input_len, max_length - prefix_len - 2, chunk_overlap, page_nums)
-        return get_chunks(example, tokenizer, chunk_ranges)
+        return get_chunks(example, tokenizer, chunk_ranges, save_memory)
     else:
         raise ValueError(f"{chunking_strategy} is not implemented")
 
 
-def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
+def get_empty_like(v):
+    if isinstance(v, List):
+        return []
+    elif isinstance(v, np.ndarray):
+        new_shape = [1] + list(v.shape[1:])
+        return np.zeros_like(v, shape=new_shape)
+    elif isinstance(v, (str, int, float)):
+        return v
+    elif isinstance(v, dict):
+        return dict()
+    else:
+        raise ValueError(f"{v} object have unsupported type for creating empty like object")
+
+
+def get_chunks(example, tokenizer, chunk_ranges, save_memory=True) -> Sequence[Mapping]:
     """
     Input ID: [1,2,3,4,5,6]
     Chunked: [1,2,3], [4,5,6]
@@ -126,11 +142,18 @@ def get_chunks(example, tokenizer, chunk_ranges) -> Sequence[Mapping]:
     # We're transposing now to make it easier to "flatten" the document into essentially independent examples
     transposed = [{k: v[i] for k, v in chunked.items()} for i, _ in enumerate(chunked["input_ids"])]
 
-    # TODO: we might want to chunk also global objects like words, images etc.
-    #  to not duplicate these large objects for each chunk
-    transposed_plus_other_keys = [{**i, **{k: example[k] for k in other_keys}} for i in transposed]
+    # global objects which are not chunked will be stored only in the first chunk of the doc
+    # that should save memory usage for very long documents
+    full_global = {k: example[k] for k in other_keys}
+    empty_global = {k: get_empty_like(v) for k, v in full_global.items()}
 
-    for chunk in transposed_plus_other_keys:
+    for idx, chunk_ in enumerate(transposed):
+        # add remaining keys to chunk
+        if save_memory and idx > 0:
+            chunk = {**chunk_, **empty_global}
+        else:
+            chunk = {**chunk_, **full_global}
+
         # For some reason, return_special_tokens_mask=True doesn't work correctly here...
         # doing it in two steps is a workaround
         chunk_input_ids = example.get("prefix_input_ids", []) + chunk["input_ids"]
