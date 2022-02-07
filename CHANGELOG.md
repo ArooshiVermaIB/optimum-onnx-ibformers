@@ -4,7 +4,7 @@ All notable changes to this repository will be documented in this file.
 
 ## [Unreleased] - 2022-xx-xx
 
-### Changed
+## [0.3.0] - 2022-02-07
 
 ### Fixed
 - Optimize memory usage during data preparation for long documents
