@@ -174,9 +174,17 @@ def compute_legacy_metrics_for_mqa(predictions: Tuple, dataset: Dataset):
 
     preds, labels = predictions
     new_preds, new_labels = [], []
-
+    last_used_label_ids = None
     for pred, lab, doc in zip(preds, labels, dataset):
-        reorder_index = np.array([0] + doc["entities"]["used_label_id"])
+
+        # for performance reasons, only the first chunk in document contains "global"
+        # columns, such as "entities"
+        if doc["entities"]["used_label_id"] is None:
+            label_ids = last_used_label_ids
+        else:
+            label_ids = doc["entities"]["used_label_id"]
+            last_used_label_ids = doc["entities"]["used_label_id"]
+        reorder_index = np.array([0] + label_ids)
         new_pred = pred[:, reorder_index]
         map_dict = {v: idx for idx, v in enumerate(reorder_index)}
         map_dict[-100] = -100

@@ -4,6 +4,9 @@ All notable changes to this repository will be documented in this file.
 
 ## [Unreleased] - 2022-xx-xx
 
+### Fixed
+- Fix predict dataset for MQA model
+
 ## [0.3.0] - 2022-02-07
 
 ### Fixed

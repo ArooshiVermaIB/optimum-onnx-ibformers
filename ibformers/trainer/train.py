@@ -306,18 +306,22 @@ def run_train(
             raise ValueError("--do_predict requires a predict dataset")
         test_dataset = raw_datasets["test"]
         predict_raw_dataset = raw_datasets["predict"]
+
         if data_args.max_predict_samples is not None:
             test_dataset = test_dataset.select(range(data_args.max_predict_samples))
             predict_raw_dataset = predict_raw_dataset.select(range(data_args.max_predict_samples))
-        # with training_args.main_process_first(desc="prediction dataset map pre-processing"):
-        test_dataset = prepare_dataset(test_dataset, pipeline, **map_kwargs)
-        predict_raw_dataset = prepare_dataset(predict_raw_dataset, pipeline, **map_kwargs)
 
-        # we have to check this manually, since the predict_raw_dataset will have different column set if empty
+        test_ids = set(test_dataset["id"])
+
         if len(predict_raw_dataset) > 0:
-            predict_dataset = datasets.concatenate_datasets([test_dataset, predict_raw_dataset])
+            joint_test_predict = datasets.concatenate_datasets([test_dataset, predict_raw_dataset])
         else:
-            predict_dataset = test_dataset
+            joint_test_predict = test_dataset
+
+        joint_test_predict = prepare_dataset(joint_test_predict, pipeline, **map_kwargs)
+
+        test_dataset = joint_test_predict.filter(lambda x: x["id"] in test_ids)
+        predict_dataset = joint_test_predict
 
     config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset)
 

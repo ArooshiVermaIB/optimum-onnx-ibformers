@@ -46,3 +46,10 @@ microsoft/layoutlmv2-large-uncased:
   git_url: https://huggingface.co/microsoft/layoutlmv2-large-uncased
   package_name: layoutlmv2-large-uncased
   active: false
+
+instabase/laymqav1-base:
+  version: 0.0.1
+  name: LayoutMultiQA
+  git_url: https://huggingface.co/instabase/laymqav1-base
+  package_name: laymqav1-base
+  active: false
