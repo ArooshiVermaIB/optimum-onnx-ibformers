@@ -96,19 +96,21 @@ pipeline {
                         }
                     }
                     post {
-                        success {
-                            dir ('.') {
-                                ansiColor('xterm') {
-                                    sh '''#!/bin/bash
-                                    cd ci/
-                                    IB_TEST_ENV=doc-insights-sandbox make run-docker-publish
-                                    '''
+                        if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
+                            success {
+                                dir ('.') {
+                                    ansiColor('xterm') {
+                                        sh '''#!/bin/bash
+                                        cd ci/
+                                        IB_TEST_ENV=doc-insights-sandbox make run-docker-publish
+                                        '''
+                                    }
                                 }
+                                postResultsToSlack('doc-insights-sandbox', 'good')
                             }
-                            postResultsToSlack('doc-insights-sandbox', 'good')
-                        }
-                        unsuccessful {
-                            postResultsToSlack('doc-insights-sandbox', 'danger')
+                            unsuccessful {
+                                postResultsToSlack('doc-insights-sandbox', 'danger')
+                            }
                         }
                     }
                 }
@@ -124,19 +126,51 @@ pipeline {
                         }
                     }
                     post {
-                        success {
-                            dir ('.') {
-                                ansiColor('xterm') {
-                                    sh '''#!/bin/bash
-                                    cd ci/
-                                    IB_TEST_ENV=dogfood make run-docker-publish
-                                    '''
+                        if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
+                            success {
+                                dir ('.') {
+                                    ansiColor('xterm') {
+                                        sh '''#!/bin/bash
+                                        cd ci/
+                                        IB_TEST_ENV=dogfood make run-docker-publish
+                                        '''
+                                    }
                                 }
+                                postResultsToSlack('dogfood', 'good')
                             }
-                            postResultsToSlack('dogfood', 'good')
+                            unsuccessful {
+                                postResultsToSlack('dogfood', 'danger')
+                            }
                         }
-                        unsuccessful {
-                            postResultsToSlack('dogfood', 'danger')
+                    }
+                }
+                stage ('[Run ibformer tests on uat and publish if run successfully]') {
+                    steps {
+                        dir ('.') {
+                            ansiColor('xterm') {
+                                sh '''#!/bin/bash
+                                cd ci/
+                                IB_TEST_ENV=uat make run-docker-test
+                                '''
+                            }
+                        }
+                    }
+                    post {
+                        if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
+                            success {
+                                dir ('.') {
+                                    ansiColor('xterm') {
+                                        sh '''#!/bin/bash
+                                        cd ci/
+                                        IB_TEST_ENV=uat make run-docker-publish
+                                        '''
+                                    }
+                                }
+                                postResultsToSlack('uat', 'good')
+                            }
+                            unsuccessful {
+                                postResultsToSlack('uat', 'danger')
+                            }
                         }
                     }
                 }
@@ -152,19 +186,21 @@ pipeline {
                         }
                     }
                     post {
-                        success {
-                            dir ('.') {
-                                ansiColor('xterm') {
-                                    sh '''#!/bin/bash
-                                    cd ci/
-                                    IB_TEST_ENV=prod make run-docker-publish
-                                    '''
+                        if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
+                            success {
+                                dir ('.') {
+                                    ansiColor('xterm') {
+                                        sh '''#!/bin/bash
+                                        cd ci/
+                                        IB_TEST_ENV=prod make run-docker-publish
+                                        '''
+                                    }
                                 }
+                                postResultsToSlack('prod', 'good')
                             }
-                            postResultsToSlack('prod', 'good')
-                        }
-                        unsuccessful {
-                            postResultsToSlack('prod', 'danger')
+                            unsuccessful {
+                                postResultsToSlack('prod', 'danger')
+                            }
                         }
                     }
                 }
