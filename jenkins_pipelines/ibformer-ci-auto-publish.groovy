@@ -31,12 +31,13 @@ def postResultsToSlack(environment, color) {
         color: color,
         message: "${currentBuild.fullDisplayName} from ${RELEASE_BRANCH} was ${currentBuild.currentResult.toLowerCase()} in environment ${environment}! See ${BUILD_URL}console for more information.",
     )
-
-    slackSend(
-        botUser: true,
-        channel: slackResponseBad.threadId,
-        message: "Latest Commit: ```${LAST_GIT_COMMIT}```\n\nChange Log:\n```${CHANGE_LOG}```\n",
-    )
+    if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
+        slackSend(
+            botUser: true,
+            channel: slackResponseBad.threadId,
+            message: "Latest Commit: ```${LAST_GIT_COMMIT}```\n\nChange Log:\n```${CHANGE_LOG}```\n",
+        )
+    }
 }
 
 
@@ -96,21 +97,19 @@ pipeline {
                         }
                     }
                     post {
-                        if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
-                            success {
-                                dir ('.') {
-                                    ansiColor('xterm') {
-                                        sh '''#!/bin/bash
-                                        cd ci/
-                                        IB_TEST_ENV=doc-insights-sandbox make run-docker-publish
-                                        '''
-                                    }
+                        success {
+                            dir ('.') {
+                                ansiColor('xterm') {
+                                    sh '''#!/bin/bash
+                                    cd ci/
+                                    IB_TEST_ENV=doc-insights-sandbox make run-docker-publish
+                                    '''
                                 }
-                                postResultsToSlack('doc-insights-sandbox', 'good')
                             }
-                            unsuccessful {
-                                postResultsToSlack('doc-insights-sandbox', 'danger')
-                            }
+                            postResultsToSlack('doc-insights-sandbox', 'good')
+                        }
+                        unsuccessful {
+                            postResultsToSlack('doc-insights-sandbox', 'danger')
                         }
                     }
                 }
@@ -126,51 +125,19 @@ pipeline {
                         }
                     }
                     post {
-                        if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
-                            success {
-                                dir ('.') {
-                                    ansiColor('xterm') {
-                                        sh '''#!/bin/bash
-                                        cd ci/
-                                        IB_TEST_ENV=dogfood make run-docker-publish
-                                        '''
-                                    }
+                        success {
+                            dir ('.') {
+                                ansiColor('xterm') {
+                                    sh '''#!/bin/bash
+                                    cd ci/
+                                    IB_TEST_ENV=dogfood make run-docker-publish
+                                    '''
                                 }
-                                postResultsToSlack('dogfood', 'good')
                             }
-                            unsuccessful {
-                                postResultsToSlack('dogfood', 'danger')
-                            }
+                            postResultsToSlack('dogfood', 'good')
                         }
-                    }
-                }
-                stage ('[Run ibformer tests on uat and publish if run successfully]') {
-                    steps {
-                        dir ('.') {
-                            ansiColor('xterm') {
-                                sh '''#!/bin/bash
-                                cd ci/
-                                IB_TEST_ENV=uat make run-docker-test
-                                '''
-                            }
-                        }
-                    }
-                    post {
-                        if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
-                            success {
-                                dir ('.') {
-                                    ansiColor('xterm') {
-                                        sh '''#!/bin/bash
-                                        cd ci/
-                                        IB_TEST_ENV=uat make run-docker-publish
-                                        '''
-                                    }
-                                }
-                                postResultsToSlack('uat', 'good')
-                            }
-                            unsuccessful {
-                                postResultsToSlack('uat', 'danger')
-                            }
+                        unsuccessful {
+                            postResultsToSlack('dogfood', 'danger')
                         }
                     }
                 }
@@ -186,21 +153,19 @@ pipeline {
                         }
                     }
                     post {
-                        if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
-                            success {
-                                dir ('.') {
-                                    ansiColor('xterm') {
-                                        sh '''#!/bin/bash
-                                        cd ci/
-                                        IB_TEST_ENV=prod make run-docker-publish
-                                        '''
-                                    }
+                        success {
+                            dir ('.') {
+                                ansiColor('xterm') {
+                                    sh '''#!/bin/bash
+                                    cd ci/
+                                    IB_TEST_ENV=prod make run-docker-publish
+                                    '''
                                 }
-                                postResultsToSlack('prod', 'good')
                             }
-                            unsuccessful {
-                                postResultsToSlack('prod', 'danger')
-                            }
+                            postResultsToSlack('prod', 'good')
+                        }
+                        unsuccessful {
+                            postResultsToSlack('prod', 'danger')
                         }
                     }
                 }
