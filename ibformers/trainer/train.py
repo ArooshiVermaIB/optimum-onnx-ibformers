@@ -61,6 +61,7 @@ from ibformers.trainer.train_utils import (
     split_eval_from_train,
     validate_dataset_sizes,
 )
+from ibformers.trainer import metrics_utils
 from ibformers.trainer.trainer import IbTrainer
 
 require_version(
@@ -285,6 +286,15 @@ def run_train(
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets["train"]
+
+        if "ibsdk" in extra_load_kwargs:
+            metrics_utils.increment_document_counter(
+                train_dataset,
+                ib_args.job_metadata_client.job_id,
+                ib_args.model_name,
+                ib_args.username,
+            )
+
         if data_args.max_train_samples is not None:
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
         with training_args.main_process_first(desc="train dataset map pre-processing"):
