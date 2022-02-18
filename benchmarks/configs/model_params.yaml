@@ -7,7 +7,7 @@ _default:
     gradient_accumulation_steps: 1
     max_length: 512
     chunk_overlap: 64
-    num_train_epochs: 15
+    num_train_epochs: 40  # mind the early stopping!
     learning_rate: 5.e-5
     optimizer_type: AdamW
     scheduler_type: constant_with_warmup

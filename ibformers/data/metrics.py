@@ -164,6 +164,14 @@ def compute_legacy_metrics_for_sl(
     return results
 
 
+def compute_only_legacy_metrics_for_sl(
+    predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None
+) -> Dict[str, Any]:
+    results = compute_legacy_metrics_for_sl(predictions, dataset, label_list)
+    results.pop("predictions")
+    return results
+
+
 def compute_legacy_metrics_for_mqa(predictions: Tuple, dataset: Dataset):
     """
     Function will recompute predictions and labels from extra token head to match sequence labeling format

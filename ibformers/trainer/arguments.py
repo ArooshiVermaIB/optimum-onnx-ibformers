@@ -8,6 +8,7 @@ from typing import Optional, Any, Dict, TypeVar, Tuple
 
 from transformers import HfArgumentParser, TrainingArguments
 from transformers.hf_argparser import DataClass
+from transformers import is_optuna_available
 
 
 @dataclass
@@ -66,6 +67,72 @@ class EnhancedTrainingArguments(TrainingArguments):
     Extra training arguments passed to the training loop. Enhance to the transformers.TrainingArguments
     """
 
+    do_hyperparam_optimization: bool = field(
+        default=False,
+        metadata={
+            "help": "If true, the hyperparamsearch will be conducted before the training. The best parameters"
+            "will be then used to train the model."
+        },
+    )
+
+    hp_search_output_dir: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Output path for hyperparam optimization. Will contain search results. If not provided, output "
+            "path for training will be used."
+        },
+    )
+
+    hp_search_objective_name: str = field(
+        default="eval_macro_f1", metadata={"help": "Metric used as an objective for hyperparam optimization."}
+    )
+
+    hp_search_do_minimize_objective: bool = field(
+        default=False,
+        metadata={"help": "If set, the hyperparam search will minimize the objective instead " "of maximizing it. "},
+    )
+
+    hp_search_disable_eval: bool = field(
+        default=False,
+        metadata={
+            "help": "If set, the training runs for hyperparameter search will skip evaluation mid-training. "
+            "This will save some time but will disallow optuna to perform experiment pruning. "
+        },
+    )
+
+    hp_search_force_disable_early_stopping: bool = field(
+        default=False,
+        metadata={
+            "help": "If set, the training runs for hyperparameter search will have disabled early stopping, "
+            "regardless of the value of `early_stopping_patience` parameter. "
+        },
+    )
+
+    hp_search_keep_trial_artifacts: bool = field(
+        default=False,
+        metadata={
+            "help": "If set, artifacts from each trial will be kept in hp_search_output_dir. Warning: this "
+            "might require a lot of free space."
+        },
+    )
+    hp_search_log_trials_to_wandb: bool = field(
+        default=True,
+        metadata={
+            "help": "If set, all trials will be reported to wandb. The runs will be reported in more efficient "
+            "way, where only the config and the final results are logged."
+        },
+    )
+
+    hp_search_config_file: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to custom hyperparam space configuration file. If not provided, default will be used."},
+    )
+
+    hp_search_num_trials: int = field(
+        default=50,
+        metadata={"help": "Number of trials for hyperparam optimization."},
+    )
+
     class_weights: float = field(
         default=1.0,
         metadata={"help": "Will be used to change the weight of the classes during loss computation"},
@@ -83,9 +150,29 @@ class EnhancedTrainingArguments(TrainingArguments):
     )
 
     def __post_init__(self):
+        # superclass will overwrite this param. We want to keep the raw value to know if we should
+        # disable eval after hyperparam search
+        self.requested_do_eval = self.do_eval
         super().__post_init__()
         if self.class_weights > 1 and "labels" and self.label_smoothing_factor != 0.0:
             logging.warning("cannot support both label smoothing and class weighting. Label smoothing will be ignored")
+
+        if (
+            self.do_hyperparam_optimization
+            and self.hp_search_do_minimize_objective
+            and "loss" not in self.hp_search_objective_name
+        ):
+            logging.warning(
+                "Requested to minimize the objective for hyperparam search, but the objecive name "
+                "does not seem like a loss function. Ignore this message if this is intended. "
+            )
+
+        if self.do_hyperparam_optimization and not is_optuna_available():
+            logging.warning(
+                "Requested to do the hyperparam optimization, but optuna is not available. "
+                "Disabling hyperparam optimization."
+            )
+            self.do_hyperparam_optimization = False
 
 
 @dataclass
@@ -246,33 +333,24 @@ class IbArguments:
 T = TypeVar("T", bound=Tuple[DataClass, ...])
 
 
-def update_params_with_commandline(param_dataclasses: T) -> T:
+def get_matching_commandline_params(parser: HfArgumentParser) -> Dict[str, Any]:
     """
-    Update the values of input dataclasses with the values passed in CLI.
+    Extract CLI params that are compatible with the provided parser.
 
-    Useful if the user want to overwrite base parameters from configuration with custom values.
-
+    Note: the CLI params does not have to contain all the required params - we just extract
+    the ones that can be parsed and return them as dict.
 
     Args:
-        param_dataclasses: Tuple of dataclasses to update
+        parser: HfArgumentParser to use. It will be re-created to allow necessary modifications
 
-    Returns:
-        Tuple of updated dataclasses, in the same order as the input ones.
+    Returns: Dictionary of parsed hyperparams.
 
     """
-    outputs = []
+    parser_to_modify = HfArgumentParser(parser.dataclass_types)
 
-    for param_dataclass in param_dataclasses:
-        parser = HfArgumentParser(type(param_dataclass))
+    for action in parser_to_modify._actions:
+        action.default = argparse.SUPPRESS
+        action.required = False
 
-        for action in parser._actions:
-            action.default = argparse.SUPPRESS
-            action.required = False
-
-        parsed, _ = parser.parse_known_args()
-        new_params = deepcopy(param_dataclass)
-        for key, value in vars(parsed).items():
-            setattr(new_params, key, value)
-
-        outputs.append(new_params)
-    return (*outputs,)
+    parsed, _ = parser_to_modify.parse_known_args()
+    return vars(parsed)

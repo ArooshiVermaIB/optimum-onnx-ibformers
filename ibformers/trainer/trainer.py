@@ -1,13 +1,22 @@
 import collections
 import sys
 from logging import StreamHandler
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Callable, Union
 import numpy as np
 import torch
 from datasets import IterableDataset
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
-from transformers.integrations import WandbCallback, is_wandb_available
+from transformers.integrations import (
+    WandbCallback,
+    is_wandb_available,
+    run_hp_search_ray,
+    run_hp_search_sigopt,
+    default_hp_search_backend,
+    is_optuna_available,
+    is_ray_tune_available,
+    is_sigopt_available,
+)
 from transformers.trainer import Trainer
 from transformers import EvalPrediction, is_torch_tpu_available, AdamW
 from transformers.file_utils import (
@@ -23,10 +32,18 @@ from transformers.trainer_pt_utils import (
     nested_numpify,
     find_batch_size,
 )
-from transformers.trainer_utils import EvalLoopOutput, denumpify_detensorize, PredictionOutput
+from transformers.trainer_utils import (
+    EvalLoopOutput,
+    denumpify_detensorize,
+    PredictionOutput,
+    HPSearchBackend,
+    default_hp_space,
+    default_compute_objective,
+)
 from transformers.utils import logging
 
 from ibformers.callbacks.wandb import ExtendedWandbCallback
+from ibformers.trainer.hp_search.optimize import run_hp_search_optuna
 
 logger = logging.get_logger(__name__)
 
@@ -53,6 +70,9 @@ if is_torch_tpu_available():
 
 if is_training_run_on_sagemaker():
     logging.add_handler(StreamHandler(sys.stdout))
+
+if is_optuna_available():
+    from optuna import Study
 
 
 class IbTrainer(Trainer):
@@ -345,6 +365,57 @@ class IbTrainer(Trainer):
         self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
 
         return PredictionOutput(predictions=output.predictions, label_ids=output.label_ids, metrics=output.metrics)
+
+    def hyperparameter_search(
+        self,
+        hp_space: Optional[Callable[["optuna.Trial"], Dict[str, float]]] = None,
+        compute_objective: Optional[Callable[[Dict[str, float]], float]] = None,
+        n_trials: int = 20,
+        direction: str = "minimize",
+        backend: Optional[Union["str", HPSearchBackend]] = None,
+        hp_name: Optional[Callable[["optuna.Trial"], str]] = None,
+        **kwargs,
+    ) -> "Study":
+        """
+        Custom hyperparameter_search that uses modified version of optuna optimization fn.
+        """
+        if backend is None:
+            backend = default_hp_search_backend()
+            if backend is None:
+                raise RuntimeError(
+                    "At least one of optuna or ray should be installed. "
+                    "To install optuna run `pip install optuna`. "
+                    "To install ray run `pip install ray[tune]`. "
+                    "To install sigopt run `pip install sigopt`."
+                )
+        backend = HPSearchBackend(backend)
+        if backend == HPSearchBackend.OPTUNA and not is_optuna_available():
+            raise RuntimeError("You picked the optuna backend, but it is not installed. Use `pip install optuna`.")
+        if backend == HPSearchBackend.RAY and not is_ray_tune_available():
+            raise RuntimeError(
+                "You picked the Ray Tune backend, but it is not installed. Use `pip install 'ray[tune]'`."
+            )
+        if backend == HPSearchBackend.SIGOPT and not is_sigopt_available():
+            raise RuntimeError("You picked the sigopt backend, but it is not installed. Use `pip install sigopt`.")
+        self.hp_search_backend = backend
+        if self.model_init is None:
+            raise RuntimeError(
+                "To use hyperparameter search, you need to pass your model through a model_init function."
+            )
+
+        self.hp_space = default_hp_space[backend] if hp_space is None else hp_space
+        self.hp_name = hp_name
+        self.compute_objective = default_compute_objective if compute_objective is None else compute_objective
+
+        backend_dict = {
+            HPSearchBackend.OPTUNA: run_hp_search_optuna,
+            HPSearchBackend.RAY: run_hp_search_ray,
+            HPSearchBackend.SIGOPT: run_hp_search_sigopt,
+        }
+        best_run_or_trial = backend_dict[backend](self, n_trials, direction, **kwargs)
+
+        self.hp_search_backend = None
+        return best_run_or_trial
 
     def log(self, logs: Dict[str, float]) -> None:
         """

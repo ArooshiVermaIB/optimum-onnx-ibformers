@@ -1,0 +1,35 @@
+[
+  {
+    "name": "gradient_accumulation_steps",
+    "type": "categorical",
+    "choices": [1, 2]
+  },
+  {
+    "name": "learning_rate",
+    "type": "float",
+    "low": 0.000001,
+    "high": 0.0001,
+    "log": true
+  },
+  {
+    "name": "lr_scheduler_type",
+    "type": "categorical",
+    "choices": ["linear", "constant_with_warmup"]
+  },
+  {
+    "name": "warmup_ratio",
+    "type": "float",
+    "low": 0,
+    "high": 0.5
+  },
+  {
+    "name": "weight_decay",
+    "type": "categorical",
+    "choices": [0, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+  },
+  {
+    "name": "label_smoothing_factor",
+    "type": "categorical",
+    "choices": [0, 0.01, 0.1, 0.2]
+  }
+]

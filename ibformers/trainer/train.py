@@ -49,11 +49,13 @@ from ibformers.trainer.arguments import (
     EnhancedTrainingArguments,
     DataAndPipelineArguments,
     IbArguments,
-    update_params_with_commandline,
     ExtraModelArguments,
+    get_matching_commandline_params,
 )
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
+from ibformers.trainer.hp_search.optimize import optimize_hyperparams
+
 check_min_version("4.12.3")
 from ibformers.trainer.train_utils import (
     split_train_with_column,
@@ -83,10 +85,9 @@ def run_hyperparams_and_cmdline_train(hyperparams: Dict):
             ExtraModelArguments,
         )
     )
+    parsed_cli_params = get_matching_commandline_params(parser)
+    hyperparams.update(**parsed_cli_params)
     model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(hyperparams)
-    model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = update_params_with_commandline(
-        (model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args)
-    )
 
     # workaround for docpro params
     if hyperparams.get("dataset_config_name", "") == "docpro_ds":
@@ -148,19 +149,7 @@ def run_train(
     extra_load_kwargs=None,
 ):
     # Setup logging
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
-
-    log_level = training_args.get_process_log_level()
-    logging.getLogger().setLevel(log_level)
-    logger.setLevel(log_level)
-    datasets.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.enable_default_handler()
-    transformers.utils.logging.enable_explicit_format()
+    setup_logging(training_args)
 
     # Log on each process the small summary:
     logger.warning(
@@ -194,23 +183,7 @@ def run_train(
     load_kwargs = pipeline["dataset_load_kwargs"]
     model_class = pipeline["model_class"]
 
-    # check if base model is already downloaded
-    base_model_local_path = None
-    if model_args.model_name_or_path:
-        BASE_MODEL_CACHE_PREFIX = Path("~/.cache/instabase").expanduser()
-        _base_model_local_path = BASE_MODEL_CACHE_PREFIX / model_args.model_name_or_path
-        logging.info(f"check if {_base_model_local_path} exists")
-        if _base_model_local_path.exists():
-            base_model_local_path = _base_model_local_path
-            logging.info(f"from_pretrained() method will load base model locally from {base_model_local_path}")
-
-    if model_args.model_name_or_path.startswith("instabase/"):
-        # lazy import of file which is not always present in repo
-        from ibformers.trainer.hf_token import HF_TOKEN
-
-        token = HF_TOKEN
-    else:
-        token = None
+    base_model_local_path, token = prepare_base_model_loading(model_args)
 
     data_files = DataFilesDict()
     if data_args.train_file is not None:
@@ -239,7 +212,7 @@ def run_train(
     # could be obtained after loading a record
     is_docpro_training = "split" in next(iter(raw_datasets.column_names.values()))
 
-    if is_docpro_training and training_args.early_stopping_patience > 0:
+    if is_docpro_training and data_args.validation_set_size > 0:
         raw_datasets = split_eval_from_train(
             raw_datasets, data_args.validation_set_size, data_args.fully_deterministic_eval_split
         )
@@ -282,7 +255,7 @@ def run_train(
         "fn_kwargs": fn_kwargs,
     }
 
-    if training_args.do_train:
+    if training_args.do_train or training_args.do_hyperparam_optimization:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets["train"]
@@ -300,7 +273,7 @@ def run_train(
         with training_args.main_process_first(desc="train dataset map pre-processing"):
             train_dataset = prepare_dataset(train_dataset, pipeline, **map_kwargs)
 
-    if training_args.do_eval:
+    if training_args.do_eval or training_args.do_hyperparam_optimization:
         if "validation" not in raw_datasets:
             raise ValueError("--do_eval requires a validation dataset")
         eval_dataset = raw_datasets["validation"]
@@ -376,15 +349,32 @@ def run_train(
     # Initialize our Trainer
     trainer = IbTrainer(
         model=model,
+        model_init=lambda x: model_class.from_pretrained(
+            _get_model_name_or_path(model_args.model_name_or_path, base_model_local_path),
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=token,
+            ignore_mismatched_sizes=True,
+        ),
         args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=eval_dataset if training_args.do_eval else None,
+        train_dataset=train_dataset if (training_args.do_train or training_args.do_hyperparam_optimization) else None,
+        eval_dataset=eval_dataset if (training_args.do_eval or training_args.do_hyperparam_optimization) else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         callbacks=callbacks,
         post_process_function=None,
     )
+
+    # Hyperparam optimization
+    if training_args.do_hyperparam_optimization:
+        logger.info("*** Optimize hyperparams ***")
+        best_params = optimize_hyperparams(trainer, training_args, model_args, data_args)
+        for param_name, param_value in best_params.items():
+            setattr(trainer.args, param_name, param_value)
+        logger.info(f"Hyperparemeter optimization completed. Best hyperparams: {best_params}")
 
     # Training
     if training_args.do_train:
@@ -408,7 +398,7 @@ def run_train(
         trainer.save_state()
 
     # Evaluation
-    if training_args.do_eval:
+    if training_args.requested_do_eval:
         logger.info("*** Evaluate ***")
 
         metrics = trainer.evaluate(metric_key_prefix="final_eval")
@@ -436,6 +426,41 @@ def run_train(
         logger.info("*** Predict ***")
 
         _ = trainer.predict(predict_dataset, metric_key_prefix="predict")
+
+
+def prepare_base_model_loading(model_args):
+    # check if base model is already downloaded
+    base_model_local_path = None
+    if model_args.model_name_or_path:
+        BASE_MODEL_CACHE_PREFIX = Path("~/.cache/instabase").expanduser()
+        _base_model_local_path = BASE_MODEL_CACHE_PREFIX / model_args.model_name_or_path
+        logging.info(f"check if {_base_model_local_path} exists")
+        if _base_model_local_path.exists():
+            base_model_local_path = _base_model_local_path
+            logging.info(f"from_pretrained() method will load base model locally from {base_model_local_path}")
+    if model_args.model_name_or_path.startswith("instabase/"):
+        # lazy import of file which is not always present in repo
+        from ibformers.trainer.hf_token import HF_TOKEN
+
+        token = HF_TOKEN
+    else:
+        token = None
+    return base_model_local_path, token
+
+
+def setup_logging(training_args):
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+    log_level = training_args.get_process_log_level()
+    logging.getLogger().setLevel(log_level)
+    logger.setLevel(log_level)
+    datasets.utils.logging.set_verbosity(log_level)
+    transformers.utils.logging.set_verbosity(log_level)
+    transformers.utils.logging.enable_default_handler()
+    transformers.utils.logging.enable_explicit_format()
 
 
 def _get_model_name_or_path(model_name_or_path: str, base_model_path: str) -> str:

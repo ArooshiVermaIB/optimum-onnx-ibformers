@@ -19,7 +19,6 @@ from ibformers.trainer.arguments import (
     ModelArguments,
     DataAndPipelineArguments,
     IbArguments,
-    update_params_with_commandline,
     EnhancedTrainingArguments,
 )
 from ibformers.trainer.train import run_train
@@ -558,10 +557,6 @@ def run_train_annotator(
         model_name,
     )
     model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hparams_dict)
-    if overwrite_arguments_with_cli:
-        model_args, data_args, training_args, ib_args, augmenter_args = update_params_with_commandline(
-            (model_args, data_args, training_args, ib_args, augmenter_args)
-        )
 
     if hasattr(file_client, "file_client") and file_client.file_client is None:
         # support for InstabaseSDKDummy - debugging only

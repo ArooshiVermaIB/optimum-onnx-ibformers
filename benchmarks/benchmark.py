@@ -44,6 +44,7 @@ class BenchmarkArguments:
         default_factory=lambda: [],
         metadata={"help": f"Extra wandb tags for all jobs in this run."},
     )
+    disable_wandb: bool = field(default=False, metadata={"help": f"If set, disables all wandb logging for this run."})
 
 
 def configure_wandb(model_name_or_path: str, benchmark_id: str, benchmark_args: BenchmarkArguments):
@@ -62,7 +63,6 @@ def configure_wandb(model_name_or_path: str, benchmark_id: str, benchmark_args: 
 def run_single_benchmark(benchmark_id: str, model_name_or_path: str, benchmark_args: BenchmarkArguments):
     supress_errors = benchmark_args.run_in_subprocess
     try:
-        configure_wandb(model_name_or_path, benchmark_id, benchmark_args)
 
         benchmark_config = BENCHMARKS_REGISTRY.get_config(benchmark_id)
         model_config_name = (
@@ -71,8 +71,12 @@ def run_single_benchmark(benchmark_id: str, model_name_or_path: str, benchmark_a
         model_config = MODEL_PARAMS_REGISTRY.get_config(model_config_name)
 
         hyperparams = model_config.hyperparams.copy()
-        hyperparams["report_to"] = "wandb"
         hyperparams["model_name_or_path"] = model_name_or_path
+        if benchmark_args.disable_wandb:
+            hyperparams["report_to"] = "none"
+        else:
+            hyperparams["report_to"] = "wandb"
+            configure_wandb(model_name_or_path, benchmark_id, benchmark_args)
 
         now_str = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
         model_name_or_id_for_output = model_name_or_path.replace("/", "_")
@@ -81,6 +85,7 @@ def run_single_benchmark(benchmark_id: str, model_name_or_path: str, benchmark_a
         dataset_hyperparams = benchmark_config.hyperparams.copy()
         hyperparams.update(**dataset_hyperparams)
         hyperparams["output_dir"] = output_path
+        hyperparams["task_name"] = benchmark_id
 
         output_path.mkdir(exist_ok=True, parents=True)
 

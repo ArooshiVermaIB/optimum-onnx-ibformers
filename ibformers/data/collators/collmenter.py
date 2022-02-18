@@ -28,7 +28,7 @@ class CollatorWithAugmentation(Callable[[List[InputDataClass]], Dict[str, Any]])
     the instance is initialized in the training loop.
     """
 
-    augmenters_to_use: List[Type[BaseAugmenter]]
+    augmenters_to_use: List[Type[BaseAugmenter]] = []
 
     def __init__(
         self,
