@@ -11,13 +11,15 @@ from ibformers.data.predict_qa import get_predictions_for_qa
 logger = logging.getLogger(__name__)
 
 
-def iou_score(y_true: Mapping[str, List[int]], y_pred: Mapping[str, List[int]], all_tags: List[str]) -> Dict[str, int]:
+def iou_score(
+    y_true: Mapping[str, List[int]], y_pred: Mapping[str, List[int]], all_tags: List[str]
+) -> Dict[str, float]:
     result = {}
     for t in all_tags:
         if t == "O":
             continue
         if (t not in y_pred) and (t not in y_true):
-            result[t] = 1.0
+            result[t] = np.nan
             continue
         elif (t not in y_pred) or (t not in y_true):
             result[t] = 0.0
@@ -26,7 +28,7 @@ def iou_score(y_true: Mapping[str, List[int]], y_pred: Mapping[str, List[int]], 
         b = set(y_true[t])
         _union = len(a.union(b))
         _intersection = len(a.intersection(b))
-        result[t] = (_intersection / _union) if _union > 0 else 1.0
+        result[t] = (_intersection / _union) if _union > 0 else np.nan
     return result
 
 
@@ -95,7 +97,7 @@ def compute_legacy_metrics(label_list: List[str], pred_dict: Dict[str, Any]) -> 
 
     # TODO: Add other metrics and make customizable
     doc_level_metrics: Mapping[str, Mapping[str, float]] = {
-        "exact_match": (df == 1).mean().to_dict(),  # type: ignore
+        "exact_match": (df == 1).mean().fillna("NAN").to_dict(),  # type: ignore
     }
     overall_accuracy = (df == 1).mean().mean()  # type: ignore
 
