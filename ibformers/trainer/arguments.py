@@ -137,6 +137,17 @@ class EnhancedTrainingArguments(TrainingArguments):
         default=1.0,
         metadata={"help": "Will be used to change the weight of the classes during loss computation"},
     )
+    loss_type: str = field(
+        default="ce_fixed_class_weights",
+        metadata={"help": "Will be used to change a type of loss"},
+    )
+    class_weights_ins_power: float = field(
+        default=0.3,
+        metadata={
+            "help": "Will be used to compute weithts for individual classes "
+            "(1 / num_samples ** class_weights_ins_power)"
+        },
+    )
     early_stopping_patience: int = field(
         default=0,
         metadata={

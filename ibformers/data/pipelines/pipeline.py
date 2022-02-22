@@ -92,8 +92,9 @@ def prepare_dataset(dataset, pipeline, **kwargs):
 layoutlm_sl = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "preprocess_kwargs": {"chunking_strategy": "SINGLE_PAGES"},
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": get_collator_class(),
+    "collate": get_collator_class(BboxAugmenter),
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }

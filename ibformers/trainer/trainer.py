@@ -62,11 +62,6 @@ if is_apex_available():
 if is_datasets_available():
     import datasets
 
-if is_torch_tpu_available():
-    import torch_xla.core.xla_model as xm
-    import torch_xla.debug.metrics as met
-    import torch_xla.distributed.parallel_loader as pl
-
 
 if is_training_run_on_sagemaker():
     logging.add_handler(StreamHandler(sys.stdout))
@@ -98,26 +93,51 @@ class IbTrainer(Trainer):
         """
         Add support for class weights
         """
-        if self.args.class_weights > 1 and "labels" in inputs:
+        if (self.args.class_weights > 1 or self.args.loss_type != "ce_fixed_class_weights") and "labels" in inputs:
             labels = inputs.pop("labels")
             outputs = model(**inputs)
 
             # class_weights parameter is used to enlarge weights of tokens corresponding to entity values
             # that might help model to converge faster
             class_num = self.model.config.num_labels
-            class_weights = [1.0] + [self.args.class_weights] * (class_num - 1)
-            loss_fct = CrossEntropyLoss(weight=torch.FloatTensor(class_weights).to(labels.device))
+
             attention_mask = inputs.get("attention_mask", None)
             logits = outputs["logits"]
-            if attention_mask is not None:
-                active_loss = attention_mask.view(-1) == 1
-                active_logits = logits.view(-1, class_num)
-                active_labels = torch.where(
-                    active_loss, labels.view(-1), torch.tensor(loss_fct.ignore_index).type_as(labels)
-                )
+
+            # cross entrophy with fixed class weights for positive classes
+            if self.args.loss_type == "ce_fixed_class_weights":
+                flat_labels = labels.view(-1)
+                flat_logits = logits.view(-1, class_num)
+                active_loss = torch.logical_and(attention_mask.view(-1) == 1, flat_labels != -100)
+
+                active_labels = flat_labels[active_loss]
+                active_logits = flat_logits[active_loss]
+
+                class_weights = [1.0] + [self.args.class_weights] * (class_num - 1)
+                loss_fct = CrossEntropyLoss(weight=torch.FloatTensor(class_weights).to(labels.device))
                 loss = loss_fct(active_logits, active_labels)
-            else:
-                loss = loss_fct(logits.view(-1, class_num), labels.view(-1))
+
+            # class weights as inverse number of samples
+            elif self.args.loss_type == "ce_ins":
+                losses = []
+                for ex_labels, ex_logits, att in zip(labels, logits, attention_mask):
+                    flat_labels = ex_labels.view(-1)
+                    flat_logits = ex_logits.view(-1, class_num)
+                    active_loss = torch.logical_and(att.view(-1) == 1, flat_labels != -100)
+
+                    active_labels = flat_labels[active_loss]
+                    active_logits = flat_logits[active_loss]
+
+                    class_weights = [1.0] * class_num
+                    for idx, freq in zip(*np.unique(active_labels.cpu().numpy(), return_counts=True)):
+                        class_weights[idx] = 1 / (freq ** self.args.class_weights_ins_power)
+
+                    loss_fct = CrossEntropyLoss(weight=torch.FloatTensor(class_weights).to(labels.device))
+                    ex_loss = loss_fct(active_logits, active_labels)
+                    losses.append(ex_loss)
+
+                loss = sum(losses)
+
             return (loss, outputs) if return_outputs else loss
         else:
             return super().compute_loss(model, inputs, return_outputs)

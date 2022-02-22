@@ -497,6 +497,12 @@ def prepare_ib_params(
     if "class_weights" in hyperparams:
         out_dict["class_weights"] = hyperparams.pop("class_weights")
 
+    if "loss_type" in hyperparams:
+        out_dict["loss_type"] = hyperparams.pop("loss_type")
+
+    if "class_weights_ins_power" in hyperparams:
+        out_dict["class_weights_ins_power"] = hyperparams.pop("class_weights_ins_power")
+
     if "max_no_annotation_examples_share" in hyperparams:
         out_dict["max_no_annotation_examples_share"] = hyperparams.pop("max_no_annotation_examples_share")
 
