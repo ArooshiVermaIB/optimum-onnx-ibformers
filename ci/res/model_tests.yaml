@@ -9,7 +9,7 @@ NYDriversLicenses:
     adam_epsilon: 1.e-8
     batch_size: 2
     chunk_size: 510
-    epochs: 10
+    epochs: 6
     learning_rate: 5.e-5
     loss_agg_steps: 1
     max_grad_norm: 1
@@ -19,7 +19,7 @@ NYDriversLicenses:
     use_mixed_precision: true
     warmup: 0
     weight_decay: 0
-    class_weights: false
+    class_weights: 10
     model_name: microsoft/layoutlm-base-uncased
   metrics:
     precision:
@@ -68,7 +68,7 @@ NYDriversLicensesV2:
   time_limit: 1800 # 20 minutes
   config:
     <<: *defaults
-    epochs: 15
+    epochs: 10
     use_mixed_precision: false
     model_name: microsoft/layoutlmv2-base-uncased
   metrics:
@@ -123,7 +123,7 @@ NYDriversLicensesXLM:
   time_limit: 1200 # 20 minutes
   config:
     <<: *defaults
-    epochs: 15
+    epochs: 10
     use_mixed_precision: false
     model_name: microsoft/layoutxlm-base
   metrics:
@@ -149,7 +149,7 @@ NYDriversLicensesV2Prod:
   time_limit: 1800
   config:
     <<: *defaults
-    epochs: 15
+    epochs: 10
     use_mixed_precision: false
     model_name: microsoft/layoutlmv2-base-uncased
   metrics:
@@ -202,7 +202,7 @@ NYDriversLicensesXLMProd:
   time_limit: 1800
   config:
     <<: *defaults
-    epochs: 15
+    epochs: 10
     use_mixed_precision: false
     model_name: microsoft/layoutxlm-base
   metrics:

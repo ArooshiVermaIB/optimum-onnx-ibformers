@@ -2,19 +2,20 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import backoff
 import json
 import logging
 import os
-import uuid
 import time
-from collections import defaultdict
+import uuid
 from json import JSONDecodeError
 from pathlib import Path
-from typing import List, Dict, Any, NamedTuple, Mapping, Optional, Union
+from typing import List, Dict, Mapping, Optional
 
+import backoff
 from typing_extensions import TypedDict
 
+from .lib import exceptions
+from .lib import utils
 from .lib.build import zip_project, PackageType
 from .lib.config import (
     load_environments,
@@ -25,8 +26,6 @@ from .lib.config import (
     load_model_tests,
 )
 from .lib.ibapi import Instabase
-from .lib import utils
-from .lib import exceptions
 
 POLLING_INTERVAL = 30
 INFERENCE_TIMEOUT = 300  # Allow 5 minutes to run the model in model service
@@ -328,7 +327,6 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
         del zip_bytes
 
     tasks: List[asyncio.Task] = []
-
     for test_name, test_config in model_tests.items():
         supported_envs = test_config["env"]
         if test_environment not in supported_envs:
