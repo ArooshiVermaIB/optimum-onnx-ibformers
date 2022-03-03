@@ -175,12 +175,13 @@ class IbModel(Model):
                         f'Word obtained from the cache ({word["raw_word"]}) '
                         f'and original word polly ({original_word_poly["raw_word"]}) does not match'
                     )
+
                 ner_result = model_service_pb2.NERTokenResult(
-                    content=original_word_poly["raw_word"],
+                    content=original_word_poly["word"],
                     label=field,
                     score=word["conf"],
                     start_index=start,
-                    end_index=start + len(original_word_poly["raw_word"]),
+                    end_index=start + len(original_word_poly["word"]),
                 )
                 entities.append(ner_result)
         return model_service_pb2.ModelResult(ner_result=model_service_pb2.NERResult(entities=entities))
