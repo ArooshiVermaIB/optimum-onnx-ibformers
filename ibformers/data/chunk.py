@@ -14,6 +14,7 @@ KEYS_TO_CHUNK = [
     "word_map",
     "token_page_nums",
     "attention_mask",
+    "answer_token_label_ids",
 ]
 
 
@@ -182,6 +183,9 @@ def get_chunks(example, tokenizer, chunk_ranges, save_memory=True) -> Sequence[M
                 mqa_ids[prefix_start : prefix_start + len_prefix] = example["prefix_mqa_ids"]
                 chunk_processed["mqa_ids"] = mqa_ids
 
+            if "question_positions" in example:
+                chunk_processed["question_positions"] = [pos + prefix_start for pos in example["question_positions"]]
+
         content_tokens_mask = np.logical_not(special_mask)
 
         if len(chunk["input_ids"]) != content_tokens_mask.sum():
@@ -191,7 +195,8 @@ def get_chunks(example, tokenizer, chunk_ranges, save_memory=True) -> Sequence[M
             )
 
         chunk_processed["content_tokens_mask"] = content_tokens_mask
-        chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], content_tokens_mask, 0)
+        if "bboxes" in chunk:
+            chunk_processed["bboxes"] = fill_special_tokens(chunk["bboxes"], content_tokens_mask, 0)
         # if "prefix_input_ids" in example:
         #     prefix_bboxes = np.array(
         #         [[[i * 20, 10, i * 20 + 10, 20] for i in range(1, len_prefix + 1)]]
@@ -200,6 +205,10 @@ def get_chunks(example, tokenizer, chunk_ranges, save_memory=True) -> Sequence[M
         if "token_label_ids" in chunk:
             chunk_processed["token_label_ids"] = fill_special_tokens(
                 chunk["token_label_ids"], content_tokens_mask, -100
+            )
+        if "answer_token_label_ids" in chunk:
+            chunk_processed["answer_token_label_ids"] = fill_special_tokens(
+                chunk["answer_token_label_ids"], content_tokens_mask, -100
             )
 
         yield chunk_processed

@@ -15,6 +15,7 @@ from ibformers.data.metrics import (
     compute_metrics_for_qa_task,
     compute_metrics_for_singleqa_task,
 )
+from ibformers.data.predict_splinter import squad_metric, splinter_metric, compute_metrics_for_splinter_mqa
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
 from ibformers.data.transform import (
     norm_bboxes_for_layoutlm,
@@ -22,9 +23,13 @@ from ibformers.data.transform import (
     fuzzy_tag_in_document,
     build_prefix_single_qa,
     token_spans_to_start_end,
+    convert_from_mrqa_fmt,
+    prepare_input_squad,
 )
 from ibformers.models.bbox_masking_models import LayoutLMForMaskedLMAndLayout, LayoutLMForMaskedLMAndLayoutRegression
+from ibformers.data.splinter_processing import find_recurring_spans, build_prefix_with_mqa_splinter
 from ibformers.models.layv1mqa import LayMQAForTokenClassification
+from ibformers.models.layv1splinter import LayoutSplinterModel
 
 
 def chain(example_batch, fn_lst, **kwargs):
@@ -179,7 +184,6 @@ single_qa = {
 }
 
 # mlm pretraining
-
 layoutlm_mlm = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
@@ -198,7 +202,6 @@ layoutlm_mlm_bm = {
     "compute_metrics": None,
 }
 
-
 layoutlm_mlm_bm_regresssion = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
@@ -208,7 +211,6 @@ layoutlm_mlm_bm_regresssion = {
     "compute_metrics": None,
 }
 
-
 plain_mlm = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, produce_chunks],
@@ -217,6 +219,81 @@ plain_mlm = {
     "model_class": AutoModelForMaskedLM,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
+
+# original splinter with QA head
+splinter_qa = {
+    "dataset_load_kwargs": {},
+    "preprocess": [
+        convert_from_mrqa_fmt,
+        fuzzy_tag_in_document,
+        build_prefix_with_mqa_splinter,
+        tokenize,
+        produce_chunks,
+        token_spans_to_start_end,
+    ],
+    "column_mapping": [],
+    "collate": get_collator_class(),
+    "model_class": AutoModelForQuestionAnswering,
+    "compute_metrics": squad_metric,
+}
+
+# Training QA models on public datasets (docvqa, squad)
+squad_qa = {
+    "dataset_load_kwargs": {},
+    "preprocess": [
+        convert_from_mrqa_fmt,
+        fuzzy_tag_in_document,
+        prepare_input_squad,
+        tokenize,
+        produce_chunks,
+        token_spans_to_start_end,
+    ],
+    "column_mapping": [],
+    "collate": get_collator_class(),
+    "model_class": AutoModelForQuestionAnswering,
+    "compute_metrics": squad_metric,
+}
+
+# pipeline for Splinter unsupervised training
+splinter_unsupervised = {
+    "dataset_load_kwargs": {},
+    "preprocess": [
+        tokenize,
+        produce_chunks,
+        find_recurring_spans,
+    ],
+    "column_mapping": [("qid", "id")],
+    "collate": get_collator_class(),
+    "model_class": LayoutSplinterModel,
+    "compute_metrics": splinter_metric,
+}
+
+# to use in the extraction datasets (e.g. benchmarks)
+splinter_sl = {
+    "dataset_load_kwargs": {"use_image": False},
+    "preprocess": [build_prefix_with_mqa_splinter, tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
+    "collate": get_collator_class(),
+    "model_class": LayoutSplinterModel,
+    "compute_metrics": compute_metrics_for_splinter_mqa,
+}
+
+# pretrain splinter in the qa dataset (docvqa, squad)
+docvqa_splinter_sl = {
+    "dataset_load_kwargs": {},
+    "preprocess": [
+        convert_from_mrqa_fmt,
+        fuzzy_tag_in_document,
+        build_prefix_with_mqa_splinter,
+        tokenize,
+        produce_chunks,
+    ],
+    "column_mapping": [],
+    "collate": get_collator_class(),
+    "model_class": LayoutSplinterModel,
+    "compute_metrics": splinter_metric,
+}
+
 
 PIPELINES = {
     "layoutlm_sl": layoutlm_sl,
@@ -231,4 +308,9 @@ PIPELINES = {
     "from_websrc_to_mqa": from_websrc_to_mqa,
     "layoutlm_mlm_bm": layoutlm_mlm_bm,
     "layoutlm_mlm_bm_regresssion": layoutlm_mlm_bm_regresssion,
+    "splinter_qa": splinter_qa,
+    "squad_qa": squad_qa,
+    "splinter_unsupervised": splinter_unsupervised,
+    "splinter_sl": splinter_sl,
+    "docvqa_splinter_sl": docvqa_splinter_sl,
 }

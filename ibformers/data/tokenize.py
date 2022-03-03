@@ -27,7 +27,7 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
     batch_word_map = []
     for i in range(len(encodings.encodings)):
         word_map = np.array(encodings.encodings[i].word_ids)
-        word_starts = word_map != np.roll(word_map, shift=1)
+        word_starts = word_map != np.pad(word_map[:-1], pad_width=(1, 0), constant_values=-1)
         batch_word_map.append(word_map)
         batch_word_starts.append(word_starts)
 
@@ -52,6 +52,10 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
                 batch_prefix_word_map.append(pref_word_map)
             encodings["prefix_mqa_ids"] = spread_with_mapping(example_batch["prefix_mqa_ids"], batch_prefix_word_map)
 
+        if "question_positions" in example_batch:
+            pref_word_map = [np.array(pref_enc.word_ids) for pref_enc in prefix_encodings.encodings]
+            encodings["question_positions"] = recalculate_spans(example_batch["question_positions"], pref_word_map)
+
     # bboxes need to be spread
     if "bboxes" in example_batch:
         encodings["bboxes"] = spread_with_mapping(example_batch["bboxes"], encodings["word_map"])
@@ -66,7 +70,10 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
             example_batch["token_label_ids"], encodings["word_map"], encodings["word_starts"]
         )
 
-        # encodings['token_label_ids'] = spread_with_mapping(example_batch['token_label_ids'], encodings['word_map'])
+    if "answer_token_label_ids" in example_batch:
+        encodings["answer_token_label_ids"] = spread_with_first_token(
+            example_batch["answer_token_label_ids"], encodings["word_map"], encodings["word_starts"]
+        )
 
     # page spans need to be adjusted for new token ranges
     if "page_spans" in example_batch:

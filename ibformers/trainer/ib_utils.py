@@ -506,6 +506,8 @@ def prepare_ib_params(
     if "max_no_annotation_examples_share" in hyperparams:
         out_dict["max_no_annotation_examples_share"] = hyperparams.pop("max_no_annotation_examples_share")
 
+    if "label_names" in hyperparams:
+        out_dict["label_names"] = hyperparams.pop("label_names")
     # early stopping
     early_stopping_patience = hyperparams.pop("early_stopping_patience", 0)
     validation_set_size = hyperparams.pop("validation_set_size", 0)

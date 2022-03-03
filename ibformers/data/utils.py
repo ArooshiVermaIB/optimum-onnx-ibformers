@@ -116,6 +116,11 @@ def convert_to_dict_of_lists(list_of_dicts, keys):
     return v
 
 
+def convert_to_list_of_dicts(dict_of_lists):
+    lst = [dict(zip(dict_of_lists, t)) for t in zip(*dict_of_lists.values())]
+    return lst
+
+
 def get_tokens_spans(char_spans, token_offsets):
     """
     Function takes an input with character level spans and transform it to token spans.
@@ -171,8 +176,9 @@ def tag_answer_in_doc(words, answer):
 def spread_with_first_token(features_batch, word_map_batch, word_starts, fill_value=-100):
     spread_features_batch = []
     for features, word_map, is_first_token in zip(features_batch, word_map_batch, word_starts):
-        spread_features = np.full((is_first_token.shape[0]), fill_value=fill_value)
         features = np.array(features)
+        new_shape = [is_first_token.shape[0]] + list(features.shape[1:])
+        spread_features = np.full(new_shape, fill_value=fill_value)
         spread_features[is_first_token] = np.take(features, word_map, axis=0)[is_first_token].tolist()
         spread_features_batch.append(spread_features)
 

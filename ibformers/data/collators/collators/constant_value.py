@@ -45,26 +45,30 @@ class DefaultValueCollator(BaseCollator):
             if target_length is None:
                 target_length = max(len(feature) for feature in feature_batch)
 
-            if len(feature_batch) > 0 and isinstance(feature_batch[0], np.ndarray):
-                feat_lst = []
-                for feature in feature_batch:
-                    pad_width = target_length - len(feature)
-                    if pad_width > 0:
-                        feat_lst.append(np.concatenate((feature, np.array([self._default_value] * pad_width)), axis=0))
-                    else:
-                        feat_lst.append(feature)
-                batch[feature_name] = feat_lst
-            else:
-                batch[feature_name] = [
-                    feature + [self._default_value] * (target_length - len(feature)) for feature in feature_batch
-                ]
+            assert len(feature_batch) > 0, "Empty batch cannot be collated"
+
+            if not isinstance(feature_batch[0], np.ndarray):
+                feature_batch = [np.array(feat) for feat in feature_batch]
+
+            feat_lst = []
+            for feature in feature_batch:
+                pad_width = target_length - len(feature)
+                if pad_width > 0:
+                    new_shape = [pad_width] + list(feature.shape[1:])
+                    feat_lst.append(
+                        np.concatenate((feature, np.full_like(feature, fill_value=self.default_value, shape=new_shape)))
+                    )
+                else:
+                    feat_lst.append(feature)
+            batch[feature_name] = feat_lst
+
         return batch
 
 
 @dataclass
 class BboxCollator(DefaultValueCollator):
     _supported_fields: ClassVar[List[str]] = ["bbox", "bboxes"]
-    _default_value: ClassVar[Any] = [0, 0, 0, 0]
+    _default_value: ClassVar[Any] = 0
 
 
 @dataclass
@@ -77,6 +81,18 @@ class TokenClassLabelCollator(DefaultValueCollator):
 class MqaIdsCollator(DefaultValueCollator):
     _supported_fields: ClassVar[List[str]] = ["mqa_ids"]
     _default_value: ClassVar[Any] = 1
+
+
+@dataclass
+class AnswerTokenLabCollator(DefaultValueCollator):
+    _supported_fields: ClassVar[List[str]] = ["answer_token_label_ids"]
+    _default_value: ClassVar[Any] = -100
+
+
+@dataclass
+class QuestionPosCollator(DefaultValueCollator):
+    _supported_fields: ClassVar[List[str]] = ["question_positions"]
+    _default_value: ClassVar[Any] = 0
 
 
 @dataclass

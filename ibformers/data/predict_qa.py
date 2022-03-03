@@ -1,11 +1,8 @@
 import logging
 from typing import Any, Dict, List, Text, Tuple
-
 from typing_extensions import TypedDict
-
 from datasets import Dataset
 import numpy as np
-
 from ibformers.data.predict import doc_chunk_iter, calculate_predictions, join_chunks, create_entities
 
 

@@ -49,7 +49,6 @@ def norm_bbox(bbox, width):
 def load_msocr_file(ocr_path):
     with open(ocr_path, encoding="utf-8") as f:
         ocr_json = json.load(f)
-
         example = {}
         example["ocr_path"] = ocr_path
         example["qas"] = []
@@ -135,11 +134,21 @@ class Docvqa(datasets.GeneratorBasedBuilder):
                     "id": datasets.Value("string"),
                     "doc_id": datasets.Value("string"),
                     "words": datasets.Sequence(datasets.Value("string")),
-                    "bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
-                    "page_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+                    "bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
+                    "page_bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
                     "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
-                    "question": datasets.Sequence(datasets.Value("string")),
-                    "answer": datasets.Sequence(datasets.Value("string")),
+                    # "question": datasets.Sequence(datasets.Value("string")),
+                    # "answer": datasets.Sequence(datasets.Value("string")),
+                    "entities": datasets.Sequence(
+                        {
+                            "name": datasets.Value("string"),  # change to id?
+                            "order_id": datasets.Value("int64"),
+                            # not supported yet, annotation app need to implement it
+                            "text": datasets.Value("string"),
+                            "token_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
+                            "token_label_id": datasets.Value("int64"),
+                        }
+                    ),
                     # These are the features of your dataset like images, labels ...
                 }
             ),
@@ -191,15 +200,19 @@ class Docvqa(datasets.GeneratorBasedBuilder):
             ocr_path = ocr_path_dir / f"{image_id}.json"
             doc = load_msocr_file(ocr_path)
 
-            question_list = []
-            answer_list = []
-
+            entities = []
+            dummy_tok_lab_id = 1
             for question_data in single_doc_questions:
-                qid = str(question_data["questionId"])
-                question_list.append(question_data["question"])
-                # get only one possible answer for this dataset
-                answer_list.append(question_data["answers"][0])
-
+                # qid = str(question_data["questionId"])
+                lab = {
+                    "name": question_data["question"],
+                    "order_id": 0,
+                    "text": question_data["answers"][0],
+                    "token_spans": [],
+                    "token_label_id": dummy_tok_lab_id,
+                }  # add dummy label id
+                dummy_tok_lab_id += 1
+                entities.append(lab)
             # Features currently used are "context", "question", and "answers".
             # Others are extracted here for the ease of future expansions.
 
@@ -210,6 +223,5 @@ class Docvqa(datasets.GeneratorBasedBuilder):
                 "bboxes": doc.bboxes,
                 "page_bboxes": doc.page_bboxes,
                 "page_spans": doc.page_spans,
-                "question": question_list,
-                "answer": answer_list,
+                "entities": entities,
             }

@@ -1,6 +1,6 @@
+import logging
 from random import shuffle
 from typing import List, TypeVar, Tuple
-
 import numpy as np
 from typing_extensions import TypedDict
 
@@ -10,6 +10,7 @@ from ibformers.data.utils import (
     feed_single_example,
     feed_single_example_and_flatten,
     get_tokens_spans,
+    convert_to_list_of_dicts,
 )
 
 
@@ -17,32 +18,36 @@ from ibformers.data.utils import (
 def fuzzy_tag_in_document(example, **kwargs):
     # try to find an answer inside the text of the document
     # example will be skipped in case of no spans found
-    words, answers, questions = example["words"], example["answer"], example["question"]
+    words, entities = example["words"], example["entities"]
+    if isinstance(entities, dict):
+        lst_entities = convert_to_list_of_dicts(entities)
+    else:
+        lst_entities = entities
     words_len = list(map(len, words))
     word_offsets = np.cumsum(np.array([-1] + words_len[:-1]) + 1)
     # iterate over multiple questions
-    entities = []
+    new_entities = []
     dummy_tok_lab_id = 1
-    for answer, question in zip(answers, questions):
-        detected_answer = tag_answer_in_doc(words=words, answer=answer)
-        if len(detected_answer) == 0:
-            continue
-        token_spans = get_tokens_spans([[m["start"], m["end"]] for m in detected_answer], word_offsets)
-        entity = {
-            "name": question,
-            "text": detected_answer[0]["text"],
-            "token_spans": token_spans,
-            "token_label_id": dummy_tok_lab_id,
-        }
+    for ent_id, ent in enumerate(lst_entities):
+        question, answer = ent["name"], ent["text"]
+        if len(ent["token_spans"]) == 0:
+            detected_answer = tag_answer_in_doc(words=words, answer=answer)
+            if len(detected_answer) == 0:
+                continue
+            token_spans = get_tokens_spans([[m["start"], m["end"]] for m in detected_answer], word_offsets)
+        else:
+            # leave original entity if token_spans are already found
+            token_spans = ent["token_spans"]
+        new_ent = ent
+        new_ent["token_spans"] = token_spans
+        new_ent["token_label_id"] = dummy_tok_lab_id
         dummy_tok_lab_id += 1
-        entities.append(entity)
-    # TODO: change it to < 1, temporary change due to work over mqa
-    if len(entities) < 2:
+        new_entities.append(new_ent)
+
+    if len(new_entities) == 0:
         return None
-    else:
-        dict_entities = convert_to_dict_of_lists(entities, list(entity.keys()))
-        example.update({"entities": dict_entities})
-        return example
+    new_dict_entities = convert_to_dict_of_lists(new_entities, list(ent.keys()))
+    return {"entities": new_dict_entities}
 
 
 @feed_single_example
@@ -227,3 +232,60 @@ def token_spans_to_start_end(example, **kwargs):
         tok_start, tok_end = 0, 0
 
     return {"start_positions": tok_start, "end_positions": tok_end}
+
+
+@feed_single_example_and_flatten
+def prepare_input_squad(example, tokenizer, **kwargs):
+    """
+    Create an example per question as required by QA model, and also keep
+    one entity per example for simplicity and to avoid any confusion later.
+    """
+    entities = example["entities"]
+    for q_idx, question in enumerate(entities["name"]):
+        new_example = {
+            "prefix_words": question.split() + [tokenizer.sep_token],
+            # Get features of a particular question only
+            "entities": {k: [v[q_idx]] for k, v in entities.items()},
+        }
+        if len(entities["token_spans"]) != 1:
+            continue
+        yield {**example, **new_example}
+
+
+@feed_single_example
+def convert_from_mrqa_fmt(example, **kwargs):
+    if "entities" in example:
+        return {}
+
+    words = example["context_tokens"]["tokens"]
+    question = example["question"]
+
+    spans = list(
+        set([(st, en + 1) for s in example["detected_answers"]["token_spans"] for st, en in zip(s["start"], s["end"])])
+    )
+    answers = example["answers"]
+    answers_low = [a.lower().replace(" ", "") for a in answers]
+
+    occupied_idx = np.zeros((len(words)))
+    dummy_tok_lab_id = 1
+    entities = []
+
+    for s in spans:
+        text = " ".join(words[s[0] : s[1]])
+        if text.strip().lower().replace(" ", "") not in answers_low:
+            logging.error(f"did not found {text.strip()} in possible answers {answers}")
+        # don't include spans which were already included at some part before
+        if occupied_idx[s[0] : s[1]].sum() > 0:
+            continue
+        occupied_idx[s[0] : s[1]] = 1
+        lab = {
+            "name": question,
+            "order_id": 0,
+            "text": text,
+            "token_spans": [s],
+            "token_label_id": dummy_tok_lab_id,
+        }  # add dummy label id
+        dummy_tok_lab_id += 1
+        entities.append(lab)
+
+    return {"words": words, "entities": entities}
