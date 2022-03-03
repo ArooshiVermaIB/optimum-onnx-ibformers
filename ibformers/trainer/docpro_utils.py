@@ -123,6 +123,7 @@ class DocProCallback(TrainerCallback):
 
     # For UX purposes, avoid setting progress bar to 100% until upload finishes
     PROGRESS_BAR_LIMIT: float = 0.95
+    LOGGING_STEPS: int = 10
 
     def __init__(
         self,
@@ -219,10 +220,11 @@ class DocProCallback(TrainerCallback):
         self.job_metadata_client.update_metadata(self.job_status)
 
     def set_training_progress(self, state: TrainerState):
-        progress = 0.0
-        if state.max_steps != 0:
-            progress = self.PROGRESS_BAR_LIMIT * (state.global_step / state.max_steps)
-        self.set_status({"progress": progress})
+        if state.global_step % self.LOGGING_STEPS == 0:
+            progress = 0.0
+            if state.max_steps != 0:
+                progress = self.PROGRESS_BAR_LIMIT * (state.global_step / state.max_steps)
+            self.set_status({"progress": progress})
 
     def on_step_end(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
@@ -248,8 +250,6 @@ class DocProCallback(TrainerCallback):
                 metrics["precision"] = kwargs["metrics"]["eval_precision"]
                 metrics["recall"] = kwargs["metrics"]["eval_recall"]
                 metrics["f1"] = kwargs["metrics"]["eval_f1"]
-                self.set_status({"evaluation_results": metrics, "progress": state.global_step / state.max_steps})
-
                 self.evaluation_results.append(metrics)
 
             elif "test_eval_loss" in kwargs["metrics"]:
@@ -259,7 +259,6 @@ class DocProCallback(TrainerCallback):
                 metrics["precision"] = kwargs["metrics"]["test_eval_precision"]
                 metrics["recall"] = kwargs["metrics"]["test_eval_recall"]
                 metrics["f1"] = kwargs["metrics"]["test_eval_f1"]
-                self.set_status({"evaluation_results": metrics, "progress": state.global_step / state.max_steps})
                 self.evaluation_results.append(metrics)
 
             else:
@@ -270,7 +269,8 @@ class DocProCallback(TrainerCallback):
         metrics_writer = self.metrics_writer
         overall_accuracy = "Unknown"
         try:
-            evaluation_metrics = self.job_status.get("evaluation_results")
+            # get the last evalutation metrics
+            evaluation_metrics = self.evaluation_results[-1]
             if evaluation_metrics:
 
                 # First add the table

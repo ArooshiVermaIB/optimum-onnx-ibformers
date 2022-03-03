@@ -150,20 +150,30 @@ def compute_legacy_metrics_for_sl(
     pred_dict = get_predictions_for_sl(predictions, dataset, label_list)
 
     max_examples = 2
+    max_len = 50
     mismatches_text = f"MISMATCH EXAMPLES (max {max_examples} per label)\n"
     for lab in label_list[1:]:
-        mismatches = [
-            "\tpred:\t'" + v["entities"][lab]["text"] + "'\n\tgold:\t'" + v["entities"][lab]["gold_text"] + "'\n"
-            for k, v in pred_dict.items()
-            if not v["entities"][lab]["is_match"]
-        ]
-        label_mismatch_text = "  ".join(mismatches[:max_examples])
+        mismatches = []
+        for k, v in pred_dict.items():
+            if len(mismatches) == max_examples:
+                break
+            if not v["entities"][lab]["is_match"]:
+                pred_text = get_log_entity_text(v["entities"][lab]["text"], max_len)
+                lab_text = get_log_entity_text(v["entities"][lab]["gold_text"], max_len)
+                mismatches.append("\tpred:\t'" + pred_text + "'\n\tgold:\t'" + lab_text + "'\n")
+
         if len(mismatches) > 0:
+            label_mismatch_text = "  ".join(mismatches)
             mismatches_text += f"{lab}:\n{label_mismatch_text}\n"
     logger.info(mismatches_text)
 
     results = compute_legacy_metrics(label_list, pred_dict)
     return results
+
+
+def get_log_entity_text(text: str, max_len: int) -> str:
+    # shorten the text to be better presented on logs
+    return text if len(text) < max_len else text[: max_len // 2] + " [...] " + text[: max_len // 2]
 
 
 def compute_only_legacy_metrics_for_sl(

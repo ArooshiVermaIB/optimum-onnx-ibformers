@@ -11,6 +11,7 @@ All notable changes to this repository will be documented in this file.
 - Fix predict dataset for MQA model
 - Add new loss type - class weights are computed based on adjusted inverse frequency
 - Fix exact match metric displaying 100% when no annotations are present
+- Fix sending too long information to metadata and logs
 
 ## [0.3.0] - 2022-02-07
 
