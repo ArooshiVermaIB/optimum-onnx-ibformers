@@ -14,6 +14,7 @@ from ibformers.data.metrics import (
     compute_legacy_metrics_for_mqa,
     compute_metrics_for_qa_task,
     compute_metrics_for_singleqa_task,
+    compute_metrics_for_sl_grp,
 )
 from ibformers.data.predict_splinter import squad_metric, splinter_metric, compute_metrics_for_splinter_mqa
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
@@ -26,8 +27,11 @@ from ibformers.data.transform import (
     convert_from_mrqa_fmt,
     prepare_input_squad,
 )
+from ibformers.data.transform.table import create_non_merged_table_labels, stack_table_labels
 from ibformers.models.bbox_masking_models import LayoutLMForMaskedLMAndLayout, LayoutLMForMaskedLMAndLayoutRegression
+from ibformers.models.layoutlm_ext import LayoutLMForTableStructureClassification, LayoutLMForTableAdjacencyMatrix
 from ibformers.data.splinter_processing import find_recurring_spans, build_prefix_with_mqa_splinter
+from ibformers.models.layoutlm_positionless import LayoutLMPositionlessForMaskedLMAndLayoutRegression
 from ibformers.models.layv1mqa import LayMQAForTokenClassification
 from ibformers.models.layv1splinter import LayoutSplinterModel
 
@@ -183,6 +187,41 @@ single_qa = {
     "compute_metrics": compute_metrics_for_singleqa_task,
 }
 
+# table extraction
+
+layoutlm_table_nonmerged = {
+    "dataset_load_kwargs": {},
+    "preprocess": [
+        tokenize,
+        create_non_merged_table_labels,
+        stack_table_labels,
+        norm_bboxes_for_layoutlm,
+        produce_chunks,
+    ],
+    "preprocess_kwargs": {"save_memory": False},  # for debugging
+    "column_mapping": [("bboxes", "bbox")],
+    "collate": get_collator_class(),
+    "model_class": LayoutLMForTableStructureClassification,
+    "compute_metrics": compute_metrics_for_sl_grp,
+}
+
+layoutlm_table_adjacency = {
+    "dataset_load_kwargs": {},
+    "preprocess": [
+        tokenize,
+        create_non_merged_table_labels,
+        stack_table_labels,
+        norm_bboxes_for_layoutlm,
+        produce_chunks,
+    ],
+    "preprocess_kwargs": {"save_memory": False},  # for debugging
+    "column_mapping": [("bboxes", "bbox")],
+    "collate": get_collator_class(),
+    "model_class": LayoutLMForTableAdjacencyMatrix,
+    "compute_metrics": None,
+}
+
+
 # mlm pretraining
 layoutlm_mlm = {
     "dataset_load_kwargs": {},
@@ -210,6 +249,17 @@ layoutlm_mlm_bm_regresssion = {
     "model_class": LayoutLMForMaskedLMAndLayoutRegression,
     "compute_metrics": None,
 }
+
+
+layoutlm_mlm_bm_regresssion_positionless = {
+    "dataset_load_kwargs": {},
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "column_mapping": [("bboxes", "bbox")],
+    "collate": get_collator_class(MLMAugmenter, BboxMaskingAugmenter),
+    "model_class": LayoutLMPositionlessForMaskedLMAndLayoutRegression,
+    "compute_metrics": None,
+}
+
 
 plain_mlm = {
     "dataset_load_kwargs": {},
@@ -313,4 +363,7 @@ PIPELINES = {
     "splinter_unsupervised": splinter_unsupervised,
     "splinter_sl": splinter_sl,
     "docvqa_splinter_sl": docvqa_splinter_sl,
+    "layoutlm_table_nonmerged": layoutlm_table_nonmerged,
+    "layoutlm_table_adjacency": layoutlm_table_adjacency,
+    "layoutlm_mlm_bm_regresssion_positionless": layoutlm_mlm_bm_regresssion_positionless,
 }

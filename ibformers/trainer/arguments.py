@@ -212,6 +212,10 @@ class DataAndPipelineArguments:
         default=None,
         metadata={"help": "An optional input test data file to predict on (a csv or JSON file)."},
     )
+    dataset_config_json_file: Optional[str] = field(
+        default=None,
+        metadata={"help": "Optional path to json file with dataset config. This allows to load multiple datasets"},
+    )
     overwrite_cache: bool = field(default=False, metadata={"help": "Overwrite the cached training and evaluation sets"})
     preprocessing_num_workers: Optional[int] = field(
         default=None,
@@ -294,8 +298,13 @@ class DataAndPipelineArguments:
     )
 
     def __post_init__(self):
-        if self.dataset_name_or_path is None and self.train_file is None and self.validation_file is None:
-            raise ValueError("Need either a dataset name or a training/validation file.")
+        if (
+            self.dataset_name_or_path is None
+            and self.train_file is None
+            and self.validation_file is None
+            and self.dataset_config_json_file is None
+        ):
+            raise ValueError("Need either a dataset name, training/validation file or dataset config file")
 
     def save(self, save_path, filename="pipeline.json"):
         save_dict = asdict(self)

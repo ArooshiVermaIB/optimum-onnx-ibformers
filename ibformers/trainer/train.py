@@ -27,8 +27,7 @@ from typing import Dict
 
 import datasets
 import transformers
-from datasets import load_dataset, DownloadConfig
-from datasets.data_files import DataFilesDict
+from datasets import DownloadConfig
 from transformers import (
     AutoConfig,
     AutoTokenizer,
@@ -43,7 +42,6 @@ from transformers.utils.versions import require_version
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
-from ibformers.datasets import DATASETS_PATH
 from ibformers.trainer.arguments import (
     ModelArguments,
     EnhancedTrainingArguments,
@@ -54,13 +52,12 @@ from ibformers.trainer.arguments import (
 )
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
+from ibformers.trainer.data_loading import load_raw_dataset
 from ibformers.trainer.hp_search.optimize import optimize_hyperparams
 
 check_min_version("4.12.3")
 from ibformers.trainer.train_utils import (
-    split_train_with_column,
     prepare_config_kwargs,
-    split_eval_from_train,
     validate_dataset_sizes,
 )
 from ibformers.trainer import metrics_utils
@@ -148,6 +145,8 @@ def run_train(
     extra_callbacks=None,
     extra_load_kwargs=None,
 ):
+    if extra_load_kwargs is None:
+        extra_load_kwargs = dict()
     # Setup logging
     setup_logging(training_args)
 
@@ -182,48 +181,12 @@ def run_train(
     compute_metrics = pipeline["compute_metrics"]
     load_kwargs = pipeline["dataset_load_kwargs"]
     model_class = pipeline["model_class"]
-
-    base_model_local_path, token = prepare_base_model_loading(model_args)
-
-    data_files = DataFilesDict()
-    if data_args.train_file is not None:
-        data_files["train"] = data_args.train_file
-    if data_args.validation_file is not None:
-        data_files["validation"] = data_args.validation_file
-    if data_args.test_file is not None:
-        data_files["test"] = data_args.test_file
-
-    # Downloading and loading a dataset from the hub or from local datasets
-    ds_path = Path(DATASETS_PATH) / data_args.dataset_name_or_path
-    name_to_use = str(ds_path) if ds_path.is_dir() else data_args.dataset_name_or_path
-
     if extra_load_kwargs is not None:
         load_kwargs.update(extra_load_kwargs)
 
-    raw_datasets = load_dataset(
-        path=name_to_use,
-        name=data_args.dataset_config_name,
-        cache_dir=model_args.cache_dir,
-        data_files=data_files,
-        **load_kwargs,
-    )
+    base_model_local_path, token = prepare_base_model_loading(model_args)
 
-    # workaround currently only for docpro dataset which require loading into single dataset as information about split
-    # could be obtained after loading a record
-    is_docpro_training = "split" in next(iter(raw_datasets.column_names.values()))
-
-    if is_docpro_training and data_args.validation_set_size > 0:
-        raw_datasets = split_eval_from_train(
-            raw_datasets, data_args.validation_set_size, data_args.fully_deterministic_eval_split
-        )
-    elif is_docpro_training:
-        raw_datasets = split_train_with_column(raw_datasets)
-    for key, dataset in raw_datasets.items():
-        logger.warning(f"Dataset: {key} has {len(dataset)} examples.")
-    if is_docpro_training:
-        validate_dataset_sizes(raw_datasets)
-
-
+    raw_datasets = load_raw_dataset(data_args, load_kwargs, model_args)
 
     tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
 
@@ -288,10 +251,12 @@ def run_train(
     if training_args.do_predict:
         if "test" not in raw_datasets:
             raise ValueError("--do_predict requires a test dataset")
-        if "predict" not in raw_datasets:
-            raise ValueError("--do_predict requires a predict dataset")
         test_dataset = raw_datasets["test"]
-        predict_raw_dataset = raw_datasets["predict"]
+        if "predict" not in raw_datasets:
+            logger.info("Ignoring predict dataset, as the test one is present")
+            predict_raw_dataset = test_dataset.filter(lambda x: False)
+        else:
+            predict_raw_dataset = raw_datasets["predict"]
 
         if data_args.max_predict_samples is not None:
             test_dataset = test_dataset.select(range(data_args.max_predict_samples))

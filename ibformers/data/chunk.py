@@ -15,6 +15,10 @@ KEYS_TO_CHUNK = [
     "token_page_nums",
     "attention_mask",
     "answer_token_label_ids",
+    "token_row_ids",
+    "token_col_ids",
+    "token_table_ids",
+    "stacked_table_labels",
 ]
 
 
@@ -189,10 +193,12 @@ def get_chunks(example, tokenizer, chunk_ranges, save_memory=True) -> Sequence[M
         content_tokens_mask = np.logical_not(special_mask)
 
         if len(chunk["input_ids"]) != content_tokens_mask.sum():
-            raise ValueError(
+            logging.error(
                 f"Number of non special tokens should be equal to number of chunk tokens. "
+                f'Skipping chunk with Id: {chunk["id"]}'
                 f'chunk_input={chunk["input_ids"]}, special_mask={special_mask}'
             )
+            continue
 
         chunk_processed["content_tokens_mask"] = content_tokens_mask
         if "bboxes" in chunk:
@@ -209,6 +215,10 @@ def get_chunks(example, tokenizer, chunk_ranges, save_memory=True) -> Sequence[M
         if "answer_token_label_ids" in chunk:
             chunk_processed["answer_token_label_ids"] = fill_special_tokens(
                 chunk["answer_token_label_ids"], content_tokens_mask, -100
+            )
+        if "stacked_table_labels" in chunk:
+            chunk_processed["stacked_table_labels"] = fill_special_tokens(
+                chunk["stacked_table_labels"], content_tokens_mask, -100
             )
 
         yield chunk_processed

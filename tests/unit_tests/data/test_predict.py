@@ -17,6 +17,8 @@ class TestPredict(unittest.TestCase):
         def getitem(val):
             if isinstance(val, int):
                 return {k: v[val] for k, v in dataset_dict.items()}
+            elif isinstance(val, slice):
+                return {k: v[val] for k, v in dataset_dict.items()}
             else:
                 return dataset_dict[val]
 

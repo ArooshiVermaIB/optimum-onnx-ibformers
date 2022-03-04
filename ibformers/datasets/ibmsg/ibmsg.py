@@ -133,10 +133,10 @@ class Ibmsg(datasets.GeneratorBasedBuilder):
         raw_content = index_path.read_text()
         lines = raw_content.split("\n")
         rows = [l.split(",") for l in lines]
-        return [(Path(r[0]), Path(r[1])) for r in rows if len(r) == 2]
+        return [(Path(r[0]), Path(r[1])) for r in rows if len(r) >= 2]
 
     def _try_load_doc(self, paths: Tuple[Path, Path]):
-        ibmsg_path, image_path = paths
+        image_path, ibmsg_path = paths
         try:
             doc_dict = self._load_doc(ibmsg_path, image_path)
             doc_dict["id"] = ibmsg_path.stem
@@ -174,7 +174,7 @@ class Ibmsg(datasets.GeneratorBasedBuilder):
 
     def _fix_path(self, ibmsg_path: Path) -> Path:
         # TODO: is it always s1_process_files?
-        if "s1_process_files" not in ibmsg_path.parts:
+        if "s1_process_files" not in ibmsg_path.parts and "s2_map_records" not in ibmsg_path.parts:
             return ibmsg_path.parent / "s1_process_files" / ibmsg_path.name
         return ibmsg_path
 

@@ -117,6 +117,12 @@ def prepare_predicted_doc(
     return PredictedDoc(**doc_components)
 
 
+def try_get_first(items: List[Any]):
+    if not isinstance(items, list):
+        return None
+    return items[0]
+
+
 def extract_dechunked_components(
     doc_id: str, chunk_from_idx: int, chunk_to_idx: int, predictions: Tuple, dataset: Dataset
 ) -> DechunkedDoc:
@@ -137,15 +143,14 @@ def extract_dechunked_components(
     """
     preds, labels = predictions
 
-    doc = dataset[chunk_from_idx]
-    assert doc_id == doc["id"], "Chunk doc_id and doc_id obtained from the dataset does not match"
+    doc_spans = dataset[chunk_from_idx:chunk_to_idx]
+    assert doc_id == doc_spans["id"][0], "Chunk doc_id and doc_id obtained from the dataset does not match"
 
-    chunk_ranges = dataset["chunk_ranges"]
-    chunk_ranges_lst = chunk_ranges[chunk_from_idx:chunk_to_idx]
-    content_mask_lst = dataset["content_tokens_mask"][chunk_from_idx:chunk_to_idx]
+    chunk_ranges_lst = doc_spans["chunk_ranges"]
+    content_mask_lst = doc_spans["content_tokens_mask"]
     preds_arr = preds[chunk_from_idx:chunk_to_idx]
     labels_arr = labels[chunk_from_idx:chunk_to_idx]
-    word_starts = dataset["word_starts"][chunk_from_idx:chunk_to_idx]
+    word_starts = doc_spans["word_starts"]
 
     doc_preds = join_chunks(preds_arr, chunk_ranges_lst, content_mask_lst)
     doc_labels = join_chunks(labels_arr, chunk_ranges_lst, content_mask_lst)
@@ -153,16 +158,16 @@ def extract_dechunked_components(
     doc_word_starts = np.array(doc_word_starts)
 
     dechunked_doc = DechunkedDoc(
-        id=doc["id"],
-        words=doc["words"],
-        word_original_bboxes=doc.get("word_original_bboxes", None),
-        word_page_nums=doc.get("word_page_nums", None),
+        id=doc_spans["id"][0],
+        words=doc_spans["words"][0],
+        word_original_bboxes=try_get_first(doc_spans.get("word_original_bboxes", None)),
+        word_page_nums=try_get_first(doc_spans.get("word_page_nums", None)),
         gold_labels=doc_labels[doc_word_starts],
         raw_predictions=doc_preds[doc_word_starts],
         word_starts=doc_word_starts,
-        is_test_file=doc.get("is_test_file", False),
-        word_line_idx=doc.get("word_line_idx", None),
-        word_in_line_idx=doc.get("word_in_line_idx", None),
+        is_test_file=try_get_first(doc_spans.get("is_test_file", False)),
+        word_line_idx=try_get_first(doc_spans.get("word_line_idx", None)),
+        word_in_line_idx=try_get_first(doc_spans.get("word_in_line_idx", None)),
     )
     return dechunked_doc
 

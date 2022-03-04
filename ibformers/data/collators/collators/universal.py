@@ -81,11 +81,12 @@ class UniversalDataCollator:
             for collator in available_collators
         ]
 
-        self.field_to_collator: Dict[str, List[BaseCollator]] = defaultdict(list)
+        field_to_collator: Dict[str, List[BaseCollator]] = defaultdict(list)
 
         for collator in self.collators:
             for field in collator.supported_fields:
-                self.field_to_collator[field].append(collator)
+                field_to_collator[field].append(collator)
+        self.field_to_collator = dict(field_to_collator)
 
     @property
     def supported_fields(self) -> List[str]:

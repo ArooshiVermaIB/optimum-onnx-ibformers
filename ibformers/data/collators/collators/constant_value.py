@@ -73,7 +73,21 @@ class BboxCollator(DefaultValueCollator):
 
 @dataclass
 class TokenClassLabelCollator(DefaultValueCollator):
-    _supported_fields: ClassVar[List[str]] = ["label", "labels"]
+    _supported_fields: ClassVar[List[str]] = [
+        "label",
+        "labels",
+        "token_order_ids",
+        "chattered_row_ids",
+        "chattered_col_ids",
+        "token_row_ids",
+        "token_col_ids",
+    ]
+    _default_value: ClassVar[Any] = -100
+
+
+@dataclass
+class StackedTableLabelCollator(DefaultValueCollator):
+    _supported_fields: ClassVar[List[str]] = ["stacked_table_labels"]
     _default_value: ClassVar[Any] = -100
 
 

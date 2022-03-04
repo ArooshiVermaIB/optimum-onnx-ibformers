@@ -242,3 +242,37 @@ def compute_metrics_for_singleqa_task(predictions: Tuple, dataset: Dataset):
     pred_dict = get_predictions_for_qa(predictions, dataset)
     results = compute_legacy_metrics(label_list, pred_dict)
     return results
+
+
+def compute_metrics_for_sl_grp(predictions: Tuple, dataset: Dataset):
+    """
+    Function will create dummy label list to compute metrics for token classification task
+    :param predictions:
+    :param dataset:
+    :return:
+    """
+
+    preds, labels = predictions
+    num_classes = int(preds.shape[-1] / 3)
+    row_preds, col_preds, table_preds = (
+        preds[:, :, :num_classes],
+        preds[:, :, num_classes:-num_classes],
+        preds[:, :, -num_classes:],
+    )
+    row_labels, col_labels, table_labels = labels[:, :, 0], labels[:, :, 1], labels[:, :, 2]
+
+    row_predictions = row_preds, row_labels
+    col_predictions = col_preds, col_labels
+    table_predictions = table_preds, table_labels
+    row_label_list = ["O"] + [f"row_{i}" for i in range(num_classes)]
+    col_label_list = ["O"] + [f"col_{i}" for i in range(num_classes)]
+    table_label_list = ["O"] + [f"table_{i}" for i in range(num_classes)]
+    row_metrics = compute_legacy_metrics_for_sl(row_predictions, dataset, row_label_list)
+    column_metrics = compute_legacy_metrics_for_sl(col_predictions, dataset, col_label_list)
+    table_metrics = compute_legacy_metrics_for_sl(table_predictions, dataset, table_label_list)
+
+    for k, v in row_metrics.items():
+        column_metrics[f"row_{k}"] = v
+    for k, v in table_metrics.items():
+        column_metrics[f"table_{k}"] = v
+    return column_metrics
