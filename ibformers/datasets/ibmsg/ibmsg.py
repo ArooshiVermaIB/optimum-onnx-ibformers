@@ -136,9 +136,9 @@ class Ibmsg(datasets.GeneratorBasedBuilder):
         return [(Path(r[0]), Path(r[1])) for r in rows if len(r) >= 2]
 
     def _try_load_doc(self, paths: Tuple[Path, Path]):
-        image_path, ibmsg_path = paths
+        source_path, ibmsg_path = paths
         try:
-            doc_dict = self._load_doc(ibmsg_path, image_path)
+            doc_dict = self._load_doc(ibmsg_path, source_path)
             doc_dict["id"] = ibmsg_path.stem
             return doc_dict
         except DocLoadingException as e:

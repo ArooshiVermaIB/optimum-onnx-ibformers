@@ -439,7 +439,7 @@ class Instabase:
         self.logger.debug(f"{self.name}: Waiting for async job with ID: {job_id}")
 
         start_time = time.time()
-        while time.time() - start_time < 1200:  # TODO: parametrize upper bound of total wait time
+        while time.time() - start_time < 2400:  # TODO: parametrize upper bound of total wait time
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     url,
