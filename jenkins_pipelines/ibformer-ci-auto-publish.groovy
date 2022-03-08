@@ -25,13 +25,14 @@ def postResultsToSlack(environment, color) {
     env.LAST_GIT_COMMIT = sh(script: "git log -1 --pretty=format:'[%h] (%an) %s'", returnStdout: true).trim()
     env.CHANGE_LOG = getChangeString()
 
-    def slackResponseBad = slackSend(
-        botUser: true,
-        channel: '#alerts-ibformer-ci-tests',
-        color: color,
-        message: "${currentBuild.fullDisplayName} from ${RELEASE_BRANCH} was ${currentBuild.currentResult.toLowerCase()} in environment ${environment}! See ${BUILD_URL}console for more information.",
-    )
     if (INSTABASE_FORK == "instabase" && RELEASE_BRANCH == "main") {
+        def slackResponseBad = slackSend(
+            botUser: true,
+            channel: '#alerts-ibformer-ci-tests',
+            color: color,
+            message: "${currentBuild.fullDisplayName} from ${RELEASE_BRANCH} was ${currentBuild.currentResult.toLowerCase()} in environment ${environment}! See ${BUILD_URL}console for more information.",
+        )
+
         slackSend(
             botUser: true,
             channel: slackResponseBad.threadId,

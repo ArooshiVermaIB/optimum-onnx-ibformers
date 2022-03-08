@@ -112,7 +112,7 @@ async def run_training_test(
             logging.info(f"Test passed: {test_name}")
     else:
         logging.error("evaluation results were not in the status")
-        success = False, job_id
+        return False, job_id
 
     return success, job_id
 
