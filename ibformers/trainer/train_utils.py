@@ -3,7 +3,7 @@ import logging
 from typing import Dict, List
 
 import numpy as np
-from datasets import Dataset, DatasetDict, ClassLabel
+from datasets import Dataset, DatasetDict, ClassLabel, Sequence
 
 from ibformers.utils import exceptions
 
@@ -192,14 +192,27 @@ def prepare_config_kwargs(ds: Dataset) -> Dict:
     Function prepares a dictionary of parameters suited to given dataset.
     Additonal kwargs will be passed to the model config for extraction or classification task
     """
+    label_names = ["labels", "class_label", "token_label_ids"]
     features = ds.features
-    if "labels" not in features:
+    if not any(label in features for label in label_names):
         return dict()
-    if isinstance(features["labels"].feature, ClassLabel):
-        label_list = features["labels"].feature.names
-    else:
-        logging.warning(f"Dataset labels column is not of required type - ClassLabel")
-        label_list = get_label_list(ds["labels"])
+    for label in label_names:
+        if not label in features:
+            continue
+        if isinstance(features[label], ClassLabel):
+            label_list = features[label].names
+            break
+        elif isinstance(features[label], Sequence):
+            if isinstance(features[label].feature, ClassLabel):
+                label_list = features[label].feature.names
+            else:
+                logging.warning(f"Dataset labels column - {label} is not of required type - ClassLabel")
+                label_list = get_label_list(ds[label])
+            break
+        else:
+            logging.warning(f"Dataset labels column - {label} is not of required type - ClassLabel")
+            label_list = get_label_list(ds[label])
+            break
 
     label_to_id = {l: i for i, l in enumerate(label_list)}
     ib_id2label = {i: lab for lab, i in label_to_id.items()}

@@ -4,9 +4,12 @@ from typing import Tuple, List, Mapping, Dict, Optional, Union, Any
 import numpy as np
 import pandas as pd
 from datasets import Dataset
+from ibformers.data.chunk import NO_SPLIT_IDX, SPLIT_IDX
 
-from ibformers.data.predict import get_predictions_for_sl
+from ibformers.data.predict import get_predictions_for_sl, get_predictions_for_cls, get_predictions_for_sc
 from ibformers.data.predict_qa import get_predictions_for_qa
+
+from sklearn.metrics import classification_report, accuracy_score
 
 logger = logging.getLogger(__name__)
 
@@ -276,3 +279,93 @@ def compute_metrics_for_sl_grp(predictions: Tuple, dataset: Dataset):
     for k, v in table_metrics.items():
         column_metrics[f"table_{k}"] = v
     return column_metrics
+
+
+def _add_training_loop_required_metrics(metrics_dict: Dict[str, Any]) -> None:
+    metrics = metrics_dict["metrics"]
+    metrics_dict.update(
+        {
+            "macro_f1": metrics["f1"]["macro avg"],
+            "macro_recall": metrics["precision"]["macro avg"],
+            "macro_precision": metrics["recall"]["macro avg"],
+        }
+    )
+
+    # when micro avg are not equal to accuracy, sklearn adds it to the report
+    if "micro avg" in metrics["f1"]:
+        metrics_dict.update(
+            {
+                "micro_f1": metrics["f1"]["micro avg"],
+                "micro_recall": metrics["precision"]["micro avg"],
+                "micro_precision": metrics["recall"]["micro avg"],
+            }
+        )
+    else:
+        accuracy = metrics["accuracy"]
+        metrics_dict.update(
+            {
+                "micro_f1": accuracy,
+                "micro_recall": accuracy,
+                "micro_precision": accuracy,
+            }
+        )
+
+
+def compute_metrics_for_cls(predictions: Tuple, dataset: Dataset):
+    preds, labels = predictions
+    pred_lab = preds.argmax(-1)
+
+    id2label = dataset.features["labels"]._int2str
+
+    metrics = _compute_classification_metrics(labels, pred_lab, id2label)
+
+    return_dict = {}
+    return_dict["metrics"] = metrics
+
+    return_dict["predictions"] = get_predictions_for_cls(predictions, dataset)
+
+    _add_training_loop_required_metrics(return_dict)
+
+    return return_dict
+
+
+def compute_metrics_for_sc(predictions: Tuple, dataset: Dataset):
+
+    class_id2str = dataset.features["class_label"].feature._int2str
+    split_id2str = {SPLIT_IDX: "split", NO_SPLIT_IDX: "no-split"}
+
+    splitter_labels = predictions.label_ids[:, 0]
+    classifier_labels = predictions.label_ids[:, 1]
+
+    splitter_preds = predictions.predictions[:, 0:2]
+    classifier_preds = predictions.predictions[:, 2:]
+
+    splits = np.argmax(splitter_preds, axis=1)
+    classes = np.argmax(classifier_preds, axis=1)
+
+    splitter_metrics = _compute_classification_metrics(splitter_labels, splits, split_id2str)
+
+    classifier_metrics = _compute_classification_metrics(classifier_labels, classes, class_id2str)
+
+    metrics = {"splitter_metrics": splitter_metrics, "classifier_metrics": classifier_metrics}
+    metrics["predictions"] = get_predictions_for_sc(predictions, dataset)
+
+    return metrics
+
+
+def _compute_classification_metrics(y_true, y_pred, id2label):
+
+    labels = list(range(len(id2label)))
+    target_names = [id2label[label] for label in labels]
+    metrics = classification_report(y_true, y_pred, labels=labels, target_names=target_names, output_dict=True)
+    if "accuracy" in metrics:
+        metrics.pop("accuracy")
+
+    metrics = pd.DataFrame(metrics).T.to_dict()
+
+    # to keep it as in extraction
+    metrics["f1"] = metrics.pop("f1-score")
+
+    metrics.update({"accuracy": accuracy_score(y_true, y_pred)})
+
+    return metrics

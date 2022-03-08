@@ -1,0 +1,25 @@
+{
+    "name": "{{model_name}}",
+    "display_name": "{{model_name}}",
+    "version": "0.0.1",
+    "keywords": "",
+    "category": "model",
+    "short_description": "Deep learning model for {{model_name}} extraction",
+    "long_description": "Deep learning model for extracting {{model_name}} documents.",
+    "input_types": ["path"],
+    "docs_link": "",
+    "refiner_demo": "",
+    "readme_url": "README.md",
+    "authors": [
+        ""
+    ],
+    "solution_type": "ibmodel",
+    "packages": [
+        "src/py/{{model_package}}",
+        "src/py/ibformers/"
+    ],
+    "classpath": "{{model_package}}.model.IbModel",
+    "payload_type": "custom_request",
+    "result_type": "ner_result",
+    "training_job_id": "{{training_job_id}}"
+}

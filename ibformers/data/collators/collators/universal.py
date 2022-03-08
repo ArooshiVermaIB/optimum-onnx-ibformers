@@ -123,7 +123,12 @@ class UniversalDataCollator:
 
         """
         to_collate = set(features[0].keys())
-        collated = self.base_collator(features)
+        target_length = 0
+        for feature in features:
+            for key in to_collate:
+                if isinstance(feature[key], list):
+                    target_length = max(target_length, len(feature[key]))
+        collated = self.base_collator(features, target_length)
         target_length = len(collated[self.base_collator.supported_fields[0]][0])
         to_collate -= collated.keys()
         while len(to_collate) != 0:

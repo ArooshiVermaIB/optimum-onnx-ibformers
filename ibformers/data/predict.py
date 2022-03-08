@@ -5,6 +5,7 @@ from typing import List, Iterator, Tuple, Union, Sequence, Optional, Dict, Any
 import torch
 from datasets import Dataset
 from typing_extensions import TypedDict
+from ibformers.data.chunk import SPLIT_IDX
 
 import numpy as np
 
@@ -78,6 +79,62 @@ def get_predictions_for_sl(predictions: Tuple, dataset: Dataset, label_list: Opt
         is_test_file = doc["is_test_file"] if "is_test_file" in doc else False
         pred_dict[doc["id"]] = {"is_test_file": is_test_file, "entities": doc_dict}
 
+    return pred_dict
+
+
+def get_predictions_for_cls(predictions: Tuple, dataset: Dataset, label_list: Optional[List] = None) -> Dict[str, Any]:
+    """
+    Extract prediction dictionary from raw predictions.
+
+    Args:
+        predictions: raw predictions of the model with their corresponding labels
+        dataset: Chunked dataset that the predictions are from
+        label_list: Optional list of label names. If missing, it is inferred from the `labels` col in the dataset.
+
+    Returns:`
+        Dictionary of document predictions with items:
+            * is_test_file: true if the document is test file
+            * entities: Dictionary of document-level entities.
+    """
+    features = dataset.features
+    id2label = features["labels"]._int2str
+    assert "id" in features, "dataset need to contain ids of documents"
+    if label_list is None:
+        if isinstance(features["labels"], Sequence):
+            label_list = features["labels"].feature.names
+        else:
+            label_list = features["labels"].names
+    ids = dataset["id"]
+    pred_dict = {}
+    pred_logits, _ = predictions
+
+    for doc_id, chunk_from_idx, chunk_to_idx in doc_chunk_iter(ids):
+        # this relies on the fact that each doc chunk contains all non-chunked features,
+        # e.g. words or original bounding boxes. That's why we can create prediction for all chunks using only
+        # the first doc in the chunk
+        # doc = prepare_predicted_doc(doc_id, chunk_from_idx, chunk_to_idx, predictions, dataset)
+        max_logits_by_lab = defaultdict(list)
+        for logits in pred_logits[chunk_from_idx:chunk_to_idx]:
+            max_logits_by_lab[logits.argmax()].append(max(logits))
+        most_predicted = sorted(
+            [(k, len(v), sum(v) / len(v)) for k, v in max_logits_by_lab.items()],
+            reverse=True,
+            key=lambda x: (x[1], x[2]),
+        )
+
+        # Use token page numbers to get the page extremes for cls
+        page_nums = dataset["token_page_nums"][chunk_from_idx:chunk_to_idx]
+        page_start = min(page_nums[0])
+        page_end = max(page_nums[-1])
+        is_test_file = dataset[chunk_from_idx].get("is_test_file", False)  # for non-docpro training
+        pred_dict[doc_id] = {
+            "is_test_file": is_test_file,
+            "entities": {},
+            "class_label": id2label[most_predicted[0][0]],
+            "class_confidence": most_predicted[0][2],
+            "page_start": page_start,
+            "page_end": page_end,
+        }
     return pred_dict
 
 
@@ -330,3 +387,46 @@ def extract_entity_words(
 
         doc_words_dict[tag_name].append(word)
     return doc_words_dict
+
+
+def get_predictions_for_sc(predictions: Tuple, dataset: Dataset):
+    ids = dataset["id"]
+    pages = dataset["page"]
+    is_test_file = dataset["is_test_file"]
+    class_id2str = dataset.features["class_label"].feature._int2str
+    split_idx = SPLIT_IDX
+
+    test_doc_dict = {}
+
+    doc_dict = defaultdict(list)
+    for i, (id, page, test_file) in enumerate(zip(ids, pages, is_test_file)):
+        doc_dict[id].append((i, page))
+        test_doc_dict[id] = test_file
+
+    final_predictions = {}
+    for id in doc_dict:
+        doc_dict[id].sort(key=lambda x: x[1])
+        page_nums = [x[1] for x in doc_dict[id]]
+        page_offsets = [x[0] for x in doc_dict[id]]
+        preds = predictions.predictions[page_offsets, :]
+        splits = np.argmax(preds[:, 0:2], axis=1)
+
+        start_range = 0
+        end_range = 0
+        predicted_dict = defaultdict(list)
+        for i, split in enumerate(splits):
+            if split == split_idx or i == len(splits) - 1:
+                end_range = i
+                cur_preds = preds[start_range : end_range + 1, :]
+                split_conf = torch.tensor(cur_preds[-1, :2]).softmax(0)[split_idx]
+                avg_class_pred = torch.tensor(cur_preds[:, 2:]).softmax(1).sum(0).softmax(0)
+                class_idx = avg_class_pred.argmax().item()
+                class_conf = avg_class_pred[class_idx].item()
+                class_name = class_id2str[class_idx]
+                pred_tuple = [page_nums[start_range] + 1, page_nums[end_range] + 1, class_conf, float(split_conf)]
+
+                predicted_dict[class_name].append(pred_tuple)
+                start_range = i + 1
+        final_predictions[id] = {"is_test_file": test_doc_dict[id], "prediction": dict(predicted_dict)}
+
+    return final_predictions

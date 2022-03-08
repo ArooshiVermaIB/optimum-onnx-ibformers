@@ -64,8 +64,8 @@ class BaseCollator(CollatorABC):
     def _collate_features(self, features, target_length: Optional[int] = None):
         return self.tokenizer.pad(
             features,
-            padding=self.padding,
-            max_length=self.max_length,
+            padding="max_length",
+            max_length=target_length,
             pad_to_multiple_of=self.pad_to_multiple_of,
             # Conversion to tensors will fail if we have labels as they are not of the same length yet.
             return_tensors=None,

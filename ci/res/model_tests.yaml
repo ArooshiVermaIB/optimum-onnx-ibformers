@@ -301,3 +301,165 @@ NYDriversLicensesQAProd:
       DL Number: 0.1
       Name: 0.1
       Address: 0.1
+
+
+Classification:
+  env:
+    - dogfood
+  package: ibformers_classification
+  model_project_path: ml_studio_models/classification
+  dataset_project_path: ml_studio_datasets/classification
+  time_limit: 2500
+  config:
+    <<: *defaults
+    chunk_size: 512
+    batch_size: 2
+    epochs: 5
+    class_weights: 1
+    model_name: microsoft/layoutlm-base-uncased
+    pipeline_name: layoutlm_cls
+    task_type: classification
+  metrics:
+    precision:
+      paystub: 0.5
+      invoice: 0.5
+      resume: 0.5
+      passport: 0.5
+    recall:
+      paystub: 0.5
+      invoice: 0.5
+      resume: 0.5
+      passport: 0.5
+    f1:
+      paystub: 0.5
+      invoice: 0.5
+      resume: 0.5
+      passport: 0.5
+
+
+ClassificationProd:
+  env:
+    - prod
+  package: ibformers_classification
+  model_project_path: ml_studio_models_prod/classification
+  dataset_project_path: ml_studio_datasets_prod/classification
+  time_limit: 2500
+  config:
+    <<: *defaults
+    chunk_size: 512
+    batch_size: 2
+    epochs: 5
+    class_weights: 1
+    model_name: microsoft/layoutlm-base-uncased
+    pipeline_name: layoutlm_cls
+    task_type: classification
+  metrics:
+    precision:
+      paystub: 0.5
+      invoice: 0.5
+      resume: 0.5
+      passport: 0.5
+    recall:
+      paystub: 0.5
+      invoice: 0.5
+      resume: 0.5
+      passport: 0.5
+    f1:
+      paystub: 0.5
+      invoice: 0.5
+      resume: 0.5
+      passport: 0.5
+
+
+SplitClassification:
+  env:
+    - dogfood
+  package: ibformers_classification
+  model_project_path: ml_studio_models/split_classification
+  dataset_project_path: ml_studio_datasets/split_classification
+  time_limit: 2500
+  config:
+    <<: *defaults
+    chunk_size: 512
+    epochs: 10
+    loss_agg_steps: 2
+    class_weights: 1
+    use_mixed_precision: false
+    model_name: microsoft/layoutlm-base-uncased
+    pipeline_name: layoutlm_sc
+    task_type: split_classification
+  metrics:
+    splitter_precision:
+      split: 0.5
+      no-split: 0.5
+    splitter_recall:
+      split: 0.5
+      no-split: 0.5
+    splitter_f1:
+      split: 0.5
+      no-split: 0.5
+    classifier_precision:
+      paystub: 0.4
+      bank_statement: 0.5
+      invoice: 0.5
+      resume: 0.5
+      w2: 0.5
+    classifier_recall:
+      paystub: 0.4
+      bank_statement: 0.5
+      invoice: 0.5
+      resume: 0.5
+      w2: 0.5
+    classifier_f1:
+      paystub: 0.4
+      bank_statement: 0.5
+      invoice: 0.5
+      resume: 0.5
+      w2: 0.5
+
+
+SplitClassificationProd:
+  env:
+    - prod
+  package: ibformers_classification
+  model_project_path: ml_studio_models_prod/split_classification
+  dataset_project_path: ml_studio_datasets_prod/split_classification
+  time_limit: 2500
+  config:
+    <<: *defaults
+    chunk_size: 512
+    epochs: 10
+    loss_agg_steps: 2
+    class_weights: 1
+    use_mixed_precision: false
+    model_name: microsoft/layoutlm-base-uncased
+    pipeline_name: layoutlm_sc
+    task_type: split_classification
+  metrics:
+    splitter_precision:
+      split: 0.5
+      no-split: 0.5
+    splitter_recall:
+      split: 0.5
+      no-split: 0.5
+    splitter_f1:
+      split: 0.5
+      no-split: 0.5
+    classifier_precision:
+      paystub: 0.4
+      bank_statement: 0.5
+      invoice: 0.5
+      resume: 0.5
+      w2: 0.5
+    classifier_recall:
+      paystub: 0.4
+      bank_statement: 0.5
+      invoice: 0.5
+      resume: 0.5
+      w2: 0.5
+    classifier_f1:
+      paystub: 0.4
+      bank_statement: 0.5
+      invoice: 0.5
+      resume: 0.5
+      w2: 0.5

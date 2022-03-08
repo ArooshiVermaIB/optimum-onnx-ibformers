@@ -90,6 +90,9 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
             entities_batch[i]["token_spans"] = new_token_spans
         encodings["entities"] = entities_batch
 
+    if "word_record_idx" in example_batch:
+        encodings["word_record_idx"] = spread_with_mapping(example_batch["word_record_idx"], encodings["word_map"])
+
     return encodings
 
 

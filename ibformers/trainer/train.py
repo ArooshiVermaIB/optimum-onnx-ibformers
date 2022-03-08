@@ -87,7 +87,7 @@ def run_hyperparams_and_cmdline_train(hyperparams: Dict):
     model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(hyperparams)
 
     # workaround for docpro params
-    if hyperparams.get("dataset_config_name", "") == "docpro_ds":
+    if hyperparams.get("dataset_config_name", "") == "ib_extraction":
         data_args.train_file = [data_args.train_file]
 
     run_train(
@@ -238,6 +238,8 @@ def run_train(
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
         with training_args.main_process_first(desc="train dataset map pre-processing"):
             train_dataset = prepare_dataset(train_dataset, pipeline, **map_kwargs)
+        if data_args.max_train_samples is not None:
+            train_dataset = train_dataset.select(range(data_args.max_train_samples))
 
     if training_args.do_eval or training_args.do_hyperparam_optimization:
         if "validation" not in raw_datasets:

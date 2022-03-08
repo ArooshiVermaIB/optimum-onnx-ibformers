@@ -29,8 +29,13 @@ class ExtendedWandbCallback(WandbCallback):
             return
         metric_names = ["f1", "precision", "recall"]
         table_rows = defaultdict(list)
+
+        is_classification = "test_eval_metrics" in metrics_dict
+        metric_prefix = "" if is_classification else "test_eval_"
+        metrics_dict = metrics_dict["test_eval_metrics"] if is_classification else metrics_dict
+
         for metric in metric_names:
-            metric_subdict = metrics_dict[f"test_eval_{metric}"]
+            metric_subdict = metrics_dict[f"{metric_prefix}{metric}"]
             for dp_name, metric_value in metric_subdict.items():
                 if metric_value == "NAN":
                     metric_value = None

@@ -1,9 +1,9 @@
 from pathlib import Path
+import os
 from typing import Optional, Dict, Any
-from ibformers.trainer.docpro_utils import run_train_doc_pro
+from ibformers.trainer.docpro_utils import run_train_both_classification
 import fire
 import zipfile
-import os
 from tqdm import tqdm
 
 # SCRIPT USED FOR DEBUGGING WITH LOCAL RUNS
@@ -50,36 +50,31 @@ class InstabaseSDKDummy:
 
 def run(ds_path, out_path):
     hyperparams = {
-        "adam_epsilon": 1e-8,
-        "batch_size": 8,
+        "batch_size": 4,
         "chunk_size": 512,
-        "epochs": 5,
+        "stride": 16,
+        "epochs": 1,
         "learning_rate": 5e-05,
-        "loss_agg_steps": 2,
-        "max_grad_norm": 1.0,
-        "optimizer_type": "AdamW",
         "scheduler_type": "constant_schedule_with_warmup",
-        "stride": 64,
-        "use_gpu": True,
-        "use_mixed_precision": False,
         "warmup": 0.0,
         "weight_decay": 0,
         "model_name": "microsoft/layoutlm-base-uncased",
+        "pipeline_name": "layoutlm_cls",
+        "task_type": "classification"
     }
 
     # ds_path = '/Users/rafalpowalski/python/annotation/UberEatsDataset'
     # out_path = '/Users/rafalpowalski/python/models/test_model'
     sdk = InstabaseSDKDummy(None, "user")
-    run_train_doc_pro(
+    run_train_both_classification(
         hyperparams=hyperparams,
         dataset_paths=[ds_path],
         save_path=out_path,
-        extraction_class_name="Magic the Gathering",
         file_client=sdk,
         username="user",
         job_metadata_client=DummyJobStatus(),
         mount_details=None,
-        model_name="CustomModel",
+        model_name="W2",
     )
 
 

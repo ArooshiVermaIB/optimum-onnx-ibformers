@@ -489,7 +489,8 @@ def prepare_ib_params(
             elif "laymqav1" in model_name.lower():
                 pipeline_name = "laymqav1"
             else:
-                pipeline_name = "layoutlm_sl"
+                if pipeline_name is None:
+                    pipeline_name = "layoutlm_sl"
         out_dict["pipeline_name"] = pipeline_name
     if "report_to" in hyperparams:
         out_dict["report_to"] = hyperparams.pop("report_to")

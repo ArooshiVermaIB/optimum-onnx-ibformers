@@ -3,7 +3,7 @@ from typing import TypeVar, List, Sequence, Any, Mapping, Tuple
 
 import numpy as np
 
-from ibformers.data.utils import feed_single_example_and_flatten
+from ibformers.data.utils import feed_single_example, feed_single_example_and_flatten
 
 KEYS_TO_CHUNK = [
     "input_ids",
@@ -13,6 +13,7 @@ KEYS_TO_CHUNK = [
     "word_starts",
     "word_map",
     "token_page_nums",
+    "word_record_idx",
     "attention_mask",
     "answer_token_label_ids",
     "token_row_ids",
@@ -20,6 +21,9 @@ KEYS_TO_CHUNK = [
     "token_table_ids",
     "stacked_table_labels",
 ]
+
+SPLIT_IDX = 0
+NO_SPLIT_IDX = 1
 
 
 def get_chunk_ranges(input_len: int, chunk_size: int, overlap: int) -> List[Tuple[int, int]]:
@@ -252,3 +256,86 @@ def _split_by_ranges(seq: Sequence[Any], ranges: List[Tuple]):
         chunks.append(seq[rng_from:rng_to])
 
     return chunks
+
+
+def get_model_inp(input_ids, bboxes, tokenizer, max_length=512):
+    """Returns input_ids and bboxes after adding special token and padding"""
+
+    encodings = tokenizer.prepare_for_model(input_ids, add_special_tokens=True, max_length=max_length, truncation=True)
+
+    if len(bboxes) == 0:
+        bboxes = np.ndarray((0, 4), dtype=np.int32)
+    else:
+        bboxes = np.array(bboxes, dtype=np.int32)
+
+    special_mask = np.array(tokenizer.get_special_tokens_mask(encodings["input_ids"], already_has_special_tokens=True))
+
+    unk_id = getattr(tokenizer, "unk_token_id", -1)
+    special_mask = special_mask * (np.array(encodings["input_ids"]) != unk_id)
+
+    bboxes = fill_special_tokens(bboxes, np.logical_not(special_mask), 0)
+    bboxes[-1, :] = 1000
+
+    encodings["bboxes"] = bboxes
+
+    return encodings
+
+
+@feed_single_example_and_flatten
+def pairer(example, tokenizer, max_length=512, **kwargs):
+    """Creates a page pair feature for splitting and classification"""
+    page_spans = example["page_spans"]
+    record_page_ranges = example["record_page_ranges"]
+    class_ids = example["class_label"]
+    bboxes = example["bboxes"]
+    input_ids = example["input_ids"]
+
+    max_tokens = max_length - 2
+    last_token_slice = slice(-max_tokens, None)
+    first_token_slice = slice(None, max_tokens)
+
+    last_page_num = np.array(record_page_ranges).max()
+
+    for idx, (start, end) in enumerate(record_page_ranges):
+        for page_idx in range(start, end + 1):
+            page_span = page_spans[page_idx]
+            page_slice = slice(*page_span)
+            class_label = class_ids[idx]
+            current_input_ids = input_ids[page_slice][last_token_slice]
+            current_bboxes = bboxes[page_slice][last_token_slice]
+
+            current_encodings = get_model_inp(current_input_ids, current_bboxes, tokenizer, max_length)
+
+            # End of record case - needs to be split
+            if page_idx == end:
+                split_label = SPLIT_IDX
+                # End of document case - here the next page is taken as balnk for consistency
+                if page_idx == last_page_num:
+                    next_encodings = get_model_inp([], [], tokenizer, max_length)
+                else:
+                    next_page_span = page_spans[page_idx + 1]
+                    next_page_slice = slice(*next_page_span)
+                    next_input_ids = input_ids[next_page_slice][first_token_slice]
+                    next_bboxes = bboxes[next_page_slice][first_token_slice]
+                    next_encodings = get_model_inp(next_input_ids, next_bboxes, tokenizer, max_length)
+            # Same record - no need to split
+            else:
+                split_label = NO_SPLIT_IDX
+                next_page_span = page_spans[page_idx + 1]
+                next_page_slice = slice(*next_page_span)
+                next_input_ids = input_ids[next_page_slice][first_token_slice]
+                next_bboxes = bboxes[next_page_slice][first_token_slice]
+                next_encodings = get_model_inp(next_input_ids, next_bboxes, tokenizer, max_length)
+
+            new_dict = {
+                "page": page_idx,
+                "input_ids": current_encodings["input_ids"],
+                "bboxes": current_encodings["bboxes"],
+                "attention_mask": current_encodings["attention_mask"],
+                "next_input_ids": next_encodings["input_ids"],
+                "next_bboxes": next_encodings["bboxes"],
+                "next_attention_mask": next_encodings["attention_mask"],
+                "sc_labels": [split_label, class_label],
+            }
+
+            yield {**example, **new_dict}

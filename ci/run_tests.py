@@ -39,6 +39,7 @@ async def run_training_test(
     root_path: str,
     remote_code_loation: str,
     test_config: Dict,
+    package: str,
 ) -> [bool, str]:
     logger = logging.getLogger(f"{sdk.name}: {test_name}")
 
@@ -47,13 +48,17 @@ async def run_training_test(
     logger.debug("Starting the model training task")
 
     success = False
+    hyperparams = test_config["config"]
+    if package == "ibformers_extraction":
+        hyperparams["log_metrics_to_metadata"] = True
 
     success, job_id = await sdk.start_model_training_task(
         training_script_path=os.path.join(root_path, REMOTE_CODE_PREFIX, remote_code_loation),
         model_project_path=os.path.join(root_path, test_config["model_project_path"]),
         dataset_project_path=os.path.join(root_path, test_config["dataset_project_path"]),
         base_model=utils.get_base_model_name(test_config["config"]),
-        hyperparams=test_config["config"],
+        hyperparams=hyperparams,
+        package=package,
     )
 
     state = ""
@@ -121,6 +126,166 @@ class PredictionDict(TypedDict):
     avg_confidence: float
     text: str
     words: List["WordPolyDict"]
+
+
+CLASSIFIER_TEMPLATE = {
+    "rootDir": "..",
+    "steps": [
+        {
+            "kwargs": {
+                "input_folder": "input",
+                "output_folder": "out/s1_apply_classifier",
+                "classifier_path": "classifier_mod/model_split_classifier_model_0f1d3b1828df43a2951b0ef850d84561.ibclassifier",
+                "settings": {"filter_classes": "", "split_inputs": "no"},
+            },
+            "option": {"internalName": "apply_classifier", "name": "Apply Classifier"},
+        }
+    ],
+}
+
+
+async def run_inference_test_classifier(
+    sdk: Instabase,
+    wait_for: Optional[asyncio.Task],
+    test_name: str,
+    dataset_path: str,
+    test_config: Dict,
+) -> bool:
+    logger = logging.getLogger(f"{sdk.name}: {test_name}")
+
+    logger.info("Waiting for training test to finish before starting inference test")
+    await wait_for
+    success, job_id = wait_for.result()
+    if not success:
+        return False  # fail fast; if training failed, skip inference
+
+    logger.info(f"Running inference test for training job {job_id}")
+
+    model_project_path = Path(os.path.join(dataset_path, test_config["model_project_path"]))
+    training_job_path = model_project_path / "training_jobs" / job_id
+
+    # we need to publish model first before we can run refiner
+    success, model_name, model_version = await _publish_model(sdk, model_project_path, job_id)
+    if not success:
+        return False
+
+    classifier_scripts_path = training_job_path / "classifier_mod"
+    logger.debug(f"get classifier full path from {classifier_scripts_path}")
+    classifier_filenames = await sdk.list_directory(str(classifier_scripts_path), use_abspath=True)
+    # TODO: add filtering to make sure we locate the correct files only here
+    # instead of assuming all files under this directory are the same type of files.
+    classifier_filename = [file for file in classifier_filenames if file.endswith(".ibclassifier")][0]
+    classifier_path = classifier_scripts_path / classifier_filename
+
+    dataset_project_path = Path(os.path.join(dataset_path, test_config["dataset_project_path"]))
+    dev_input_folder = dataset_project_path / "out_annotations" / "s1_process_files"
+
+    logger.debug(
+        f"Unload the model '{test_name}' in case it's already present. "
+        "Repeating 10 times to capture multiple potential pods."
+    )
+    for _ in range(10):
+        await sdk.unload_model(model_name, model_version)
+
+    prediction_path = training_job_path / "predictions"
+    logger.debug(f"get predictions results from training job predictions path: {prediction_path}")
+    prediction_filenames = await sdk.list_directory(str(prediction_path), use_abspath=True)
+    # TODO: add filtering to make sure we locate the correct files only here
+    # instead of assuming all files under this directory are the same type of files.
+    prediction_filename = prediction_filenames[0]
+    preds = await sdk.read_file(str(prediction_path / prediction_filename), use_abspath=True)
+    preds_dict = dict()
+    # This has the inference predictions. They should match the output from model service
+    try:
+        preds_dict: Mapping[str, Mapping[str, PredictionDict]] = json.loads(preds)
+    except JSONDecodeError as e:
+        logger.error("Exception occured while reading predictions because: " + str(e))
+        await sdk.unpublish_solution(model_name, model_version)
+        return False
+
+    logger.info(f"Running classifier {Path(sdk._host) / 'apps/classifier' / classifier_path}")
+
+    inference_uuid = uuid.uuid4().hex
+
+    classifier_flow_path = training_job_path / f"ci_test_flow_{inference_uuid}"
+    await sdk.make_dir(str(classifier_flow_path), use_abspath=True)
+    CLASSIFIER_TEMPLATE["steps"][0]["kwargs"]["classifier_path"] = str(Path("classifier_mod") / classifier_filename)
+    flow_path = classifier_flow_path / "ci_test.ibflow"
+
+    logger.info(f"Creating classifier flow: {flow_path}")
+    await sdk.write_file(str(flow_path), json.dumps(CLASSIFIER_TEMPLATE), use_abspath=True)
+
+    ci_input_folder = training_job_path / f"ci_input_{inference_uuid}"
+    logger.info(f"Creating input folder for classifier flow: {ci_input_folder}")
+    await sdk.make_dir(str(ci_input_folder), use_abspath=True)
+
+    input_ibdoc_name = os.path.basename(preds_dict["ibdoc_path"])
+    task_type = test_config["config"]["task_type"]
+    if task_type == "classification":
+        copy_resp = await sdk.copy_file(
+            preds_dict["ibdoc_path"], str(ci_input_folder / input_ibdoc_name), use_abspath=True
+        )
+    elif task_type == "split_classification":
+        copy_resp = await sdk.copy_file(
+            str(dev_input_folder / "original" / input_ibdoc_name),
+            str(ci_input_folder / input_ibdoc_name),
+            use_abspath=True,
+        )
+
+    await sdk.wait_for_job_completion(copy_resp["job_id"], 1)
+
+    logger.info(f"Running classsifier flow {flow_path} on input folder {ci_input_folder}")
+    success, resp = await sdk.run_flow_test("/" + str(ci_input_folder), "/" + str(flow_path), output_has_run_id=True)
+
+    if not success:
+        logger.error(f"Running classifier flow failed with error message: {resp}")
+        await sdk.unpublish_solution(model_name, model_version)
+        return False
+
+    job_id = resp["data"]["job_id"]
+    out_folder = resp["data"]["output_folder"]
+
+    await sdk.wait_for_job_completion(job_id, POLLING_INTERVAL)
+
+    batch_results = os.path.join(out_folder, "batch.ibflowresults")
+    logger.info(f"getting flow results from : {batch_results}")
+    results = await sdk.get_flow_results(batch_results, options={"include_page_layouts": True})
+
+    success = True
+    for record in results["records"]:
+        record_index = record["record_index"]
+        if record_index != preds_dict["record_index"]:
+            continue
+
+        file_name = record["file_name"]
+
+        page_layouts = record["layout"]["page_layouts"]
+        page_numbers = [layout["page_number"] for layout in page_layouts]
+        page_range = (min(page_numbers), max(page_numbers))
+        train_pred = preds_dict["prediction"]
+        train_page_range = (train_pred["page_start"], train_pred["page_end"])
+
+        if page_range != train_page_range:
+            logging.error(
+                f"For file <{file_name}>, the page range from expected training prediction <{train_page_range}> "
+                f"equal inference prediction <{page_range}> for record index: {record_index}"
+            )
+            success = False
+
+        class_label = record["classification_label"]
+        predicted_class_label = train_pred["annotated_class_name"]
+
+        if class_label != predicted_class_label:
+            logging.error(
+                f"For file <{file_name}>, the class label from expected training prediction <{predicted_class_label}> "
+                f"equal inference prediction <{class_label}>"
+            )
+            success = False
+
+    logger.info(f"Inference test {'passed' if success else 'failed'}: {test_name}")
+
+    await sdk.unpublish_solution(model_name, model_version)
+    return success
 
 
 async def run_inference_test(
@@ -278,13 +443,16 @@ async def sync_and_unzip(sdk: Instabase, contents: bytes, remote_code_loation: s
     logger = logging.getLogger(sdk.name)
     # TODO Make sure that locations don"t conflict if multiple users test at once
     logger.debug(f"Deleting remote_code_loation")
+    # Needed to add this since REMOTE_TEMP_ZIP_PATH would be overwritten
+    # since we now have both ibformers_extraction and ibformers_classification
+    remote_temp_zip_path = "%s.ibsolution" % uuid.uuid4().hex
     await sdk.delete_file(remote_code_loation, recursive=True)
-    logger.debug(f"Writing to REMOTE_TEMP_ZIP_PATH")
-    await sdk.write_file(REMOTE_TEMP_ZIP_PATH, contents)
-    logger.debug(f"Unzipping REMOTE_TEMP_ZIP_PATH to remote_code_loation")
-    await sdk.unzip(zip_filepath=REMOTE_TEMP_ZIP_PATH, destination=remote_code_loation)
-    logger.debug(f"Deleting REMOTE_TEMP_ZIP_PATH")
-    await sdk.delete_file(REMOTE_TEMP_ZIP_PATH)
+    logger.debug(f"Writing to {remote_temp_zip_path}")
+    await sdk.write_file(remote_temp_zip_path, contents)
+    logger.debug(f"Unzipping {remote_temp_zip_path} to remote_code_loation")
+    await sdk.unzip(zip_filepath=remote_temp_zip_path, destination=remote_code_loation)
+    logger.debug(f"Deleting {remote_temp_zip_path}")
+    await sdk.delete_file(remote_temp_zip_path)
     logger.debug(f"Done syncing code")
 
 
@@ -318,17 +486,21 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
         root_path=os.path.join(env_config["path"], REMOTE_CODE_PREFIX),
     )
 
-    # this solves race condition when run tests concurrently
-    remote_code_loation = "ibformers_%s" % uuid.uuid4().hex
-
+    remote_code_loation = {}
     if train:
-        zip_bytes = zip_project(PROJECT_ROOT, PackageType.EXTRACTION.value)
-        sync_tasks[test_environment] = asyncio.create_task(sync_and_unzip(sdk, zip_bytes, remote_code_loation))
-        del zip_bytes
+        for package in [PackageType.EXTRACTION.value, PackageType.CLASSIFICATION.value]:
+            # this solves race condition when run tests concurrently
+            remote_code_loation[package] = "ibformers_%s" % uuid.uuid4().hex
+            zip_bytes = zip_project(PROJECT_ROOT, package)
+            sync_tasks[f"{test_environment}_{package}"] = asyncio.create_task(
+                sync_and_unzip(sdk, zip_bytes, remote_code_loation[package])
+            )
+            del zip_bytes
 
     tasks: List[asyncio.Task] = []
     for test_name, test_config in model_tests.items():
         supported_envs = test_config["env"]
+        package = test_config.get("package", PackageType.EXTRACTION.value)
         if test_environment not in supported_envs:
             logging.warning(
                 f"test_environment: {test_environment} is not supported by list of "
@@ -349,25 +521,38 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
             train_task = asyncio.create_task(
                 run_training_test(
                     sdk,
-                    wait_for=sync_tasks[test_environment],
+                    wait_for=sync_tasks[f"{test_environment}_{package}"],
                     test_name=test_name,
                     root_path=env_config["path"],
-                    remote_code_loation=remote_code_loation,
+                    remote_code_loation=remote_code_loation[package],
                     test_config=test_config,
+                    package=package,
                 )
             )
             tasks.append(train_task)
         if inference:
-            inference_task = asyncio.create_task(
-                run_inference_test(
-                    sdk,
-                    wait_for=train_task,
-                    test_name=test_name,
-                    dataset_path=env_config["path"],
-                    test_config=test_config,
+            if package == PackageType.EXTRACTION.value:
+                inference_task = asyncio.create_task(
+                    run_inference_test(
+                        sdk,
+                        wait_for=train_task,
+                        test_name=test_name,
+                        dataset_path=env_config["path"],
+                        test_config=test_config,
+                    )
                 )
-            )
-            tasks.append(inference_task)
+                tasks.append(inference_task)
+            else:
+                inference_task = asyncio.create_task(
+                    run_inference_test_classifier(
+                        sdk,
+                        wait_for=train_task,
+                        test_name=test_name,
+                        dataset_path=env_config["path"],
+                        test_config=test_config,
+                    )
+                )
+                tasks.append(inference_task)
 
     results = await asyncio.gather(*tasks)
     if not all(results):
@@ -382,7 +567,6 @@ parser.add_argument(
     default="doc-insights-sandbox",
     help="environment tests will be running on",
 )
-
 parser.add_argument("--log-level", dest="log_level", default="INFO", help="DEBUG, INFO, WARNING, ERROR")
 
 parser.add_argument("--quiet", dest="quiet", action="store_true", default=False, help="Log more concisely")

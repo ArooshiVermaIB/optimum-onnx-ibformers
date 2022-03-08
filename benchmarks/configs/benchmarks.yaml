@@ -1,96 +1,96 @@
 invoices-non-tabular:
   name: Invoices - non tabular
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/invoices-non-tabular-ml-studio
     extraction_class_name: ib_Commercial_Invoices_v2
 
 invoices-tabular:
   name: Invoices - tabular
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/invoices-tabular-ml-studio
     extraction_class_name: ib_Invoices_Tabular_fields_v2
 
 checks:
   name: Checks
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/checks-ml-studio
     extraction_class_name: ib_solution_us_check_v1
 
 w2:
   name: W2
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/w2-ml-studio
     extraction_class_name: W2_Marketplace_v2_v8
 
 w2-v8:
   name: W2
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/w2-v2-v8
     extraction_class_name: W2_Marketplace_v2_v8
 
 kleister-nda:
   name: kleister-nda
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/nda-ml-studio
     extraction_class_name: KleisterNDA
 
 receipts:
   name: Receipts (ML Studio)
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/receipts-ml-studio
     extraction_class_name: Receipts
 
 bank_statements:
   name: Bank Statements
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/bank_statements
     extraction_class_name: bank_statements_all_inputs
 
 caag:
   name: Credit Agreements
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/caag-ml-studio
     extraction_class_name: CREDIT_AGREEMENTS
 
 isdaa:
   name: ISDA Agreements
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/isdaa-ml-studio
     extraction_class_name: ISDA_AGREEMENTS
 
 paystubs:
   name: Paystubs
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/paystubs-ml-studio
     extraction_class_name: Paystub
 
 medical-records:
   name: Medical Records
   hyperparams:
-    dataset_name_or_path: docpro_ds
-    dataset_config_name: docpro_ds
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/medical-records-ml-studio
     extraction_class_name: medical_records
 
@@ -106,3 +106,24 @@ xfund:
   hyperparams:
     dataset_name_or_path: xfund
     dataset_config_name: xfund
+
+rvl_classification:
+  name: RVL Clasification
+  hyperparams:
+    train_file: /home/ib/shared/datasets/rvl-classification
+    dataset_name_or_path: rvl_classification
+    dataset_config_name: rvl_classification
+
+rvl_classification_5k:
+  name: RVL Clasification
+  hyperparams:
+    train_file: /home/ib/shared/datasets/rvl-classification
+    dataset_name_or_path: rvl_classification
+    dataset_config_name: rvl_classification_5k
+
+rvl_classification_20k:
+  name: RVL Clasification
+  hyperparams:
+    train_file: /home/ib/shared/datasets/rvl-classification
+    dataset_name_or_path: rvl_classification
+    dataset_config_name: rvl_classification_20k

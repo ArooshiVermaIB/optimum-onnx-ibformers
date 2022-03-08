@@ -10,7 +10,7 @@ import numpy as np
 from datasets import BuilderConfig, DatasetInfo, DownloadManager
 
 from ibformers.data.utils import ImageProcessor
-from ibformers.datasets.docpro_ds.docpro_ds import assert_valid_record, validate_and_fix_bboxes
+from ibformers.datasets.ib_common import validate_and_fix_bboxes, assert_valid_record
 from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder, IBOCRRecord
 
 HASH_MODULO = 1000000
@@ -121,7 +121,7 @@ class Ibmsg(datasets.GeneratorBasedBuilder):
             ),
         ]
 
-    def _generate_examples(self, index_content: List[Tuple[Path, Path]]):
+    def _generate_examples(self, index_content: List[Tuple[Path, Path]], **kwargs):
         logger.info(f"Generating {len(index_content)} examples")
         with multiprocessing.Pool(8) as pool:
             for doc_dict in pool.imap(self._try_load_doc, index_content):

@@ -35,6 +35,7 @@ class Instabase:
         dataset_project_path: str,
         base_model: str,
         hyperparams: Dict[str, Any],
+        package: str,
     ) -> [bool, Union[str, Dict[str, Any], None]]:
         url = os.path.join(self._host, "api/v1/model/training_job")
 
@@ -45,7 +46,9 @@ class Instabase:
             hyperparameters=hyperparams,
         )
 
-        hyperparams["training_scripts"] = {"extraction": {"path": training_script_path}}
+        package_type = package.split("_")[1]
+
+        hyperparams["training_scripts"] = {package_type: {"path": training_script_path}}
 
         self.logger.debug(f"Starting model training job: {arguments}")
         async with aiohttp.ClientSession() as session:
@@ -379,7 +382,7 @@ class Instabase:
     @backoff.on_exception(
         backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
     )
-    async def write_file(self, ib_path: str, contents: AnyStr) -> Dict[str, Any]:
+    async def write_file(self, ib_path: str, contents: AnyStr, use_abspath: bool = False) -> Dict[str, Any]:
         headers = {
             **self._make_headers(),
             "Instabase-API-Args": json.dumps(dict(type="file", if_exists="overwrite")),
@@ -387,7 +390,12 @@ class Instabase:
         if isinstance(contents, str):
             contents = contents.encode("utf-8")
 
-        url = os.path.join(self.drive_api_url, self._root_path, ib_path)
+        if use_abspath:
+            full_path = ib_path
+        else:
+            full_path = os.path.join(self._root_path, ib_path)
+
+        url = os.path.join(self.drive_api_url, full_path)
 
         TIMEOUT_SECONDS = 2400  # 40 minutes
         async with aiohttp.ClientSession() as session:
@@ -398,6 +406,51 @@ class Instabase:
 
         self.logger.debug(f"{self.name} write_file: IB API response: {resp}")
         self.logger.info(f"{self.name} write_file: Wrote to path {ib_path}")
+        return resp
+
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
+    async def copy_file(self, src_path: str, dest_path: str, use_abspath: bool = False) -> Dict[str, Any]:
+        headers = self._make_headers()
+
+        if not use_abspath:
+            src_path = os.path.join(self._root_path, src_path)
+            dest_path = os.path.join(self._root_path, dest_path)
+
+        url = os.path.join(self.drive_api_url, src_path, "copy")
+
+        data = dict(new_full_path=dest_path)
+
+        TIMEOUT_SECONDS = 2400  # 40 minutes
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, data=json.dumps(data), headers=headers, raise_for_status=True, timeout=TIMEOUT_SECONDS
+            ) as r:
+                resp = await r.json()
+
+        self.logger.debug(f"{self.name} copy_file: IB API response: {resp}")
+        self.logger.info(f"{self.name} copy_file: copied {src_path} to path {dest_path}")
+        return resp
+
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
+    async def make_dir(self, ib_path: str, use_abspath: bool = False) -> Dict[str, Any]:
+        headers = {**self._make_headers(), "Instabase-API-Args": json.dumps(dict(type="folder"))}
+
+        if not use_abspath:
+            ib_path = os.path.join(self._root_path, ib_path)
+
+        url = os.path.join(self.drive_api_url, ib_path)
+
+        TIMEOUT_SECONDS = 2400  # 40 minutes
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, raise_for_status=True, timeout=TIMEOUT_SECONDS) as r:
+                resp = await r.json()
+
+        self.logger.debug(f"{self.name} make_dir: IB API response: {resp}")
+        self.logger.info(f"{self.name} make_dir: created folder {ib_path}")
         return resp
 
     @backoff.on_exception(
@@ -584,6 +637,56 @@ class Instabase:
             return True, (resp["data"]["job_id"], resp["data"]["output_folder"])
         else:
             return False, None
+
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
+    async def run_flow_test(
+        self, input_dir: str, ibflow_path: str, output_has_run_id: bool = False, delete_out_dir: bool = False
+    ) -> Tuple[bool, Dict[str, Any]]:
+        url = os.path.join(self._host, "api/v1/flow/run_flow_async")
+        headers = self._make_headers()
+        data = dict(
+            input_dir=input_dir,
+            ibflow_path=ibflow_path,
+            output_has_run_id=output_has_run_id,
+            delete_out_dir=delete_out_dir,
+            log_to_timeline=True,
+            compile_and_run_as_binary=True,
+        )
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                headers=headers,
+                data=json.dumps(data),
+                raise_for_status=True,
+            ) as r:
+                resp = await r.json()
+        if resp["status"] == "OK":
+            return True, resp
+        else:
+            return False, resp
+
+    @backoff.on_exception(
+        backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
+    )
+    async def get_flow_results(
+        self,
+        ibresults_path: str,
+        options: Dict[str, Any] = {},
+    ) -> Tuple[bool, Optional[Tuple[str, str]]]:
+        url = os.path.join(self._host, "api/v1/flow_binary/results")
+        headers = self._make_headers()
+        data = dict(ibresults_path=ibresults_path, options=options)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                headers=headers,
+                data=json.dumps(data),
+                raise_for_status=True,
+            ) as r:
+                resp = await r.json()
+        return resp
 
     def _make_headers(self):
         return dict(Authorization=f"Bearer {self._token}")

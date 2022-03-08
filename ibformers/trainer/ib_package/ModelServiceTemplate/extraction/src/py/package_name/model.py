@@ -123,7 +123,7 @@ class IbModel(Model):
         load_kwargs["ibsdk"] = self.get_ibsdk(request.context.username)
 
         if hasattr(self.model.config, "ib_id2label"):
-            load_kwargs["id2label"] = self.model.config.ib_id2label
+            load_kwargs["id2label"] = dict((int(key), value) for key, value in self.model.config.ib_id2label.items())
 
         # generate prediction item: (full_path, record_index, record, anno)
         doc_path = request.input_path if request.input_path != "" else record.get_document_path()

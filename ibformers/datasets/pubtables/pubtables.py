@@ -11,7 +11,7 @@ import numpy as np
 from datasets import BuilderConfig, DatasetInfo, DownloadManager
 
 from ibformers.data.utils import ImageProcessor
-from ibformers.datasets.docpro_ds.docpro_ds import validate_and_fix_bboxes
+from ibformers.datasets.ib_common import validate_and_fix_bboxes
 from ibformers.datasets.table_utils import (
     CellAnnotation,
     TableAnnotation,

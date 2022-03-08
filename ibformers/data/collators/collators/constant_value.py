@@ -41,7 +41,7 @@ class DefaultValueCollator(BaseCollator):
         batch = {}
         for feature_name in present_supported_names:
             feature_batch = [feature[feature_name] for feature in features]
-
+            first_element = feature_batch[0]
             if target_length is None:
                 target_length = max(len(feature) for feature in feature_batch)
 
@@ -50,24 +50,28 @@ class DefaultValueCollator(BaseCollator):
             if not isinstance(feature_batch[0], np.ndarray):
                 feature_batch = [np.array(feat) for feat in feature_batch]
 
-            feat_lst = []
-            for feature in feature_batch:
-                pad_width = target_length - len(feature)
-                if pad_width > 0:
-                    new_shape = [pad_width] + list(feature.shape[1:])
-                    feat_lst.append(
-                        np.concatenate((feature, np.full_like(feature, fill_value=self.default_value, shape=new_shape)))
-                    )
-                else:
-                    feat_lst.append(feature)
-            batch[feature_name] = feat_lst
-
+            if isinstance(first_element, int) or isinstance(first_element, float):
+                batch[feature_name] = feature_batch
+            else:
+                feat_lst = []
+                for feature in feature_batch:
+                    pad_width = target_length - len(feature)
+                    if pad_width > 0:
+                        new_shape = [pad_width] + list(feature.shape[1:])
+                        feat_lst.append(
+                            np.concatenate(
+                                (feature, np.full_like(feature, fill_value=self.default_value, shape=new_shape))
+                            )
+                        )
+                    else:
+                        feat_lst.append(feature)
+                batch[feature_name] = feat_lst
         return batch
 
 
 @dataclass
 class BboxCollator(DefaultValueCollator):
-    _supported_fields: ClassVar[List[str]] = ["bbox", "bboxes"]
+    _supported_fields: ClassVar[List[str]] = ["bbox", "bboxes", "next_bboxes"]
     _default_value: ClassVar[Any] = 0
 
 
@@ -110,10 +114,13 @@ class QuestionPosCollator(DefaultValueCollator):
 
 
 @dataclass
-class QAPosCollator(BaseCollator):
+class NoValueCollator(BaseCollator):
+
+    _supported_fields: ClassVar[List[str]] = []
+
     @property
     def supported_fields(self) -> List[str]:
-        return ["start_positions", "end_positions"]
+        return self._supported_fields
 
     def _collate_features(self, features, target_length: Optional[int] = None):
         feature_keys = self._get_feature_keys(features)
@@ -125,4 +132,21 @@ class QAPosCollator(BaseCollator):
         for feature_name in present_supported_names:
             feature_batch = [feature[feature_name] for feature in features]
             batch[feature_name] = feature_batch
+
         return batch
+
+
+@dataclass
+class QAPosCollator(NoValueCollator):
+    _supported_fields: ClassVar[List[str]] = ["start_positions", "end_positions"]
+
+
+@dataclass
+class SequenceClassLabelCollator(NoValueCollator):
+    _supported_fields: ClassVar[List[str]] = ["sc_labels"]
+
+
+@dataclass
+class NextPageCollator(DefaultValueCollator):
+    _supported_fields: ClassVar[List[str]] = ["next_input_ids", "next_attention_mask"]
+    _default_value: ClassVar[Any] = 0

@@ -2,9 +2,14 @@ import logging
 from functools import partial
 
 from datasets import Dataset
-from transformers import AutoModelForTokenClassification, AutoModelForMaskedLM, AutoModelForQuestionAnswering
+from transformers import (
+    AutoModelForTokenClassification,
+    AutoModelForMaskedLM,
+    AutoModelForQuestionAnswering,
+    AutoModelForSequenceClassification,
+)
 
-from ibformers.data.chunk import produce_chunks
+from ibformers.data.chunk import produce_chunks, pairer
 from ibformers.data.collators.augmenters.bbox import BboxAugmenter
 from ibformers.data.collators.augmenters.bbox_masking import BboxMaskingAugmenter
 from ibformers.data.collators.augmenters.mlm import MLMAugmenter
@@ -15,6 +20,8 @@ from ibformers.data.metrics import (
     compute_metrics_for_qa_task,
     compute_metrics_for_singleqa_task,
     compute_metrics_for_sl_grp,
+    compute_metrics_for_sc,
+    compute_metrics_for_cls,
 )
 from ibformers.data.predict_splinter import squad_metric, splinter_metric, compute_metrics_for_splinter_mqa
 from ibformers.data.tokenize import tokenize, tokenize_layoutlmv2
@@ -33,6 +40,7 @@ from ibformers.models.layoutlm_ext import LayoutLMForTableStructureClassificatio
 from ibformers.data.splinter_processing import find_recurring_spans, build_prefix_with_mqa_splinter
 from ibformers.models.layoutlm_positionless import LayoutLMPositionlessForMaskedLMAndLayoutRegression
 from ibformers.models.layv1mqa import LayMQAForTokenClassification
+from ibformers.models.layv1splitclass import SplitClassifier
 from ibformers.models.layv1splinter import LayoutSplinterModel
 
 
@@ -344,6 +352,37 @@ docvqa_splinter_sl = {
     "compute_metrics": splinter_metric,
 }
 
+layoutlm_sc = {
+    "dataset_load_kwargs": {},
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, pairer],
+    "column_mapping": [],
+    "collate": get_collator_class(),
+    "model_class": SplitClassifier,
+    "compute_metrics": compute_metrics_for_sc,
+}
+
+plain_text_cls = {
+    "dataset_load_kwargs": {},
+    # tokenizer is passed to pipeline externally: in train.run_train tokenizer is passed to map_kwargs,
+    # which itself is a kwarg of prepare_dataset and pipeline_preprocess
+    "preprocess": [tokenize, produce_chunks],
+    "column_mapping": [("class_label", "labels")],
+    "collate": get_collator_class(),
+    "model_class": AutoModelForSequenceClassification,
+    "compute_metrics": compute_metrics_for_cls,
+}
+
+layoutlm_cls = {
+    "dataset_load_kwargs": {},
+    # tokenizer is passed to pipeline externally: in train.run_train tokenizer is passed to map_kwargs,
+    # which itself is a kwarg of prepare_dataset and pipeline_preprocess
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "column_mapping": [("class_label", "labels"), ("bboxes", "bbox")],
+    "collate": get_collator_class(),
+    "model_class": AutoModelForSequenceClassification,
+    "compute_metrics": compute_metrics_for_cls,
+}
+
 
 PIPELINES = {
     "layoutlm_sl": layoutlm_sl,
@@ -366,4 +405,7 @@ PIPELINES = {
     "layoutlm_table_nonmerged": layoutlm_table_nonmerged,
     "layoutlm_table_adjacency": layoutlm_table_adjacency,
     "layoutlm_mlm_bm_regresssion_positionless": layoutlm_mlm_bm_regresssion_positionless,
+    "layoutlm_sc": layoutlm_sc,
+    "plain_text_cls": plain_text_cls,
+    "layoutlm_cls": layoutlm_cls,
 }
