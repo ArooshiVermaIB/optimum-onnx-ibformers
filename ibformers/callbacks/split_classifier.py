@@ -219,7 +219,11 @@ class SplitClassifierCallback(TrainerCallback):
             logging.error(traceback.format_exc())
 
         # Set the overall accuracy of the model
-        self.set_status({"splitter_accuracy": splitter_accuracy, "classifier_accuracy": classifier_accuracy})
+        self.set_status({
+            "splitter_accuracy": splitter_accuracy,
+            "classifier_accuracy": classifier_accuracy,
+            "accuracy": (splitter_accuracy + classifier_accuracy) / 2.0
+            })
 
     def write_predictions(self, predictions_dict):
         # Now write the predictions
@@ -282,14 +286,11 @@ class SplitClassifierCallback(TrainerCallback):
     def write_epoch_summary(self):
         logging.info("Metrics over Epochs")
         for epoch, met in enumerate(self.evaluation_results):
-            # metrics = deepcopy(met)
             logging.info(f"Epoch {epoch} ^")
-            # splitter_metrics = metrics['splitter_metrics']
-            # splitter_metrics.pop('accuracy')
-            # logging.info(pd.DataFrame(splitter_metrics).T)
-            # classifier_metrics = metrics['classifier_metrics']
-            # classifier_metrics.pop('accuracy')
-            # logging.info(pd.DataFrame(classifier_metrics).T)
+            split_metrics = {k: v for k, v in met["splitter_metrics"].items() if k != "accuracy"}
+            logging.info(pd.DataFrame(split_metrics))
+            class_metrics = {k: v for k, v in met["classifier_metrics"].items() if k != "accuracy"}
+            logging.info(pd.DataFrame(class_metrics))
 
     def on_predict(self, args, state, control, **kwargs):
         # called after the training finish
@@ -302,4 +303,4 @@ class SplitClassifierCallback(TrainerCallback):
         label_names = [id2label[idx] for idx in range(0, len(id2label))]
         self.generate_classifier(label_names)
         self.move_data_to_ib()
-        # self.write_epoch_summary()
+        self.write_epoch_summary()

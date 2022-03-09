@@ -115,7 +115,7 @@ class IbSplitClass(IbDs):
             page_ranges.append([min(page_nums), max(page_nums)])
             anno = record.get_doc_extraction_annotations()
 
-            if anno is None:
+            if anno is None or anno["annotated_class_id"] is None:
                 class_labels.append(0)
                 is_predict = True
             else:
