@@ -2,7 +2,7 @@
 
 All notable changes to this repository will be documented in this file.
 
-## [Unreleased] - 2022-xx-xx
+## [1.0.0] - 2022-03-11
 
 ### Added
 - Hyperparameter tuning
