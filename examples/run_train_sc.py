@@ -14,11 +14,10 @@ class DummyJobStatus:
         pass
 
     def update_metadata(self, metadata: Optional[Dict[str, Any]]) -> None:
-        progress = int(metadata['progress']*100)
+        progress = int(metadata["progress"] * 100)
         self.pbar.n = progress
         self.pbar.last_print_n = progress
         self.pbar.refresh()
-        
 
 
 class InstabaseSDKDummy:
@@ -45,19 +44,19 @@ def run(ds_path, out_path):
     hyperparams = {
         "adam_epsilon": 1e-8,
         "batch_size": 2,
-        "epochs": 2,
-        "chunk_size": 512,
+        "num_train_epochs": 2,
+        "max_length": 512,
         "learning_rate": 5e-05,
-        "loss_agg_steps": 2,
+        "gradient_accumulation_steps": 2,
         "max_grad_norm": 1.0,
         "optimizer_type": "AdamW",
-        "scheduler_type": "constant_schedule_with_warmup",
+        "lr_scheduler_type": "constant_schedule_with_warmup",
         "use_mixed_precision": False,
-        "warmup": 0.0,
+        "warmup_ratio": 0.0,
         "weight_decay": 0,
         "model_name": "microsoft/layoutlm-base-uncased",
         "pipeline_name": "layoutlm_sc",
-        "task_type": "split_classification"
+        "task_type": "split_classification",
     }
 
     # ds_path = '/Users/rafalpowalski/python/annotation/UberEatsDataset'

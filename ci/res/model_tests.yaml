@@ -357,9 +357,9 @@ Classification:
   time_limit: 2500
   config:
     <<: *defaults
-    chunk_size: 512
+    max_length: 512
     batch_size: 2
-    epochs: 5
+    num_train_epochs: 5
     class_weights: 1
     model_name: microsoft/layoutlm-base-uncased
     pipeline_name: layoutlm_cls
@@ -391,9 +391,9 @@ ClassificationProd:
   time_limit: 2500
   config:
     <<: *defaults
-    chunk_size: 512
+    max_length: 512
     batch_size: 2
-    epochs: 5
+    num_train_epochs: 5
     class_weights: 1
     model_name: microsoft/layoutlm-base-uncased
     pipeline_name: layoutlm_cls
@@ -425,9 +425,9 @@ SplitClassification:
   time_limit: 2500
   config:
     <<: *defaults
-    chunk_size: 512
-    epochs: 10
-    loss_agg_steps: 2
+    max_length: 512
+    num_train_epochs: 10
+    gradient_accumulation_steps: 2
     class_weights: 1
     use_mixed_precision: false
     model_name: microsoft/layoutlm-base-uncased
@@ -472,9 +472,9 @@ SplitClassificationProd:
   time_limit: 2500
   config:
     <<: *defaults
-    chunk_size: 512
-    epochs: 10
-    loss_agg_steps: 2
+    max_length: 512
+    num_train_epochs: 10
+    gradient_accumulation_steps: 2
     class_weights: 1
     use_mixed_precision: false
     model_name: microsoft/layoutlm-base-uncased

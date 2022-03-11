@@ -121,7 +121,7 @@ class TestTrainUtils(unittest.TestCase):
         }
 
         # then
-        train_utils.validate_dataset_sizes(raw_datasets)
+        train_utils.validate_dataset_sizes(raw_datasets, is_eval_from_train=False)
 
     def test_validate_dataset_sizes_invalid_train(self):
         # given
@@ -133,7 +133,7 @@ class TestTrainUtils(unittest.TestCase):
 
         # then
         with self.assertRaisesRegex(exceptions.ValidationError, "Dataset split train"):
-            train_utils.validate_dataset_sizes(raw_datasets)
+            train_utils.validate_dataset_sizes(raw_datasets, is_eval_from_train=False)
 
     def test_validate_dataset_sizes_invalid_val(self):
         # given
@@ -145,7 +145,7 @@ class TestTrainUtils(unittest.TestCase):
 
         # then
         with self.assertRaisesRegex(exceptions.ValidationError, "Dataset split validation"):
-            train_utils.validate_dataset_sizes(raw_datasets)
+            train_utils.validate_dataset_sizes(raw_datasets, is_eval_from_train=False)
 
     def test_validate_dataset_sizes_invalid_test(self):
         # given
@@ -157,7 +157,18 @@ class TestTrainUtils(unittest.TestCase):
 
         # then
         with self.assertRaisesRegex(exceptions.ValidationError, "Dataset split test"):
-            train_utils.validate_dataset_sizes(raw_datasets)
+            train_utils.validate_dataset_sizes(raw_datasets, is_eval_from_train=False)
+
+    def test_validate_dataset_sizes_with_eval_split(self):
+        # given
+        raw_datasets = {
+            "train": mock.MagicMock(__len__=lambda x: 4),
+            "validation": mock.MagicMock(__len__=lambda x: 1),
+            "test": mock.MagicMock(__len__=lambda x: 2),
+        }
+
+        # then
+        train_utils.validate_dataset_sizes(raw_datasets, is_eval_from_train=True)
 
     def test_split_eval_from_train_param_deterministic(self):
         # given

@@ -119,12 +119,12 @@ def _load_raw_dataset(
         raw_datasets = split_eval_from_train(
             raw_datasets, data_args.validation_set_size, data_args.fully_deterministic_eval_split
         )
+        validate_dataset_sizes(raw_datasets, is_eval_from_train=True)
     elif is_docpro_training:
         raw_datasets = split_train_with_column(raw_datasets)
+        validate_dataset_sizes(raw_datasets, is_eval_from_train=False)
     for key, dataset in raw_datasets.items():
         logger.warning(f"Dataset: {key} has {len(dataset)} examples.")
-    if is_docpro_training:
-        validate_dataset_sizes(raw_datasets)
     return raw_datasets
 
 

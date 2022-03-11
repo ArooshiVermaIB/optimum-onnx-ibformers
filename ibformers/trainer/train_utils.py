@@ -14,9 +14,16 @@ MIN_DOCUMENT_SIZES = {
     "test": 2,
 }
 
+MIN_DOCUMENT_SIZES_WITH_VAL_SPLIT = {
+    "train": 4,
+    "validation": 1,
+    "test": 2,
+}
 
-def validate_dataset_sizes(raw_datasets: Dict[str, Dataset]):
-    for split_name, split_min_docs in MIN_DOCUMENT_SIZES.items():
+
+def validate_dataset_sizes(raw_datasets: Dict[str, Dataset], is_eval_from_train: bool):
+    min_sizes = MIN_DOCUMENT_SIZES_WITH_VAL_SPLIT if is_eval_from_train else MIN_DOCUMENT_SIZES
+    for split_name, split_min_docs in min_sizes.items():
         dataset_len = len(raw_datasets[split_name])
         if dataset_len < split_min_docs:
             raise exceptions.ValidationError(

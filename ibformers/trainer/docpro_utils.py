@@ -662,25 +662,17 @@ class DocProClassificationCallback(DocProCallback):
         :param ib_save_path: ib location of the training job output
 
         """
-        # self.extraction_class_name = extraction_class_name
-        self.dataset_list = dataset_list
-        self.artifacts_context = artifacts_context
-        self.ib_save_path = ib_save_path
-        self.model_name = model_name
-        self.mount_details = mount_details
-        self.username = username
-        self.job_metadata_client = job_metadata_client
-        self.evaluation_results = []
-        self.prediction_results = None
-        self.ibsdk = ibsdk
-        self.job_status = {}
-        self.metrics_writer = ModelArtifactMetricsWriter(artifacts_context)
-        self.prediction_writer = ModelArtifactPredictionsWriter(artifacts_context)
-        self.save_folder = artifacts_context.tmp_dir.name
-        self.save_model_dir = os.path.join(artifacts_context.artifact_path, f"src/py/{model_name}/model_data")
-        self.id_to_dataset = {dataset.metadata["id"]: dataset for dataset in dataset_list}
-        # paths to zipped files, must be relative to self.save_folder
-        self._zipped: List[str] = []
+        super().__init__(
+            dataset_list=dataset_list,
+            artifacts_context=artifacts_context,
+            extraction_class_name=None,
+            job_metadata_client=job_metadata_client,
+            ibsdk=ibsdk,
+            username=username,
+            mount_details=mount_details,
+            model_name=model_name,
+            ib_save_path=ib_save_path,
+        )
 
     def on_evaluate(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
