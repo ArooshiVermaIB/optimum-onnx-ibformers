@@ -321,34 +321,6 @@ NYDriversLicensesQA:
       Address: 0.1
 
 
-NYDriversLicensesMQA:
-  env:
-    - dogfood
-    - uat
-  model_project_path: ml_studio_models/driver_licenses
-  dataset_project_path: ml_studio_datasets/driver_licenses
-  time_limit: 2500
-  config:
-    <<: *defaults
-    num_train_epochs: 10
-    model_name: instabase/laymqav1-base
-    pipeline_name: laymqav1
-  metrics:
-    # TODO: stablize metrics to a higher value
-    precision:
-      DL Number: 0.1
-      Name: 0.1
-      Address: 0.1
-    recall:
-      DL Number: 0.1
-      Name: 0.1
-      Address: 0.1
-    f1:
-      DL Number: 0.1
-      Name: 0.1
-      Address: 0.1
-
-
 NYDriversLicensesQAProd:
   env:
     - prod

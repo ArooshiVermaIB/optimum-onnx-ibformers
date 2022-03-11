@@ -6,12 +6,18 @@ All notable changes to this repository will be documented in this file.
 
 ### Added
 - Hyperparameter search for internal training jobs
+- Add new loss type ce_ins (apply class_weight based on inverse number of samples)
+- Add new base model - instalm-base
+- Add classification pipeline
+- Add split-classification pipeline
 
 ### Fixed
-- Fix predict dataset for MQA model
-- Add new loss type - class weights are computed based on adjusted inverse frequency
 - Fix exact match metric displaying 100% when no annotations are present
 - Fix sending too long information to metadata and logs
+- Refactor datasets to use same components for all 3 tasks
+
+### Deprecated
+- Remove MQA model
 
 ## [0.3.0] - 2022-02-07
 
