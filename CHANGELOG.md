@@ -5,7 +5,7 @@ All notable changes to this repository will be documented in this file.
 ## [Unreleased] - 2022-xx-xx
 
 ### Added
-- Hyperparameter search for internal training jobs
+- Hyperparameter tuning
 - Add new loss type ce_ins (apply class_weight based on inverse number of samples)
 - Add new base model - instalm-base
 - Add classification pipeline
