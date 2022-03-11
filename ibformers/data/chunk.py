@@ -282,7 +282,7 @@ def get_model_inp(input_ids, bboxes, tokenizer, max_length=512):
 
 
 @feed_single_example_and_flatten
-def pairer(example, tokenizer, max_length=512, **kwargs):
+def pairer(example, tokenizer, max_length=512, save_memory=True, **kwargs):
     """Creates a page pair feature for splitting and classification"""
     page_spans = example["page_spans"]
     record_page_ranges = example["record_page_ranges"]
@@ -338,4 +338,8 @@ def pairer(example, tokenizer, max_length=512, **kwargs):
                 "sc_labels": [split_label, class_label],
             }
 
-            yield {**example, **new_dict}
+            if save_memory:
+                empty_global = {k: get_empty_like(v) for k, v in example.items() if k not in new_dict}
+                yield {**empty_global, **new_dict}
+            else:
+                yield {**example, **new_dict}
