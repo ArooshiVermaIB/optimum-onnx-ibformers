@@ -439,10 +439,12 @@ def prepare_ib_params(
         model_name=model_name,
         final_model_dir=os.path.join(temp_dir, "model"),
         fully_deterministic_eval_split=False,
+        hp_search_log_trials_to_wandb=False,
+        do_post_train_cleanup=True,
     )
 
-    if "epochs" in hyperparams:
-        out_dict["num_train_epochs"] = hyperparams.pop("epochs")
+    if "num_train_epochs" in hyperparams:
+        out_dict["num_train_epochs"] = hyperparams.pop("num_train_epochs")
     if "batch_size" in hyperparams:
         out_dict["per_device_train_batch_size"] = int(hyperparams.pop("batch_size"))
     if "gradient_accumulation_steps" in hyperparams:
@@ -455,19 +457,19 @@ def prepare_ib_params(
         out_dict["fp16"] = hyperparams.pop("use_mixed_precision")
     if "use_gpu" in hyperparams:
         out_dict["no_cuda"] = not hyperparams.pop("use_gpu")
-    if "warmup" in hyperparams:
-        out_dict["warmup_ratio"] = hyperparams.pop("warmup")
+    if "warmup_ratio" in hyperparams:
+        out_dict["warmup_ratio"] = hyperparams.pop("warmup_ratio")
     if "weight_decay" in hyperparams:
         out_dict["weight_decay"] = hyperparams.pop("weight_decay")
-    if "chunk_size" in hyperparams:
-        out_dict["max_length"] = int(hyperparams.pop("chunk_size"))
-    if "stride" in hyperparams:
-        out_dict["chunk_overlap"] = int(hyperparams.pop("stride"))
+    if "max_length" in hyperparams:
+        out_dict["max_length"] = int(hyperparams.pop("max_length"))
+    if "chunk_overlap" in hyperparams:
+        out_dict["chunk_overlap"] = int(hyperparams.pop("chunk_overlap"))
     if "upload" in hyperparams:
         out_dict["upload"] = hyperparams.pop("upload")
 
-    if "scheduler_type" in hyperparams:
-        scheduler_type = hyperparams.pop("scheduler_type")
+    if "lr_scheduler_type" in hyperparams:
+        scheduler_type = hyperparams.pop("lr_scheduler_type")
         if scheduler_type == "constant_schedule_with_warmup":
             out_dict["lr_scheduler_type"] = "constant_with_warmup"
         elif scheduler_type == "linear_schedule_with_warmup":
@@ -509,6 +511,7 @@ def prepare_ib_params(
 
     if "label_names" in hyperparams:
         out_dict["label_names"] = hyperparams.pop("label_names")
+
     # early stopping
     early_stopping_patience = hyperparams.pop("early_stopping_patience", 0)
     validation_set_size = hyperparams.pop("validation_set_size", 0)
@@ -525,6 +528,17 @@ def prepare_ib_params(
         out_dict["load_best_model_at_end"] = True
         out_dict["save_total_limit"] = 1
         out_dict["metric_for_best_model"] = hyperparams.pop("metric_for_best_model", "macro_f1")
+
+    # hyperparam search
+    out_dict["do_hyperparam_optimization"] = hyperparams.pop("do_hyperparam_optimization", False)
+    if "hp_search_objective_name" in hyperparams:
+        out_dict["hp_search_objective_name"] = hyperparams.pop("hp_search_objective_name")
+    if "hp_search_do_minimize_objective" in hyperparams:
+        out_dict["hp_search_do_minimize_objective"] = hyperparams.pop("hp_search_do_minimize_objective")
+    if "hp_search_num_trials" in hyperparams:
+        out_dict["hp_search_num_trials"] = hyperparams.pop("hp_search_num_trials")
+    if "hp_search_param_space" in hyperparams:
+        out_dict["hp_search_param_space"] = hyperparams.pop("hp_search_param_space")
 
     if hyperparams:
         logging.warning(f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}")

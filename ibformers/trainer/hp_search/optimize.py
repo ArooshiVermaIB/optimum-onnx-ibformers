@@ -3,26 +3,33 @@ import json
 import os
 import shutil
 from copy import deepcopy
+from functools import reduce
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 
 from transformers import EarlyStoppingCallback, is_optuna_available
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+from transformers.utils import logging
 
 from ibformers.callbacks.wandb import ExtendedWandbCallback
 from ibformers.trainer.arguments import EnhancedTrainingArguments, ModelArguments, DataAndPipelineArguments
 from ibformers.trainer.hp_search.param_space import HyperParamSpace, get_default_param_config_path
 
 if is_optuna_available():
-    from optuna import Study
+    from optuna import Study, Trial
     from optuna.trial import FrozenTrial
+    from optuna.samplers import BaseSampler, GridSampler
 
+
+logger = logging.get_logger(__name__)
 
 OPTUNA_WANDB_PROJECT = "optuna-summary"
 HP_RESULTS_SUBDIR = "hp_results"
 
 
-def run_hp_search_optuna(trainer, n_trials: int, direction: str, **kwargs) -> "Study":
+def run_hp_search_optuna(
+    trainer, n_trials: int, direction: str, sampler: Optional["BaseSampler"] = None, **kwargs
+) -> "Study":
     """
     transformers.integrations.run_hp_search_optuna - modified to return the whole study.
     """
@@ -97,7 +104,7 @@ def run_hp_search_optuna(trainer, n_trials: int, direction: str, **kwargs) -> "S
 
     timeout = kwargs.pop("timeout", None)
     n_jobs = kwargs.pop("n_jobs", 1)
-    study = optuna.create_study(direction=direction, **kwargs)
+    study = optuna.create_study(direction=direction, sampler=sampler, **kwargs)
     study.optimize(_objective, n_trials=n_trials, timeout=timeout, n_jobs=n_jobs, callbacks=[_log_study_callback])
     return study
 
@@ -108,6 +115,7 @@ def get_trial_summary(trial: "FrozenTrial") -> Dict[str, Any]:
         "objective": trial.value,
         "duration_in_seconds": trial.duration.total_seconds(),
         "state": trial.state.name,
+        "number": trial.number,
     }
 
 
@@ -143,18 +151,47 @@ def reinit_previous_run(previous_run_id_and_project: Optional[Tuple[str, str]]):
 
 
 def create_param_space(training_args: EnhancedTrainingArguments) -> HyperParamSpace:
-    if training_args.hp_search_config_file is None:
-        config_path = get_default_param_config_path()
-    else:
+    if training_args.hp_search_param_space is not None:
+        return HyperParamSpace.from_json_content(training_args.hp_search_param_space)
+    elif training_args.hp_search_config_file is not None:
         config_path = Path(training_args.hp_search_config_file)
         if not config_path.exists():
             raise FileNotFoundError(f"Provided hp space config file {config_path} does not exist!")
+    else:
+        config_path = get_default_param_config_path()
     return HyperParamSpace.from_json_file(config_path)
+
+
+def create_sampler(training_args: EnhancedTrainingArguments, param_space: HyperParamSpace) -> Optional["BaseSampler"]:
+    if not param_space.is_discrete():
+        # let optuna use the default one
+        logger.info("Hyperparameter search space is not discrete. Using default sampler.")
+        return None
+    grid_search_space = param_space.get_grid_search_space()
+    grid_param_sizes = [len(v) for v in grid_search_space.values()]
+    total_size = reduce(lambda x, y: x * y, grid_param_sizes, 1)
+    if training_args.hp_search_num_trials < total_size:
+        logger.info(
+            "Hyperparameter search space is discrete, but the requested number of trials "
+            "is smaller than grid size. Using default sampler."
+        )
+        return None
+    logger.info(
+        "Hyperparameter search space is discrete and not larger then the requested number of trials. "
+        "Using grid sampler."
+    )
+    return GridSampler(grid_search_space)
+
+
+def trial_name_fn(trial: Optional["Trial"]):
+    if trial is None:
+        return None
+    return f"run-{trial.number}"
 
 
 def optimize_hyperparams(
     trainer, training_args: EnhancedTrainingArguments, model_args: ModelArguments, data_args: DataAndPipelineArguments
-):
+) -> "Study":
     handle_wandb_cb = "wandb" in training_args.report_to
     handle_early_stopping_cb = (
         training_args.hp_search_disable_eval or training_args.hp_search_force_disable_early_stopping
@@ -183,6 +220,8 @@ def optimize_hyperparams(
     output_path.mkdir(exist_ok=True)
     param_space.to_json_file(output_path / "space_config.json")
 
+    sampler = create_sampler(training_args, param_space)
+
     study = trainer.hyperparameter_search(
         compute_objective=lambda x: x[training_args.hp_search_objective_name],
         hp_space=param_space,
@@ -194,6 +233,8 @@ def optimize_hyperparams(
             "model_name": model_args.model_name_or_path,
             "task_name": data_args.task_name,
         },
+        sampler=sampler,
+        hp_name=trial_name_fn,
     )
     study_summary = get_study_summary(study, trainer.args)
 
@@ -208,4 +249,4 @@ def optimize_hyperparams(
     (output_path / "study.json").write_text(json.dumps(study_summary, indent=2))
 
     trainer.args = old_args
-    return study.best_params
+    return study

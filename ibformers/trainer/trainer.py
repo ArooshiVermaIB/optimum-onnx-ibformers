@@ -1,6 +1,8 @@
 import collections
+import shutil
 import sys
 from logging import StreamHandler
+from pathlib import Path
 from typing import Optional, List, Dict, Callable, Union
 import numpy as np
 import torch
@@ -39,9 +41,11 @@ from transformers.trainer_utils import (
     HPSearchBackend,
     default_hp_space,
     default_compute_objective,
+    PREFIX_CHECKPOINT_DIR,
 )
 from transformers.utils import logging
 
+from ibformers.callbacks.handler import IbCallbackHandler
 from ibformers.callbacks.wandb import ExtendedWandbCallback
 from ibformers.trainer.hp_search.optimize import run_hp_search_optuna
 
@@ -88,6 +92,8 @@ class IbTrainer(Trainer):
             old_callback = self.pop_callback(WandbCallback)
             if old_callback is not None:
                 self.add_callback(ExtendedWandbCallback)
+
+        self.callback_handler = IbCallbackHandler.from_callback_handler(self.callback_handler)
 
     def compute_loss(self, model, inputs, return_outputs=False):
         """
@@ -399,6 +405,8 @@ class IbTrainer(Trainer):
         """
         Custom hyperparameter_search that uses modified version of optuna optimization fn.
         """
+        self.control = self.callback_handler.on_hyperparam_search_start(self.args, self.state, self.control)
+
         if backend is None:
             backend = default_hp_search_backend()
             if backend is None:
@@ -432,10 +440,13 @@ class IbTrainer(Trainer):
             HPSearchBackend.RAY: run_hp_search_ray,
             HPSearchBackend.SIGOPT: run_hp_search_sigopt,
         }
-        best_run_or_trial = backend_dict[backend](self, n_trials, direction, **kwargs)
+        best_run_or_study = backend_dict[backend](self, n_trials, direction, **kwargs)
 
         self.hp_search_backend = None
-        return best_run_or_trial
+        self.control = self.callback_handler.on_hyperparam_search_end(
+            self.args, self.state, self.control, best_run_or_study
+        )
+        return best_run_or_study
 
     def log(self, logs: Dict[str, float]) -> None:
         """
@@ -443,3 +454,14 @@ class IbTrainer(Trainer):
         """
         logs_mod = {k: v for k, v in logs.items() if not k.endswith("predictions")}
         super().log(logs_mod)
+
+    def post_train_cleaup(self) -> None:
+        """
+        Remove unnecessary files after the training.
+
+        In current state, we remove the checkpoints.
+        """
+
+        checkpoints_dirs = Path(self.args.output_dir).glob(f"{PREFIX_CHECKPOINT_DIR}-*")
+        for checkpoint_dir in checkpoints_dirs:
+            shutil.rmtree(checkpoint_dir, ignore_errors=True)

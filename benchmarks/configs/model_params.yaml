@@ -26,6 +26,7 @@ _default:
     save_total_limit: 1
     validation_set_size: 0.2
     fully_deterministic_eval_split: true
+    do_post_train_cleanup: true
 
 microsoft/layoutlm-base-uncased:
   name: layout_base

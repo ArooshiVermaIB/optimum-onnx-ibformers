@@ -8,16 +8,16 @@ NYDriversLicenses:
   config: &defaults
     adam_epsilon: 1.e-8
     batch_size: 2
-    chunk_size: 510
-    epochs: 6
+    max_length: 512
+    num_train_epochs: 6
     learning_rate: 5.e-5
-    loss_agg_steps: 1
+    gradient_accumulation_steps: 1
     max_grad_norm: 1
     optimizer_type: AdamW
-    scheduler_type: constant_schedule_with_warmup
-    stride: 64
+    lr_scheduler_type: constant_schedule_with_warmup
+    chunk_overlap: 64
     use_mixed_precision: true
-    warmup: 0
+    warmup_ratio: 0
     weight_decay: 0
     class_weights: 10
     model_name: microsoft/layoutlm-base-uncased
@@ -59,6 +59,79 @@ NYDriversLicensesProd:
       Address: 0.5
 
 
+NYDriversLicensesHPSearch:
+  env:
+    - dogfood
+  model_project_path: ml_studio_models/driver_licenses
+  dataset_project_path: ml_studio_datasets/driver_licenses
+  time_limit: 1200
+  config:
+    <<: *defaults
+    num_train_epochs: 2
+    do_hyperparam_optimization: true
+    hp_search_num_trials: 2
+    hp_search_param_space:
+      - name: gradient_accumulation_steps
+        type: categorical
+        choices:
+          - 1
+          - 2
+      - name: warmup_ratio
+        type: categorical
+        choices:
+          - 0.0
+          - 0.1
+  metrics:
+    precision:
+      DL Number: 0.0
+      Name: 0.0
+      Address: 0.0
+    recall:
+      DL Number: 0.0
+      Name: 0.0
+      Address: 0.0
+    f1:
+      DL Number: 0.0
+      Name: 0.0
+      Address: 0.0
+
+NYDriversLicensesHPSearchProd:
+  env:
+    - prod
+  model_project_path: ml_studio_models_prod/driver_licenses
+  dataset_project_path: ml_studio_datasets_prod/driver_licenses
+  time_limit: 1200
+  config:
+    <<: *defaults
+    num_train_epochs: 2
+    do_hyperparam_optimization: true
+    hp_search_num_trials: 2
+    hp_search_param_space:
+      - name: gradient_accumulation_steps
+        type: categorical
+        choices:
+          - 1
+          - 2
+      - name: warmup_ratio
+        type: categorical
+        choices:
+          - 0.0
+          - 0.1
+  metrics:
+    precision:
+      DL Number: 0.0
+      Name: 0.0
+      Address: 0.0
+    recall:
+      DL Number: 0.0
+      Name: 0.0
+      Address: 0.0
+    f1:
+      DL Number: 0.0
+      Name: 0.0
+      Address: 0.0
+
+
 NYDriversLicensesV2:
   env:
     - dogfood
@@ -68,7 +141,7 @@ NYDriversLicensesV2:
   time_limit: 1800 # 20 minutes
   config:
     <<: *defaults
-    epochs: 10
+    num_train_epochs: 10
     use_mixed_precision: false
     model_name: microsoft/layoutlmv2-base-uncased
   metrics:
@@ -95,7 +168,7 @@ NYDriversLicensesEarlyStopping:
   time_limit: 1200 # 20 minutes
   config:
     <<: *defaults
-    epochs: 50  # should early stop earlier
+    num_train_epochs: 50  # should early stop earlier
     model_name: microsoft/layoutlm-base-uncased
     early_stopping_patience: 2
     validation_set_size: 0.2
@@ -123,7 +196,7 @@ NYDriversLicensesXLM:
   time_limit: 1200 # 20 minutes
   config:
     <<: *defaults
-    epochs: 10
+    num_train_epochs: 10
     use_mixed_precision: false
     model_name: microsoft/layoutxlm-base
   metrics:
@@ -149,7 +222,7 @@ NYDriversLicensesV2Prod:
   time_limit: 1800
   config:
     <<: *defaults
-    epochs: 10
+    num_train_epochs: 10
     use_mixed_precision: false
     model_name: microsoft/layoutlmv2-base-uncased
   metrics:
@@ -175,7 +248,7 @@ NYDriversLicensesEarlyStoppingProd:
   time_limit: 1800
   config:
     <<: *defaults
-    epochs: 50  # should early stop earlier
+    num_train_epochs: 50  # should early stop earlier
     model_name: microsoft/layoutlm-base-uncased
     early_stopping_patience: 2
     validation_set_size: 0.2
@@ -202,7 +275,7 @@ NYDriversLicensesXLMProd:
   time_limit: 1800
   config:
     <<: *defaults
-    epochs: 10
+    num_train_epochs: 10
     use_mixed_precision: false
     model_name: microsoft/layoutxlm-base
   metrics:
@@ -229,7 +302,7 @@ NYDriversLicensesQA:
   time_limit: 2500
   config:
     <<: *defaults
-    epochs: 10
+    num_train_epochs: 10
     model_name: bert-base-uncased
     pipeline_name: single_qa
   metrics:
@@ -257,7 +330,7 @@ NYDriversLicensesMQA:
   time_limit: 2500
   config:
     <<: *defaults
-    epochs: 10
+    num_train_epochs: 10
     model_name: instabase/laymqav1-base
     pipeline_name: laymqav1
   metrics:
@@ -284,7 +357,7 @@ NYDriversLicensesQAProd:
   time_limit: 2500
   config:
     <<: *defaults
-    epochs: 10
+    num_train_epochs: 10
     model_name: bert-base-uncased
     pipeline_name: single_qa
   metrics:

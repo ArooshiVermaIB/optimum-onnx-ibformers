@@ -80,7 +80,7 @@ class TestPipeline(unittest.TestCase):
                 max_example_len=50,
                 num_fields=4,
                 allow_invalid_bboxes=False,
-                allowed_text_characters=string.ascii_letters + string.digits + string.whitespace,
+                allowed_text_characters=string.ascii_letters + string.digits,  # + string.whitespace - TODO: investigate
             ),
             min_size=1,
             max_size=5,

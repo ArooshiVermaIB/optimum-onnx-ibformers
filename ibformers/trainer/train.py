@@ -34,12 +34,12 @@ from transformers import (
     HfArgumentParser,
     PreTrainedTokenizerFast,
     set_seed,
-    EarlyStoppingCallback,
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from ibformers.callbacks.early_stopping import IbEarlyStoppingCallback
 from ibformers.data.collators.augmenters.args import AugmenterArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.trainer.arguments import (
@@ -58,7 +58,6 @@ from ibformers.trainer.hp_search.optimize import optimize_hyperparams
 check_min_version("4.12.3")
 from ibformers.trainer.train_utils import (
     prepare_config_kwargs,
-    validate_dataset_sizes,
 )
 from ibformers.trainer import metrics_utils
 from ibformers.trainer.trainer import IbTrainer
@@ -305,7 +304,7 @@ def run_train(
         callbacks.extend(extra_callbacks)
 
     if training_args.early_stopping_patience > 0:
-        early_stopping = EarlyStoppingCallback(training_args.early_stopping_patience)
+        early_stopping = IbEarlyStoppingCallback(training_args.early_stopping_patience)
         callbacks.append(early_stopping)
 
     # Data collator
@@ -341,10 +340,11 @@ def run_train(
     # Hyperparam optimization
     if training_args.do_hyperparam_optimization:
         logger.info("*** Optimize hyperparams ***")
-        best_params = optimize_hyperparams(trainer, training_args, model_args, data_args)
+        study = optimize_hyperparams(trainer, training_args, model_args, data_args)
+        best_params = study.best_params
         for param_name, param_value in best_params.items():
             setattr(trainer.args, param_name, param_value)
-        logger.info(f"Hyperparemeter optimization completed. Best hyperparams: {best_params}")
+        logger.info(f"Hyperparameter optimization completed. Best hyperparams: {best_params}")
 
     # Training
     if training_args.do_train:
@@ -366,6 +366,9 @@ def run_train(
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
+
+        if training_args.do_post_train_cleanup:
+            trainer.post_train_cleaup()
 
     # Evaluation
     if training_args.requested_do_eval:

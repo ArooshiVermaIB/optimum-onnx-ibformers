@@ -22,17 +22,21 @@
         "default_hyperparameters": {
           "batch_size": 2,
           "gradient_accumulation_steps": 2,
-          "chunk_size": 512,
-          "stride": 64,
-          "epochs": 10,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 20,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "lr_scheduler_type": "constant_schedule_with_warmup",
           "use_mixed_precision": true,
-          "warmup": 0.3,
+          "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "class_weights": 1.0,
           "max_no_annotation_examples_share": 0.5,
-          "model_name": "microsoft/layoutlm-base-uncased"
+          "model_name": "microsoft/layoutlm-base-uncased",
+          "early_stopping_patience": 3,
+          "validation_set_size": 0.2,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
         }
       },
       {
@@ -40,17 +44,21 @@
         "default_hyperparameters": {
           "batch_size": 2,
           "gradient_accumulation_steps": 2,
-          "chunk_size": 512,
-          "stride": 64,
-          "epochs": 10,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 20,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "lr_scheduler_type": "constant_schedule_with_warmup",
           "use_mixed_precision": true,
-          "warmup": 0.3,
+          "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "class_weights": 1.0,
           "max_no_annotation_examples_share": 0.5,
-          "model_name": "microsoft/layoutlm-large-uncased"
+          "model_name": "microsoft/layoutlm-large-uncased",
+          "early_stopping_patience": 3,
+          "validation_set_size": 0.2,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
         }
       },
       {
@@ -58,17 +66,21 @@
         "default_hyperparameters": {
           "batch_size": 2,
           "gradient_accumulation_steps": 2,
-          "chunk_size": 512,
-          "stride": 64,
-          "epochs": 10,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 20,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "lr_scheduler_type": "constant_schedule_with_warmup",
           "use_mixed_precision": false,
-          "warmup": 0.3,
+          "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "class_weights": 1.0,
           "max_no_annotation_examples_share": 0.5,
-          "model_name": "microsoft/layoutxlm-base"
+          "model_name": "microsoft/layoutxlm-base",
+          "early_stopping_patience": 3,
+          "validation_set_size": 0.2,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
         }
       },
       {
@@ -76,17 +88,21 @@
         "default_hyperparameters": {
           "batch_size": 2,
           "gradient_accumulation_steps": 2,
-          "chunk_size": 512,
-          "stride": 64,
-          "epochs": 10,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 20,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "lr_scheduler_type": "constant_schedule_with_warmup",
           "use_mixed_precision": false,
-          "warmup": 0.3,
+          "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "class_weights": 1.0,
           "max_no_annotation_examples_share": 0.5,
-          "model_name": "microsoft/layoutlmv2-base-uncased"
+          "model_name": "microsoft/layoutlmv2-base-uncased",
+          "early_stopping_patience": 3,
+          "validation_set_size": 0.2,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
         }
       },
       {
@@ -94,18 +110,22 @@
         "default_hyperparameters": {
           "batch_size": 2,
           "gradient_accumulation_steps": 2,
-          "chunk_size": 512,
-          "stride": 64,
-          "epochs": 10,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 20,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "lr_scheduler_type": "constant_schedule_with_warmup",
           "use_mixed_precision": true,
-          "warmup": 0.3,
+          "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "class_weights": 1.0,
           "max_no_annotation_examples_share": 0.5,
           "model_name":"instabase/laymqav1-base",
-          "pipeline_name": "laymqav1"
+          "pipeline_name": "laymqav1",
+          "early_stopping_patience": 3,
+          "validation_set_size": 0.2,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
         }
       },
       {
@@ -113,18 +133,22 @@
         "default_hyperparameters": {
           "batch_size": 2,
           "gradient_accumulation_steps": 2,
-          "chunk_size": 512,
-          "stride": 64,
-          "epochs": 10,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 20,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "lr_scheduler_type": "constant_schedule_with_warmup",
           "use_mixed_precision": true,
-          "warmup": 0.3,
+          "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "loss_type": "ce_ins",
           "class_weights_ins_power": 0.3,
           "max_no_annotation_examples_share": 0.7,
-          "model_name": "instabase/instalm-base-draft"
+          "model_name": "instabase/instalm-base-draft",
+          "early_stopping_patience": 3,
+          "validation_set_size": 0.2,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
         }
       },
       {
@@ -132,17 +156,21 @@
         "default_hyperparameters": {
           "batch_size": 2,
           "gradient_accumulation_steps": 2,
-          "chunk_size": 512,
-          "stride": 64,
-          "epochs": 10,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 20,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "lr_scheduler_type": "constant_schedule_with_warmup",
           "use_mixed_precision": true,
-          "warmup": 0.3,
+          "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "max_no_annotation_examples_share": 0.5,
           "model_name":"bert-base-uncased",
-          "pipeline_name": "single_qa"
+          "pipeline_name": "single_qa",
+          "early_stopping_patience": 3,
+          "validation_set_size": 0.2,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
         }
       },
       {
@@ -150,18 +178,22 @@
         "default_hyperparameters": {
           "batch_size": 2,
           "gradient_accumulation_steps": 2,
-          "chunk_size": 512,
-          "stride": 64,
-          "epochs": 10,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 20,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "lr_scheduler_type": "constant_schedule_with_warmup",
           "use_mixed_precision": true,
-          "warmup": 0.3,
+          "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "pipeline_name": "plain_sl",
           "class_weights": 1.0,
           "max_no_annotation_examples_share": 0.5,
-          "model_name": "nlpaueb/legal-bert-base-uncased"
+          "model_name": "nlpaueb/legal-bert-base-uncased",
+          "early_stopping_patience": 3,
+          "validation_set_size": 0.2,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
         }
       },
       {
@@ -169,18 +201,22 @@
         "default_hyperparameters": {
           "batch_size": 2,
           "gradient_accumulation_steps": 2,
-          "chunk_size": 512,
-          "stride": 64,
-          "epochs": 10,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 20,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "lr_scheduler_type": "constant_schedule_with_warmup",
           "use_mixed_precision": true,
-          "warmup": 0.3,
+          "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "pipeline_name": "plain_sl",
           "class_weights": 1.0,
           "max_no_annotation_examples_share": 0.5,
-          "model_name": "bert-base-uncased"
+          "model_name": "bert-base-uncased",
+          "early_stopping_patience": 3,
+          "validation_set_size": 0.2,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
         }
       }
     ]

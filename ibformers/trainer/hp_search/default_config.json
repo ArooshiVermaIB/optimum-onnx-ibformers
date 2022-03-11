@@ -25,7 +25,7 @@
   {
     "name": "weight_decay",
     "type": "categorical",
-    "choices": [0, 0.00001, 0.0001, 0.001, 0.01, 0.1]
+    "choices": [0, 0.00001, 0.0001, 0.001, 0.01]
   },
   {
     "name": "label_smoothing_factor",

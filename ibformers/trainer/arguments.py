@@ -4,7 +4,7 @@ import logging
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Any, Dict, TypeVar, Tuple
+from typing import Optional, Any, Dict, TypeVar, Tuple, List
 
 from transformers import HfArgumentParser, TrainingArguments
 from transformers.hf_argparser import DataClass
@@ -123,6 +123,11 @@ class EnhancedTrainingArguments(TrainingArguments):
         },
     )
 
+    hp_search_param_space: Optional[List[Dict[str, Any]]] = field(
+        default=None,
+        metadata={"help": "Dictionary with parameter space definition for hyperparam tuning."},
+    )
+
     hp_search_config_file: Optional[str] = field(
         default=None,
         metadata={"help": "Path to custom hyperparam space configuration file. If not provided, default will be used."},
@@ -159,6 +164,9 @@ class EnhancedTrainingArguments(TrainingArguments):
         default=1.0,
         metadata={"help": "Will limit amount of chunks with no labels inside"},
     )
+    do_post_train_cleanup: bool = field(
+        default=False, metadata={"help": "If True, the training directory will be cleaned of unnecessary files."}
+    )
 
     def __post_init__(self):
         # superclass will overwrite this param. We want to keep the raw value to know if we should
@@ -179,11 +187,15 @@ class EnhancedTrainingArguments(TrainingArguments):
             )
 
         if self.do_hyperparam_optimization and not is_optuna_available():
-            logging.warning(
-                "Requested to do the hyperparam optimization, but optuna is not available. "
-                "Disabling hyperparam optimization."
+            raise ImportError(
+                "Hyperparameter parametrization was requested, but optuna is not installed. "
+                "Please update Instabase, or install optuna manually if running locally."
             )
-            self.do_hyperparam_optimization = False
+
+        if self.hp_search_param_space is not None and self.hp_search_config_file is not None:
+            raise ValueError(
+                "Please provide at most one of the hp_search_param_space and hp_search_config_file " "parameters."
+            )
 
 
 @dataclass

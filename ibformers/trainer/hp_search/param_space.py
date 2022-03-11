@@ -56,6 +56,14 @@ class HyperParamSpace(Callable[["optuna.Trial"], Dict[str, Any]]):
         assert len(param_config_mapping) == len(param_configs)
         self.param_config_mapping = param_config_mapping
 
+    def is_discrete(self):
+        return all([isinstance(p, CategoricalParamConfig) for p in self.param_config_mapping.values()])
+
+    def get_grid_search_space(self):
+        if not self.is_discrete():
+            raise ValueError(f"Grid search config is available only for discrete param spaces.")
+        return {param_name: param_config.choices for param_name, param_config in self.param_config_mapping.items()}
+
     @staticmethod
     def get_trial_method_for_config(trial: "optuna.Trial", config: BaseParamConfig) -> Callable:
         if isinstance(config, CategoricalParamConfig):

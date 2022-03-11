@@ -3,10 +3,12 @@ import os
 import shutil
 import traceback
 import uuid
+from operator import itemgetter
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 import pandas as pd
+from optuna import Study
 from transformers import HfArgumentParser, TrainerCallback, TrainerState
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
@@ -17,6 +19,7 @@ from ibformers.trainer.arguments import (
     EnhancedTrainingArguments,
     ExtraModelArguments,
 )
+from ibformers.trainer.hp_search.optimize import get_study_summary
 from ibformers.trainer.ib_utils import (
     MountDetails,
     prepare_ib_params,
@@ -223,6 +226,7 @@ class DocProCallback(TrainerCallback):
     # For UX purposes, avoid setting progress bar to 100% until upload finishes
     PROGRESS_BAR_LIMIT: float = 0.95
     LOGGING_STEPS: int = 10
+    MAX_HP_TRIALS_TO_DISPLAY = 10
 
     def __init__(
         self,
@@ -259,10 +263,13 @@ class DocProCallback(TrainerCallback):
         self.mount_details = mount_details
         self.username = username
         self.job_metadata_client = job_metadata_client
+        self.hyperparamsearch_results = None
         self.evaluation_results = []
         self.prediction_results = None
         self.ibsdk = ibsdk
         self.job_status = {}
+        self.hp_search_progress_end = 0.0
+        self.hp_search_progress_step = 0.0
         self.metrics_writer = ModelArtifactMetricsWriter(artifacts_context)
         self.prediction_writer = ModelArtifactPredictionsWriter(artifacts_context)
         self.save_folder = artifacts_context.tmp_dir.name
@@ -325,24 +332,58 @@ class DocProCallback(TrainerCallback):
         if state.global_step % self.LOGGING_STEPS == 0:
             progress = 0.0
             if state.max_steps != 0:
-                progress = self.PROGRESS_BAR_LIMIT * (state.global_step / state.max_steps)
+                progress_range = self.PROGRESS_BAR_LIMIT - self.hp_search_progress_end
+                progress_increase = progress_range * (state.global_step / state.max_steps)
+                progress = self.hp_search_progress_end + progress_increase
             self.set_status({"progress": progress})
+
+    def set_hp_search_progress(self, state: TrainerState):
+        if state.global_step % self.LOGGING_STEPS == 0:
+            trial_number = int(state.trial_name.split("-")[1])
+            trial_base_progress = trial_number * self.hp_search_progress_step
+            progress_increase = 0.0
+            if state.max_steps != 0:
+                progress_increase = self.hp_search_progress_step * (state.global_step / state.max_steps)
+            progress = trial_base_progress + progress_increase
+            self.set_status({"progress": progress})
+
+    def set_progress(self, state: TrainerState):
+        if state.is_hyper_param_search:
+            self.set_hp_search_progress(state)
+        else:
+            self.set_training_progress(state)
+
+    def on_hyperparam_search_start(self, args, state, control, **kwargs):
+        if state.is_local_process_zero:
+            self.job_metadata_client.update_message("Parameter tuning in progress.")
+            total_train_jobs = args.hp_search_num_trials + 1
+            self.hp_search_progress_end = self.PROGRESS_BAR_LIMIT * args.hp_search_num_trials / total_train_jobs
+            self.hp_search_progress_step = self.hp_search_progress_end / args.hp_search_num_trials
+
+    def on_hyperparam_search_end(self, args, state, control, study: Study, **kwargs):
+        if state.is_local_process_zero:
+            study_summary = get_study_summary(study, args)
+            all_trials = study_summary["trials_summary"]
+            self.hyperparamsearch_results = sorted(
+                all_trials, key=itemgetter("objective"), reverse=not args.hp_search_do_minimize_objective
+            )
 
     def on_step_end(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
-            self.set_training_progress(state)
+            self.set_progress(state)
 
     def on_train_begin(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
-            self.job_metadata_client.update_message("Model training in progress.")
-            self.set_training_progress(state)
+            if not state.is_hyper_param_search:
+                self.job_metadata_client.update_message("Model training in progress.")
+            self.set_progress(state)
 
     def on_train_end(self, args, state, control, **kwargs):
         if state.is_local_process_zero:
-            self.set_training_progress(state)
+            self.set_progress(state)
 
     def on_evaluate(self, args, state, control, **kwargs):
-        if state.is_local_process_zero:
+        if state.is_local_process_zero and not state.is_hyper_param_search:
             # workaround for missing on_predict callback in the transformers TrainerCallback
             if "predict_loss" in kwargs["metrics"]:
                 self.on_predict(args, state, control, **kwargs)
@@ -400,6 +441,22 @@ class DocProCallback(TrainerCallback):
                         rows=rows,
                     )
                 )
+
+                # Add hp search results
+
+                # TODO: Reenable when table formatting issue is solved
+                # if self.hyperparamsearch_results is not None and len(self.hyperparamsearch_results) > 0:
+                #     hp_headers, hp_rows = self.get_hp_search_table_data()
+                #
+                #     metrics_writer.add_table_metric(
+                #         TableMetric(
+                #             title="Hyperparameter search results",
+                #             subtitle=f"Top {len(hp_rows)} runs from hyperparameter search, sorted by the objective "
+                #             f"value on validation dataset",
+                #             headers=hp_headers,
+                #             rows=hp_rows,
+                #         )
+                #     )
 
                 raw_recalls = evaluation_metrics["recall"].values()
                 recalls = [x for x in raw_recalls if x != "NAN"]
@@ -559,6 +616,18 @@ class DocProCallback(TrainerCallback):
         self.generate_refiner(label_names)
         self.move_data_to_ib()
         self.write_epoch_summary()
+
+    def get_hp_search_table_data(self):
+
+        param_names = list(self.hyperparamsearch_results[0]["params"].keys())
+        headers = ["Trial number"] + param_names + ["Objective value"]
+        values = [
+            [str(trial["number"])]
+            + [str(trial["params"][param_name]) for param_name in param_names]
+            + [format(trial["objective"], ".2f")]
+            for trial in self.hyperparamsearch_results
+        ]
+        return headers, values
 
 
 class DocProClassificationCallback(DocProCallback):
