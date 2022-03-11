@@ -60,7 +60,7 @@ pipeline {
         PATH = '/nodenv/bin:/nodenv/shims:/home/ib-build/.pyenv/shims:/home/ib-build/.pyenv/bin:/usr/local/openjdk-8/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/usr/local/workspace/go/bin'
     }
     options {
-        timeout(time: 50, unit: 'MINUTES')
+        timeout(time: 100, unit: 'MINUTES')
     }
     stages {
         stage ('Clone repo') {

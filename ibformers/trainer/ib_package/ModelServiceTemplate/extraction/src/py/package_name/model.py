@@ -1,6 +1,8 @@
 import copy
 import json
 import os
+
+os.environ["HF_DATASETS_OFFLINE"] = "1"
 import sys
 
 # TODO: remove once packages paths defined in extraction.json will be added to PYTHONPATH

@@ -219,11 +219,14 @@ class SplitClassifierCallback(TrainerCallback):
             logging.error(traceback.format_exc())
 
         # Set the overall accuracy of the model
-        self.set_status({
-            "splitter_accuracy": splitter_accuracy,
-            "classifier_accuracy": classifier_accuracy,
-            "accuracy": (splitter_accuracy + classifier_accuracy) / 2.0
-            })
+        overall_accuracy = f"{(splitter_accuracy + classifier_accuracy) / 2.0 * 100.0:.2f}%"
+        self.set_status(
+            {
+                "splitter_accuracy": splitter_accuracy,
+                "classifier_accuracy": classifier_accuracy,
+                "accuracy": overall_accuracy,
+            }
+        )
 
     def write_predictions(self, predictions_dict):
         # Now write the predictions
