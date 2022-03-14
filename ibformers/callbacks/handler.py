@@ -1,4 +1,3 @@
-from optuna import Study
 from transformers.trainer_callback import CallbackHandler, TrainerState, TrainerControl
 
 from ibformers.trainer.arguments import EnhancedTrainingArguments
@@ -9,7 +8,7 @@ class IbCallbackHandler(CallbackHandler):
         return self.call_event("on_hyperparam_search_start", args, state, control)
 
     def on_hyperparam_search_end(
-        self, args: EnhancedTrainingArguments, state: TrainerState, control: TrainerControl, study: Study
+        self, args: EnhancedTrainingArguments, state: TrainerState, control: TrainerControl, study
     ):
         return self.call_event("on_hyperparam_search_end", args, state, control, study=study)
 

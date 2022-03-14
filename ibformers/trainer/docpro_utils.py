@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 import pandas as pd
-from optuna import Study
 from transformers import HfArgumentParser, TrainerCallback, TrainerState
 
 from ibformers.data.collators.augmenters.args import AugmenterArguments
@@ -360,7 +359,7 @@ class DocProCallback(TrainerCallback):
             self.hp_search_progress_end = self.PROGRESS_BAR_LIMIT * args.hp_search_num_trials / total_train_jobs
             self.hp_search_progress_step = self.hp_search_progress_end / args.hp_search_num_trials
 
-    def on_hyperparam_search_end(self, args, state, control, study: Study, **kwargs):
+    def on_hyperparam_search_end(self, args, state, control, study, **kwargs):
         if state.is_local_process_zero:
             study_summary = get_study_summary(study, args)
             all_trials = study_summary["trials_summary"]
