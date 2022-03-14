@@ -2,6 +2,11 @@
 
 All notable changes to this repository will be documented in this file.
 
+## [1.0.1] - 2022-03-14
+
+### Fixed
+- Optuna import does not break when the library is not present.
+
 ## [1.0.0] - 2022-03-11
 
 ### Added
