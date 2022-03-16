@@ -5,9 +5,10 @@ import uuid
 from typing import Dict, List
 
 import pandas as pd
-from ibformers.callbacks.classifier import DocProClassificationCallback
+from ibformers.callbacks.extraction import DocProCallback
+from ibformers.trainer.classifier_module_generator import write_classifier_module
 from ibformers.trainer.ib_utils import InstabaseSDK
-from ibformers.trainer.splitclassifier_module_generator import write_classifier_module
+from ibformers.utils.version_info import SHOULD_FORMAT
 from instabase.dataset_utils.sdk import DatasetSDK
 from instabase.dataset_utils.shared_types import PredictionResultDict
 from instabase.training_utils.model_artifact import (
@@ -17,7 +18,7 @@ from instabase.training_utils.model_artifact import (
 )
 
 
-class SplitClassifierCallback(DocProClassificationCallback):
+class DocProClassificationCallback(DocProCallback):
     """
     Handles events specific to doc pro
     """
@@ -29,6 +30,7 @@ class SplitClassifierCallback(DocProClassificationCallback):
         self,
         dataset_list: List[DatasetSDK],
         artifacts_context: ModelArtifactContext,
+        # extraction_class_name: Optional[str],
         job_metadata_client: "JobMetadataClient",  # type: ignore
         ibsdk: InstabaseSDK,
         username: str,
@@ -39,6 +41,7 @@ class SplitClassifierCallback(DocProClassificationCallback):
         """
         :param dataset_list: List of dataset sdk objects
         :param artifacts_context: ModelArtifactContext which handles creation of model artifacts
+        :param extraction_class_name: name of the extracted class
         :param job_metadata_client: client used by callback to log progress/status of the training
         :param ibsdk: sdk used to transfer files to IB fs
         :param username: username of user who run the training job
@@ -47,10 +50,10 @@ class SplitClassifierCallback(DocProClassificationCallback):
         :param ib_save_path: ib location of the training job output
 
         """
-
         super().__init__(
             dataset_list=dataset_list,
             artifacts_context=artifacts_context,
+            extraction_class_name=None,
             job_metadata_client=job_metadata_client,
             ibsdk=ibsdk,
             username=username,
@@ -65,33 +68,16 @@ class SplitClassifierCallback(DocProClassificationCallback):
             if "predict_loss" in kwargs["metrics"]:
                 self.on_predict(args, state, control, **kwargs)
             elif "eval_loss" in kwargs["metrics"]:
-                metrics = {}
-                splitter_metrics = kwargs["metrics"]["eval_splitter_metrics"]
-                classifier_metrics = kwargs["metrics"]["eval_classifier_metrics"]
-                metrics["splitter_metrics"] = splitter_metrics
-                metrics["classifier_metrics"] = classifier_metrics
+                classifier_metrics = kwargs["metrics"]["eval_metrics"]
+                self.set_status(
+                    {"evaluation_results": classifier_metrics, "progress": state.global_step / state.max_steps}
+                )
 
-                # Had to duplicate this so that CI tests work, since it currently supports only
-                # two levels of nesting
-                metrics.update({f"splitter_{k}": v for k, v in splitter_metrics.items()})
-                metrics.update({f"classifier_{k}": v for k, v in classifier_metrics.items()})
-                self.set_status({"evaluation_results": metrics, "progress": state.global_step / state.max_steps})
-
-                self.evaluation_results.append(metrics)
+                self.evaluation_results.append(classifier_metrics)
             elif "test_eval_loss" in kwargs["metrics"]:
-                metrics = {}
-                splitter_metrics = kwargs["metrics"]["test_eval_splitter_metrics"]
-                classifier_metrics = kwargs["metrics"]["test_eval_classifier_metrics"]
-                metrics["splitter_metrics"] = splitter_metrics
-                metrics["classifier_metrics"] = classifier_metrics
-
-                # Had to duplicate this so that CI tests work, since it currently supports only
-                # two levels of nesting
-                metrics.update({f"splitter_{k}": v for k, v in splitter_metrics.items()})
-                metrics.update({f"classifier_{k}": v for k, v in classifier_metrics.items()})
-                self.set_status({"evaluation_results": metrics})
-
-                self.evaluation_results.append(metrics)
+                classifier_metrics = kwargs["metrics"]["test_eval_metrics"]
+                self.set_status({"evaluation_results": classifier_metrics})
+                self.evaluation_results.append(classifier_metrics)
             else:
                 # ignore last evaluation call
                 pass
@@ -99,57 +85,58 @@ class SplitClassifierCallback(DocProClassificationCallback):
     def write_metrics(self):
         logging.info("Writing metrics for this training run...")
         metrics_writer = self.metrics_writer
+        overall_accuracy = "Unknown"
         try:
             evaluation_metrics = self.job_status.get("evaluation_results")
             if evaluation_metrics:
 
-                # First add table metrics
+                # First add the table
+                classifier_headers, classifier_rows = self.get_classifier_results_table_data(evaluation_metrics)
 
-                # Splitter table
-                splitter_metrics = evaluation_metrics["splitter_metrics"]
-                splitter_headers, splitter_rows = self.get_classifier_results_table_data(splitter_metrics)
                 metrics_writer.add_table_metric(
                     TableMetric(
                         title="Splitter Metrics",
                         subtitle="Accuracy scores for split/no-split learned by the model",
-                        headers=splitter_headers,
-                        rows=splitter_rows,
-                    )
-                )
-
-                # Classifier table
-                classifier_metrics = evaluation_metrics["classifier_metrics"]
-                classifier_headers, classifier_rows = self.get_classifier_results_table_data(classifier_metrics)
-                metrics_writer.add_table_metric(
-                    TableMetric(
-                        title="Classifier Metrics",
-                        subtitle="Accuracy scores for classes learned by the model",
                         headers=classifier_headers,
                         rows=classifier_rows,
                     )
                 )
 
-                # Now add high level metrics
+                accuracy = evaluation_metrics["accuracy"]
+                overall_accuracy = "{:.2f}".format(accuracy * 100)
 
-                # Add classifier accuracy
-                classifier_accuracy = classifier_metrics["accuracy"]
+                precision = evaluation_metrics["precision"]
+                recall = evaluation_metrics["recall"]
+                f1 = evaluation_metrics["f1"]
+
+                # Then add high-level metrics
+                accuracy = evaluation_metrics["accuracy"]
+                overall_accuracy = "{:.2f}".format(accuracy * 100)
+
                 metrics_writer.add_high_level_metric(
                     ValueMetric(
-                        title="Accuracy for classifier",
-                        subtitle="Accuracy",
-                        value=f"{classifier_accuracy:.2%}",
+                        title="Macro F1",
+                        subtitle="Average F1 score across all classes",
+                        value=f"{f1.get('macro avg', 0.0):.2%}",
                         tag_text="ACCURACY",
                         tag_type="INFO",
                     )
                 )
 
-                # Add splitter accuracy
-                splitter_accuracy = splitter_metrics["accuracy"]
                 metrics_writer.add_high_level_metric(
                     ValueMetric(
-                        title="Accuracy for splitter",
-                        subtitle="Accuracy",
-                        value=f"{splitter_accuracy:.2%}",
+                        title="Macro Precision",
+                        subtitle="The average precision across all classes",
+                        value=f"{precision.get('macro avg', 0.0):.2%}",
+                        tag_text="ACCURACY",
+                        tag_type="INFO",
+                    )
+                )
+                metrics_writer.add_high_level_metric(
+                    ValueMetric(
+                        title="Average Recall",
+                        subtitle="The average recall across all classes",
+                        value=f"{recall.get('macro avg', 0.0):.2%}",
                         tag_text="ACCURACY",
                         tag_type="INFO",
                     )
@@ -165,14 +152,22 @@ class SplitClassifierCallback(DocProClassificationCallback):
             logging.error(traceback.format_exc())
 
         # Set the overall accuracy of the model
-        overall_accuracy = f"{(splitter_accuracy + classifier_accuracy) / 2.0 :.2%}"
-        self.set_status(
-            {
-                "splitter_accuracy": splitter_accuracy,
-                "classifier_accuracy": classifier_accuracy,
-                "accuracy": overall_accuracy,
-            }
-        )
+        self.set_status({"accuracy": overall_accuracy})
+
+    @staticmethod
+    def get_classifier_results_table_data(evaluation_metrics):
+        classifier_table = pd.DataFrame({k: v for k, v in evaluation_metrics.items() if k != "accuracy"})
+        classifier_table = classifier_table[["f1", "precision", "recall", "support"]]
+        if SHOULD_FORMAT:
+            classifier_table[["f1", "precision", "recall"]] = classifier_table[["f1", "precision", "recall"]].applymap(
+                lambda x: format(x, ".2%")
+            )
+        classifier_records = classifier_table.to_records(index=True)
+
+        classifier_headers = list(classifier_records.dtype.names)
+        classifier_headers[0] = "Class Type"
+        classifier_rows = classifier_records.tolist()
+        return classifier_headers, classifier_rows
 
     def write_predictions(self, predictions_dict):
         # Now write the predictions
@@ -180,37 +175,33 @@ class SplitClassifierCallback(DocProClassificationCallback):
 
         logging.info("Writing prediction results to IB")
         try:
-            for doc_id, prediction in predictions_dict.items():
-                dataset_id = doc_id[:36]
+            for record_name, record_value in predictions_dict.items():
+                # TODO(VONTELL) - rn we are using the field name directly.
+                # Using the vars below, we could get the actual ids...
+                dataset_id = record_name[:36]
                 dataset = self.id_to_dataset[dataset_id]
                 # This is because the first 37 chars [0]-[36] are reserved for the UUID (36), and a dash (-)
-                ibdoc_filename = doc_id[37:]
-                split_preds = []
-                for pred_cls, preds in prediction["prediction"].items():
-                    for pred in preds:
-                        split_preds.append([pred_cls] + pred)
+                ibdoc_filename = record_name[37 : record_name.index(".ibdoc") + len(".ibdoc")]
+                # This grabs the record index at the end of the file name
+                record_idx = int(record_name[len(dataset_id) + len(ibdoc_filename) + 2 : -1 * len(".json")])
+                logging.info(f"Saving prediction for {dataset_id}, {ibdoc_filename}, {record_idx}")
 
-                split_preds.sort(key=lambda x: x[1])
+                # Currently, our models only outputs a single entity
+                # Predictions, however, can support multiple
+                is_test_file = record_value["is_test_file"]
 
-                is_test_file = prediction["is_test_file"]
-
-                for record_idx, split_pred in enumerate(split_preds):
-
-                    logging.info(f"Saving prediction for {dataset_id}, {ibdoc_filename}, {record_idx}")
-
-                    prediction_writer.add_prediction(
-                        dataset,
-                        ibdoc_filename,
-                        record_idx,
-                        PredictionResultDict(
-                            annotated_class_name=split_pred[0],
-                            page_start=split_pred[1] - 1,
-                            page_end=split_pred[2] - 1,
-                            classification_confidence=split_pred[3],
-                            split_confidence=split_pred[4],
-                        ),
-                        is_test_file,
-                    )
+                prediction_writer.add_prediction(
+                    dataset,
+                    ibdoc_filename,
+                    record_idx,
+                    PredictionResultDict(
+                        annotated_class_name=record_value["class_label"],
+                        classification_confidence=record_value["class_confidence"],
+                        page_start=record_value["page_start"],
+                        page_end=record_value["page_end"],
+                    ),
+                    is_test_file,
+                )
         except Exception as e:
             logging.error(traceback.format_exc())
         try:
@@ -232,15 +223,6 @@ class SplitClassifierCallback(DocProClassificationCallback):
             logging.error(traceback.format_exc())
             logging.error(f"Skipped classifier module generation due to an error: {e}")
 
-    def write_epoch_summary(self):
-        logging.info("Metrics over Epochs")
-        for epoch, met in enumerate(self.evaluation_results):
-            logging.info(f"Epoch {epoch} ^")
-            split_metrics = {k: v for k, v in met["splitter_metrics"].items() if k != "accuracy"}
-            logging.info(pd.DataFrame(split_metrics))
-            class_metrics = {k: v for k, v in met["classifier_metrics"].items() if k != "accuracy"}
-            logging.info(pd.DataFrame(class_metrics))
-
     def on_predict(self, args, state, control, **kwargs):
         # called after the training finish
         predictions = kwargs["metrics"]["predict_predictions"]
@@ -249,7 +231,7 @@ class SplitClassifierCallback(DocProClassificationCallback):
         self.write_predictions(predictions)
 
         id2label = kwargs["model"].config.id2label
-        label_names = [id2label[idx] for idx in range(0, len(id2label))]
+        label_names = [id2label[idx] for idx in range(1, len(id2label))]
         self.generate_classifier(label_names)
         self.move_data_to_ib()
         self.write_epoch_summary()

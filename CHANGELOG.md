@@ -4,6 +4,11 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased 
 
+### Added
+- Results from hyperparameter search are logged as a table in instabase>=22.03
+### Changed
+- Adapted the metric formatting to changes in instabase>=22.03
+
 ### Fixed
 - Replaced ibopen calls with read_file 
 
