@@ -3,6 +3,7 @@ import time
 import traceback
 import urllib
 from abc import abstractmethod, ABCMeta
+from io import BytesIO
 from pathlib import Path
 from typing import Tuple, List, Callable, Optional, Union, Any, Dict, Iterable
 
@@ -178,8 +179,12 @@ class IbDs(datasets.GeneratorBasedBuilder, metaclass=ABCMeta):
                 yield doc_dict["id"], doc_dict
 
 
-def get_open_fn(ibsdk):
-    return open if ibsdk is None else ibsdk.ibopen
+def local_read_fn(file: Union[str, Path]) -> bytes:
+    return Path(file).read_bytes()
+
+
+def get_open_fn(ibsdk) -> Callable[[Union[str, Path]], bytes]:
+    return local_read_fn if ibsdk is None else ibsdk.read_file
 
 
 def get_common_feature_schema(use_image):
@@ -304,13 +309,15 @@ def get_image(img_path: str, img_rel_path: str, open_fn: Any, image_processor: I
     img_arr = None
     for i in range(16):
         try:
-            with open_fn(str(img_path)) as img_file:
-                img_arr = image_processor(img_file).astype(np.uint8)
-                break
+            img_bytes = open_fn(str(img_path))
+            img_file = BytesIO(img_bytes)
+            img_arr = image_processor(img_file).astype(np.uint8)
+            break
         except OSError:
             try:
-                with open_fn(str(img_rel_path), "rb") as img_file:
-                    img_arr = image_processor(img_file).astype(np.uint8)
+                img_bytes = open_fn(str(img_rel_path))
+                img_file = BytesIO(img_bytes)
+                img_arr = image_processor(img_file).astype(np.uint8)
                 break
             except OSError:
                 time.sleep(2)
