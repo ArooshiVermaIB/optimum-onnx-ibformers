@@ -9,7 +9,7 @@ import time
 import uuid
 from json import JSONDecodeError
 from pathlib import Path
-from typing import List, Dict, Mapping, Optional
+from typing import List, Dict, Mapping, Optional, Tuple
 
 import backoff
 from typing_extensions import TypedDict
@@ -37,10 +37,10 @@ async def run_training_test(
     wait_for: asyncio.Task,
     test_name: str,
     root_path: str,
-    remote_code_loation: str,
+    remote_code_location: str,
     test_config: Dict,
     package: str,
-) -> [bool, str]:
+) -> Tuple[bool, str]:
     logger = logging.getLogger(f"{sdk.name}: {test_name}")
 
     logger.debug("Awaiting code sync")
@@ -53,7 +53,7 @@ async def run_training_test(
         hyperparams["log_metrics_to_metadata"] = True
 
     success, job_id = await sdk.start_model_training_task(
-        training_script_path=os.path.join(root_path, REMOTE_CODE_PREFIX, remote_code_loation),
+        training_script_path=os.path.join(root_path, REMOTE_CODE_PREFIX, remote_code_location),
         model_project_path=os.path.join(root_path, test_config["model_project_path"]),
         dataset_project_path=os.path.join(root_path, test_config["dataset_project_path"]),
         base_model=utils.get_base_model_name(test_config["config"]),
@@ -61,7 +61,6 @@ async def run_training_test(
         package=package,
     )
 
-    state = ""
     start_time = time.time()
     done = False
     job_info = {}
@@ -199,7 +198,7 @@ async def run_inference_test_classifier(
     try:
         preds_dict: Mapping[str, Mapping[str, PredictionDict]] = json.loads(preds)
     except JSONDecodeError as e:
-        logger.error("Exception occured while reading predictions because: " + str(e))
+        logger.error("Exception occurred while reading predictions because: " + str(e))
         await sdk.unpublish_solution(model_name, model_version)
         return False
 
@@ -234,7 +233,7 @@ async def run_inference_test_classifier(
 
     await sdk.wait_for_job_completion(copy_resp["job_id"], 1)
 
-    logger.info(f"Running classsifier flow {flow_path} on input folder {ci_input_folder}")
+    logger.info(f"Running classifier flow {flow_path} on input folder {ci_input_folder}")
     success, resp = await sdk.run_flow_test("/" + str(ci_input_folder), "/" + str(flow_path), output_has_run_id=True)
 
     if not success:
@@ -403,7 +402,7 @@ async def run_inference_test(
     return success
 
 
-async def _publish_model(sdk: Instabase, model_project_path: str, job_id: str) -> [bool, str, str]:
+async def _publish_model(sdk: Instabase, model_project_path: str, job_id: str) -> Tuple[bool, str, str]:
     async with PUBLISH_LOCK:
         training_job_path = model_project_path / "training_jobs" / job_id
 
@@ -439,21 +438,21 @@ def _extract_refiner_results_from_status(logger, status, model_result_by_record)
     return not failed
 
 
-async def sync_and_unzip(sdk: Instabase, contents: bytes, remote_code_loation: str) -> None:
+async def sync_and_unzip(sdk: Instabase, contents: bytes, remote_code_location: str) -> None:
     logger = logging.getLogger(sdk.name)
     # TODO Make sure that locations don"t conflict if multiple users test at once
-    logger.debug(f"Deleting remote_code_loation")
+    logger.debug("Deleting remote_code_location")
     # Needed to add this since REMOTE_TEMP_ZIP_PATH would be overwritten
     # since we now have both ibformers_extraction and ibformers_classification
     remote_temp_zip_path = "%s.ibsolution" % uuid.uuid4().hex
-    await sdk.delete_file(remote_code_loation, recursive=True)
+    await sdk.delete_file(remote_code_location, recursive=True)
     logger.debug(f"Writing to {remote_temp_zip_path}")
     await sdk.write_file(remote_temp_zip_path, contents)
-    logger.debug(f"Unzipping {remote_temp_zip_path} to remote_code_loation")
-    await sdk.unzip(zip_filepath=remote_temp_zip_path, destination=remote_code_loation)
+    logger.debug(f"Unzipping {remote_temp_zip_path} to remote_code_location")
+    await sdk.unzip(zip_filepath=remote_temp_zip_path, destination=remote_code_location)
     logger.debug(f"Deleting {remote_temp_zip_path}")
     await sdk.delete_file(remote_temp_zip_path)
-    logger.debug(f"Done syncing code")
+    logger.debug("Done syncing code")
 
 
 async def run_tests(train: bool, inference: bool, test_name: Optional[str], test_environment: str) -> None:
@@ -486,14 +485,14 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
         root_path=os.path.join(env_config["path"], REMOTE_CODE_PREFIX),
     )
 
-    remote_code_loation = {}
+    remote_code_location = {}
     if train:
         for package in [PackageType.EXTRACTION.value, PackageType.CLASSIFICATION.value]:
             # this solves race condition when run tests concurrently
-            remote_code_loation[package] = "ibformers_%s" % uuid.uuid4().hex
+            remote_code_location[package] = "ibformers_%s" % uuid.uuid4().hex
             zip_bytes = zip_project(PROJECT_ROOT, package)
             sync_tasks[f"{test_environment}_{package}"] = asyncio.create_task(
-                sync_and_unzip(sdk, zip_bytes, remote_code_loation[package])
+                sync_and_unzip(sdk, zip_bytes, remote_code_location[package])
             )
             del zip_bytes
 
@@ -524,7 +523,7 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
                     wait_for=sync_tasks[f"{test_environment}_{package}"],
                     test_name=test_name,
                     root_path=env_config["path"],
-                    remote_code_loation=remote_code_loation[package],
+                    remote_code_location=remote_code_location[package],
                     test_config=test_config,
                     package=package,
                 )

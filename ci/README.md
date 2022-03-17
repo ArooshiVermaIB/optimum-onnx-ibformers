@@ -9,7 +9,7 @@ especially sandboxes - up to date.
 
 ## How it works
 
-Code from `ibformers` is zipped and pushed to each environment in `envrionments.yaml`, along with
+Code from `ibformers` is zipped and pushed to each environment in `environments.yaml`, along with
 the `metadata/package.json`. We then call an endpoint on each environment to publish the code as a marketplace package.
 
 ## Usage
@@ -24,7 +24,7 @@ the `metadata/package.json`. We then call an endpoint on each environment to pub
 dogfood:
   host: https://dogfood.instabase.com
   path: daniel.cahn/my-repo/fs/Instabase Drive/test_location # This is a root location used for test files. It should be a safe location where things can be saved and deleted
-  token: SOME_TOKEN # TODO we should ideally use environment variables here 
+  token: SOME_TOKEN # TODO we should ideally use environment variables here
 
 ```
 
@@ -89,7 +89,7 @@ TestName:
       Address: 0.9
     precision:
       DL Number: 0.9 # Note that not all fields must be specified for every metric
-    # Note that not all metrics must be tested 
+    # Note that not all metrics must be tested
 ```
 
 # Unpublish

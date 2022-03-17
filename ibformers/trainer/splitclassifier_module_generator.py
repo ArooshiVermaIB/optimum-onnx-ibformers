@@ -75,6 +75,7 @@ def write_classifier_module(
         "rootPath": "true",
         "preprocess_output_folder": None,
         "class_mapping_to_training_files": "true",
+        "classes": labels,
     }
 
     with open(classifier_path, "w+") as f:
