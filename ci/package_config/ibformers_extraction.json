@@ -1,6 +1,6 @@
 {
   "name": "ibformers_extraction",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "keywords": "models, transformers",
   "category": "model-training",
   "short_description": "Training scripts for transformers",

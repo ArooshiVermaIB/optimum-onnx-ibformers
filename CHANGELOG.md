@@ -2,16 +2,17 @@
 
 All notable changes to this repository will be documented in this file.
 
-## Unreleased
-- Set `classes` when generating classifier and split classifier modules.
+## [1.0.2] - 2022-03-17
 
 ### Added
 - Results from hyperparameter search are logged as a table in instabase>=22.03
+
 ### Changed
 - Adapted the metric formatting to changes in instabase>=22.03
 
 ### Fixed
 - Replaced ibopen calls with read_file
+- Set `classes` when generating classifier and split classifier modules.
 
 ## [1.0.1] - 2022-03-14
 
