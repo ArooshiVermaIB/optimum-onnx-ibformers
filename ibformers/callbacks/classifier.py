@@ -154,13 +154,12 @@ class DocProClassificationCallback(DocProCallback):
         # Set the overall accuracy of the model
         self.set_status({"accuracy": overall_accuracy})
 
-    @staticmethod
-    def get_classifier_results_table_data(evaluation_metrics):
+    def get_classifier_results_table_data(self, evaluation_metrics):
         classifier_table = pd.DataFrame({k: v for k, v in evaluation_metrics.items() if k != "accuracy"})
         classifier_table = classifier_table[["f1", "precision", "recall", "support"]]
         if SHOULD_FORMAT:
             classifier_table[["f1", "precision", "recall"]] = classifier_table[["f1", "precision", "recall"]].applymap(
-                lambda x: format(x, ".2%")
+                lambda x: self.maybe_format_as_percent(x)
             )
         classifier_records = classifier_table.to_records(index=True)
 

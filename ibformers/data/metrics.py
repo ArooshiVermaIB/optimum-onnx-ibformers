@@ -111,7 +111,7 @@ def compute_legacy_metrics(label_list: List[str], pred_dict: Dict[str, Any]) -> 
         2
         * token_level_df.precision
         * token_level_df.recall
-        / (token_level_df.precision + token_level_df.recall)
+        / (token_level_df.precision + token_level_df.recall + 1e-10)
         # Note that this is Pandas, so dividing by zero gives NAN
     )
 

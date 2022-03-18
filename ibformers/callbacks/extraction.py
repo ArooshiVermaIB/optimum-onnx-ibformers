@@ -5,7 +5,7 @@ import traceback
 import uuid
 from operator import itemgetter
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import pandas as pd
 
 from ibformers.trainer.hp_search.optimize import get_study_summary
@@ -438,7 +438,7 @@ class DocProCallback(TrainerCallback):
         for row_key in sorted_rows:
             values = [evaluation_metrics[c].get(row_key, "") for c in headers]
             if SHOULD_FORMAT:
-                values = [format(v, ".2%") for v in values]
+                values = [self.maybe_format_as_percent(v) for v in values]
             rows.append([row_key, *values])
         return headers, rows
 
@@ -453,3 +453,9 @@ class DocProCallback(TrainerCallback):
             for trial in self.hyperparamsearch_results
         ]
         return headers, values
+
+    def maybe_format_as_percent(self, value_to_format: Any):
+        try:
+            return format(value_to_format, ".2%")
+        except (ValueError, TypeError):
+            return value_to_format
