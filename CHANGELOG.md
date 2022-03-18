@@ -2,7 +2,7 @@
 
 All notable changes to this repository will be documented in this file.
 
-## Unreleased
+## [1.0.3] - 2022-03-18
 
 ### Fixed
 - Fixed metric formatting when non-number is returned
