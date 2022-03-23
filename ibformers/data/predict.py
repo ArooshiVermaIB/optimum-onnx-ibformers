@@ -123,7 +123,7 @@ def get_predictions_for_cls(predictions: Tuple, dataset: Dataset, label_list: Op
         )
 
         # Use token page numbers to get the page extremes for cls
-        page_nums = dataset["token_page_nums"][chunk_from_idx:chunk_to_idx]
+        page_nums = dataset[chunk_from_idx:chunk_to_idx]["token_page_nums"]
         page_start = min(page_nums[0])
         page_end = max(page_nums[-1])
         is_test_file = dataset[chunk_from_idx].get("is_test_file", False)  # for non-docpro training

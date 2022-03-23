@@ -2,6 +2,11 @@
 
 All notable changes to this repository will be documented in this file.
 
+## Unreleased
+
+### Fixed
+- Improved classification inference speed for large datasets
+
 ## [1.0.3] - 2022-03-18
 
 ### Fixed
