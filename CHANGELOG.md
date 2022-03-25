@@ -2,7 +2,7 @@
 
 All notable changes to this repository will be documented in this file.
 
-## Unreleased
+## [1.0.4] - 2022-03-25
 
 ### Changed
 - Disabled early stopping and validation set size in default parameters
