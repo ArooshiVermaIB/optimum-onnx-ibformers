@@ -4,6 +4,9 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+### Changed
+- Disabled early stopping and validation set size in default parameters
+
 ### Fixed
 - Improved classification inference speed for large datasets
 
