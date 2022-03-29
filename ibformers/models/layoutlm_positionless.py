@@ -4,7 +4,7 @@ import torch
 import torch.utils.checkpoint
 from torch import nn
 from torch.nn import CrossEntropyLoss, MSELoss
-from transformers import LayoutLMConfig, AutoModelForTokenClassification, AutoConfig
+from transformers import LayoutLMConfig, AutoModelForTokenClassification, AutoConfig, AutoModelForSequenceClassification
 from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions, MaskedLMOutput
 from transformers.models.layoutlm.modeling_layoutlm import (
     LayoutLMLayerNorm,
@@ -19,6 +19,7 @@ from transformers.models.layoutlm.modeling_layoutlm import (
 )
 
 from ibformers.models.bbox_masking_models import LayoutLMForMaskedLMAndLayoutRegression
+from ibformers.models.layv1splitclass import SplitClassifier
 
 
 class LayoutLMPositionlessConfig(LayoutLMConfig):
@@ -245,5 +246,9 @@ class LayoutLMPositionlessForMaskedLMAndLayoutRegression(LayoutLMForMaskedLMAndL
         self.layoutlm = LayoutLMPositionlessModel(config)
 
 
-AutoConfig.register("layoutlm_positionless", LayoutLMPositionlessConfig)
-AutoModelForTokenClassification.register(LayoutLMPositionlessConfig, LayoutLMPositionlessForTokenClassification)
+class PositionlessSplitClassifier(SplitClassifier):
+    config_class = LayoutLMPositionlessConfig
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.layoutlm = LayoutLMPositionlessModel(config)

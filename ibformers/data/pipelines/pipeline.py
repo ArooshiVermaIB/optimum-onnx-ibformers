@@ -7,6 +7,7 @@ from transformers import (
     AutoModelForMaskedLM,
     AutoModelForQuestionAnswering,
     AutoModelForSequenceClassification,
+    AutoConfig,
 )
 
 from ibformers.data.chunk import produce_chunks, pairer
@@ -35,10 +36,16 @@ from ibformers.data.transform import (
     prepare_input_squad,
 )
 from ibformers.data.transform.table import create_non_merged_table_labels, stack_table_labels
+from ibformers.models.automodel_utils import AutoModelForSplitClassification
 from ibformers.models.bbox_masking_models import LayoutLMForMaskedLMAndLayout, LayoutLMForMaskedLMAndLayoutRegression
 from ibformers.models.layoutlm_ext import LayoutLMForTableStructureClassification, LayoutLMForTableAdjacencyMatrix
 from ibformers.data.splinter_processing import find_recurring_spans, build_prefix_with_mqa_splinter
-from ibformers.models.layoutlm_positionless import LayoutLMPositionlessForMaskedLMAndLayoutRegression
+from ibformers.models.layoutlm_positionless import (
+    LayoutLMPositionlessForMaskedLMAndLayoutRegression,
+    LayoutLMPositionlessConfig,
+    LayoutLMPositionlessForTokenClassification,
+    LayoutLMPositionlessForSequenceClassification,
+)
 from ibformers.models.layv1mqa import LayMQAForTokenClassification
 from ibformers.models.layv1splitclass import SplitClassifier
 from ibformers.models.layv1splinter import LayoutSplinterModel
@@ -357,7 +364,7 @@ layoutlm_sc = {
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, pairer],
     "column_mapping": [],
     "collate": get_collator_class(),
-    "model_class": SplitClassifier,
+    "model_class": AutoModelForSplitClassification,
     "compute_metrics": compute_metrics_for_sc,
 }
 

@@ -102,7 +102,7 @@ class RVLClassification(ibmsg.Ibmsg, datasets.GeneratorBasedBuilder):
         self, label_mapping: Dict[str, int], index_content: List[Tuple[Path, Path]]
     ) -> Dict[str, Sequence[Any]]:
         maybe_ocr_label_pairs = (
-            ((ocr_path, ori_path), label_mapping.get(self._get_ori_file_relative_path(ori_path), None))
+            ((ori_path, ocr_path), label_mapping.get(self._get_ori_file_relative_path(ori_path), None))
             for ori_path, ocr_path in index_content
         )
         ocr_label_pairs = [(paths, label) for paths, label in maybe_ocr_label_pairs if label is not None]
