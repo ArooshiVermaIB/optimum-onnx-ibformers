@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from ibformers.trainer.docpro_utils import run_train_classification, run_train_both_classification
 import fire
+import zipfile
+import os
 from tqdm import tqdm
 
 # SCRIPT USED FOR DEBUGGING WITH LOCAL RUNS
@@ -38,6 +40,12 @@ class InstabaseSDKDummy:
         Path(file_path).parent.mkdir(exist_ok=True, parents=True)
         with open(file_path, "wb") as f:
             f.write(content)
+
+    def unzip(self, file_path: str, destination: str, remove: bool = False):
+        with zipfile.ZipFile(file_path, "r") as zip_ref:
+            zip_ref.extractall(destination)
+        if remove:
+            os.remove(file_path)
 
 
 def run(ds_path, out_path):

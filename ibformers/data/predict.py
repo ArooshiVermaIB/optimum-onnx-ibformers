@@ -418,8 +418,8 @@ def get_predictions_for_sc(predictions: Tuple, dataset: Dataset):
             if split == split_idx or i == len(splits) - 1:
                 end_range = i
                 cur_preds = preds[start_range : end_range + 1, :]
-                split_conf = torch.tensor(cur_preds[-1, :2]).softmax(0)[split_idx]
-                avg_class_pred = torch.tensor(cur_preds[:, 2:]).softmax(1).sum(0).softmax(0)
+                split_conf = torch.tensor(cur_preds[-1, :2]).float().softmax(0)[split_idx]
+                avg_class_pred = torch.tensor(cur_preds[:, 2:]).float().softmax(1).sum(0).softmax(0)
                 class_idx = avg_class_pred.argmax().item()
                 class_conf = avg_class_pred[class_idx].item()
                 class_name = class_id2str[class_idx]

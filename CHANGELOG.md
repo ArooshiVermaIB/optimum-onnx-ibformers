@@ -2,6 +2,11 @@
 
 All notable changes to this repository will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Fixed a bug during fp16 prediction in split classification
+
 ## [1.0.4] - 2022-03-25
 
 ### Changed
