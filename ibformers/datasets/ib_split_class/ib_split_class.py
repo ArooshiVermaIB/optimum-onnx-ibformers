@@ -3,11 +3,12 @@ import logging
 import os
 from dataclasses import dataclass
 
-from typing import Dict, List, Iterable
+from typing import Dict, List, Iterable, Union, Sequence, Mapping
 
 import datasets
 
-from ibformers.datasets.ib_common import (
+from ibformers.data.utils import ImageProcessor
+from ibformers.datasets.ib_common.ib_common import (
     assert_valid_record,
     load_datasets,
     IBDSConfig,
@@ -47,34 +48,27 @@ class IbSplitClass(IbDs):
         ),
     ]
 
-    def _info(self):
-        data_files = self.config.data_files
-        assert isinstance(data_files, dict), "data_files argument should be a dict for this dataset"
-        if "train" in data_files:
-            self.datasets_list = load_datasets(data_files["train"], self.config.ibsdk)
-            dataset_classes = dict(
-                itertools.chain(
-                    *(dataset.metadata["classes_spec"]["classes"].items() for dataset in self.datasets_list)
-                )
-            )
-            classes = list(set([class_def["name"] for _, class_def in dataset_classes.items()]))
-        elif "test" in data_files:
-            # inference input is a list of parsedibocr files
-            assert self.config.id2label is not None, "Need to pass directly infromation about labels for the inference"
-            classes = [self.config.id2label[i] for i in range(len(self.config.id2label))]
-        else:
-            raise ValueError("data_file argument should be either in train or test mode")
+    def get_train_dataset_features(self) -> datasets.Features:
+        data_files: Union[str, Sequence, Mapping] = self.config.data_files
+        self.datasets_list = load_datasets(data_files["train"], self.config.ibsdk)
+        dataset_classes = dict(
+            itertools.chain(*(dataset.metadata["classes_spec"]["classes"].items() for dataset in self.datasets_list))
+        )
+        classes = list(set([class_def["name"] for _, class_def in dataset_classes.items()]))
+        return self.create_dataset_features(self.config, classes)
 
-        ds_features = get_common_feature_schema(use_image=self.config.use_image)
+    @classmethod
+    def get_inference_dataset_features(cls, config: IBDSConfig) -> datasets.Features:
+        assert config.id2label is not None, "Need to pass directly infromation about labels for the inference"
+        classes = [config.id2label[i] for i in range(len(config.id2label))]
+        return cls.create_dataset_features(config, classes)
+
+    @staticmethod
+    def create_dataset_features(config, classes):
+        ds_features = get_common_feature_schema(use_image=config.use_image)
         ds_features["record_page_ranges"] = datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2))
         ds_features["class_label"] = datasets.Sequence(datasets.features.ClassLabel(names=classes))
-
-        return datasets.DatasetInfo(
-            # This is the description that will appear on the datasets page.
-            description=_DESCRIPTION,
-            features=datasets.Features(ds_features),
-            supervised_keys=None,
-        )
+        return datasets.Features(ds_features)
 
     def _get_annotation_generator(self, datasets_list) -> Iterable[SplitClassItem]:
         logging.info(f"Reading from Instabase datasets")
@@ -87,14 +81,18 @@ class IbSplitClass(IbDs):
                 item = SplitClassItem(pibocr=pibocr, dataset_id=dataset_id, class_id2class_label=class_id2name)
                 yield item
 
-    def _get_annotation_from_model_service(self, pibocrs: List[ParsedIBOCR]) -> Iterable[SplitClassItem]:
+    @classmethod
+    def _get_annotation_from_model_service(
+        cls, pibocrs: List[ParsedIBOCR], config: IBDSConfig
+    ) -> Iterable[SplitClassItem]:
         for pibocr in pibocrs:
-            class_id2name = {lab: None for lab in self.config.id2label.values()}
+            class_id2name = {lab: None for lab in config.id2label.values()}
             item = SplitClassItem(pibocr=pibocr, dataset_id="model_service", class_id2class_label=class_id2name)
             yield item
 
-    def process_item(self, item: SplitClassItem) -> Dict:
-        class_name2int = self.info.features["class_label"].feature._str2int
+    @classmethod
+    def process_item(cls, item: SplitClassItem, config: IBDSConfig, image_processor: ImageProcessor) -> Dict:
+        class_name2int = config.classes
         words = []
         page_ranges = []
         class_labels = []
@@ -121,7 +119,7 @@ class IbSplitClass(IbDs):
             else:
                 class_id = anno["annotated_class_id"]
                 is_test = (is_test or anno["is_test_file"]) and not is_predict
-                class_label = class_name2int[item.class_id2class_label[class_id]]
+                class_label = item.class_id2class_label[class_id]
                 class_labels.append(class_label)
         # assign layouts of any record
         layouts = rlayouts
@@ -136,11 +134,9 @@ class IbSplitClass(IbDs):
             split_type = "train"
 
         ocr_features = get_ocr_features(words, layouts, doc_id)
-        open_fn = get_open_fn(self.config.ibsdk)
+        open_fn = get_open_fn(config.ibsdk)
         image_features = (
-            get_image_features(ocr_features, layouts, doc_path, open_fn, self.image_processor)
-            if self.config.use_image
-            else {}
+            get_image_features(ocr_features, layouts, doc_path, open_fn, image_processor) if config.use_image else {}
         )
 
         return {

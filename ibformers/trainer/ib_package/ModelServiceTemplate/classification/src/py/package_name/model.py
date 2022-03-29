@@ -1,11 +1,13 @@
 import json
 import os
 
+from ibformers.data.utils import convert_to_dict_of_lists
+from ibformers.datasets.ib_common import IB_DATASETS
+
 os.environ["HF_DATASETS_OFFLINE"] = "1"
 import sys
 
 # TODO: remove once packages paths defined in extraction.json will be added to PYTHONPATH
-from datasets.data_files import DataFilesDict
 
 from ibformers.trainer.arguments import EnhancedTrainingArguments
 from ibformers.trainer.ib_utils import InstabaseSDK
@@ -17,17 +19,16 @@ if pth not in sys.path:
 
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import torch
-from datasets import load_dataset, GenerateMode
+from datasets import Dataset
 from instabase.model_service.input_utils import resolve_parsed_ibocr_from_request
 from instabase.model_service.model_cache import Model
 from instabase.protos.model_service import model_service_pb2
 from instabase.model_service.file_utils import get_file_client
 from transformers import AutoTokenizer, PreTrainedTokenizerFast, PreTrainedModel
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
-from ibformers.datasets import DATASETS_PATH
 from ibformers.trainer.trainer import IbTrainer
 
 MODEL_PATH = Path(__file__).parent / "model_data"
@@ -104,29 +105,30 @@ class IbModel(Model):
         if request.input_path != "":
             record.doc_path = request.input_path
 
-        # pass single document and create in memory dataset
-        ds_path = Path(DATASETS_PATH) / self.pipeline_config["dataset_name_or_path"]
-        name_to_use = str(ds_path) if ds_path.is_dir() else self.pipeline_config["dataset_name_or_path"]
+        # prepare config kwargs
         load_kwargs = self.pipeline["dataset_load_kwargs"]
-        load_kwargs["ibsdk"] = self.get_ibsdk(request.context.username)
 
+        ibsdk = self.get_ibsdk(request.context.username)
+        load_kwargs["ibsdk"] = ibsdk
         if hasattr(self.model.config, "ib_id2label"):
-            load_kwargs["id2label"] = dict((int(key), value) for key, value in self.model.config.ib_id2label.items())
+            id2label = dict((int(key), value) for key, value in self.model.config.ib_id2label.items())
+            load_kwargs["id2label"] = id2label
 
         # generate prediction item: (full_path, record_index, record, anno)
         doc_path = request.input_path if request.input_path != "" else record.get_document_path()
         prediction_item = (doc_path, record.get_ibdoc_record_id(), record, None)
 
-        predict_dataset = load_dataset(
-            path=name_to_use,
-            name=self.pipeline_config["dataset_config_name"],
-            data_files=DataFilesDict(test=[prediction_item]),
-            ignore_verifications=True,
-            keep_in_memory=True,
-            split="test",
-            download_mode=GenerateMode.FORCE_REDOWNLOAD,
-            **load_kwargs,
-        )
+        # get proper dataset class and config
+        dataset_class = IB_DATASETS[self.pipeline_config["dataset_name_or_path"]]
+        config_class = dataset_class.BUILDER_CONFIG_CLASS
+        config = config_class(name=self.pipeline_config["dataset_name_or_path"], version="1.0.0", **load_kwargs)
+        image_processor = dataset_class.create_image_processor(config)
+
+        # process the data
+        examples = dataset_class.get_examples_from_model_service([prediction_item], config, image_processor)
+        prediction_schema = dataset_class.get_inference_dataset_features(config)
+        data = convert_to_dict_of_lists(examples, examples[0].keys())
+        predict_dataset = Dataset.from_dict(data, prediction_schema)
 
         if len(predict_dataset) == 0:
             raise ValueError("There is no documents processed for the inference. Check if record is correct")

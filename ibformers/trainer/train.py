@@ -86,7 +86,7 @@ def run_hyperparams_and_cmdline_train(hyperparams: Dict):
     model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(hyperparams)
 
     # workaround for docpro params
-    if hyperparams.get("dataset_config_name", "") == "ib_extraction":
+    if hyperparams.get("dataset_config_name", "") in {"ib_extraction", "ib_classification", "ib_split_class"}:
         data_args.train_file = [data_args.train_file]
 
     run_train(

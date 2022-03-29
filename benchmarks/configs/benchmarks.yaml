@@ -94,7 +94,6 @@ medical-records:
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/medical-records-ml-studio
     extraction_class_name: medical_records
 
-
 funsd:
   name: FUNSD
   hyperparams:
@@ -127,3 +126,23 @@ rvl_classification_20k:
     train_file: /home/ib/shared/datasets/rvl-classification
     dataset_name_or_path: rvl_classification
     dataset_config_name: rvl_classification_20k
+
+classification-dummy:
+  name: Classification Dummy
+  hyperparams:
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/classification-dummy
+    dataset_name_or_path: ib_classification
+    dataset_config_name: ib_classification
+
+split-classification-dummy:
+  name: Split-classification Dummy
+  hyperparams:
+    train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/split-classification-dummy
+    dataset_name_or_path: ib_split_class
+    dataset_config_name: ib_split_class
+    early_stopping_patience: 0
+    validation_set_size: 0.0
+    save_total_limit: 0
+    load_best_model_at_end: false
+    metric_for_best_model: loss
+    label_names: sc_labels

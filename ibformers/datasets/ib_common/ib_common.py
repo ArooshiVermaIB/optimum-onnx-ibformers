@@ -5,19 +5,26 @@ import urllib
 from abc import abstractmethod, ABCMeta
 from io import BytesIO
 from pathlib import Path
-from typing import Tuple, List, Callable, Optional, Union, Any, Dict, Iterable
+from typing import Tuple, List, Callable, Optional, Union, Any, Dict, Iterable, Type
 
 import datasets
 import numpy as np
-from datasets import BuilderConfig, Features, config
+from datasets import BuilderConfig, Features
 from datasets.fingerprint import Hasher
+from datasets.config import MAX_DATASET_CONFIG_ID_READABLE_LENGTH
 
 from ibformers.data.utils import ImageProcessor
 from instabase.ocr.client.libs.ibocr import IBOCRRecordLayout, IBOCRRecord
 
+
 BoundingBox = Tuple[float, float, float, float]
 Span = Tuple[int, int]
 IBDS_WRITER_BATCH_SIZE = 8
+
+
+_DESCRIPTION = """\
+Internal Instabase Dataset format organized into set of IbDoc files.
+"""
 
 
 class IBDSBuilderConfig(BuilderConfig):
@@ -88,7 +95,7 @@ class IBDSBuilderConfig(BuilderConfig):
 
         if suffix:
             config_id = self.name + "-" + suffix
-            if len(config_id) > config.MAX_DATASET_CONFIG_ID_READABLE_LENGTH:
+            if len(config_id) > MAX_DATASET_CONFIG_ID_READABLE_LENGTH:
                 config_id = self.name + "-" + Hasher.hash(suffix)
             return config_id
         else:
@@ -112,6 +119,14 @@ class IBDSConfig(IBDSBuilderConfig):
         self.id2label = id2label
         self.extraction_class_name = extraction_class_name
 
+    @property
+    def label2id(self) -> Optional[Dict[int, str]]:
+        return {v: k for k, v in self.id2label.items()} if self.id2label is not None else None
+
+    @property
+    def classes(self) -> Optional[List[str]]:
+        return [self.id2label[i] for i in range(len(self.id2label))] if self.id2label is not None else None
+
 
 class IbDs(datasets.GeneratorBasedBuilder, metaclass=ABCMeta):
     """
@@ -119,6 +134,7 @@ class IbDs(datasets.GeneratorBasedBuilder, metaclass=ABCMeta):
     """
 
     CONFIG_NAME = "ib_ds2"
+    BUILDER_CONFIG_CLASS = IBDSConfig
     DEFAULT_WRITER_BATCH_SIZE = IBDS_WRITER_BATCH_SIZE
 
     BUILDER_CONFIGS = [
@@ -131,8 +147,39 @@ class IbDs(datasets.GeneratorBasedBuilder, metaclass=ABCMeta):
 
     def __init__(self, *args, **kwargs):
         super(IbDs, self).__init__(*args, **kwargs)
-        self.image_processor = ImageProcessor(do_resize=True, size=224) if self.config.use_image else None
+        self.image_processor = self.create_image_processor(self.config)
         self.extraction_class_name = self.config.extraction_class_name
+
+    def _info(self):
+
+        data_files = self.config.data_files
+        assert isinstance(data_files, dict), "data_files argument should be a dict for this dataset"
+        if "train" in data_files:
+            features = self.get_train_dataset_features()
+        elif "test" in data_files:
+            features = self.get_inference_dataset_features(self.config)
+        else:
+            raise ValueError("data_file argument should be either in train or test mode")
+
+        return datasets.DatasetInfo(
+            # This is the description that will appear on the datasets page.
+            description=_DESCRIPTION,
+            features=features,
+            supervised_keys=None,
+        )
+
+    @abstractmethod
+    def get_train_dataset_features(self) -> datasets.Features:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def get_inference_dataset_features(cls, config: IBDSConfig) -> datasets.Features:
+        pass
+
+    @classmethod
+    def create_image_processor(cls, config: IBDSConfig) -> Optional[ImageProcessor]:
+        return ImageProcessor(do_resize=True, size=224) if config.use_image else None
 
     def _split_generators(self, dl_manager):
         """We handle string, list and dicts in datafiles"""
@@ -152,29 +199,38 @@ class IbDs(datasets.GeneratorBasedBuilder, metaclass=ABCMeta):
         elif "test" in data_files:
             # inference input is a list of parsedibocr files
             test_files = data_files["test"]
-            annotation_items = self._get_annotation_from_model_service(test_files)
+            annotation_items = self._get_annotation_from_model_service(test_files, self.config)
 
             return [
                 datasets.SplitGenerator(name=datasets.Split.TEST, gen_kwargs={"annotation_items": annotation_items}),
             ]
 
+    @classmethod
     @abstractmethod
-    def process_item(self, item) -> Dict:
+    def process_item(cls, item, config, image_processor) -> Dict:
         pass
 
     @abstractmethod
     def _get_annotation_generator(self, datasets_list: List["DatasetSDK"]) -> Iterable[Any]:
         pass
 
+    @classmethod
     @abstractmethod
-    def _get_annotation_from_model_service(self, records: List[Tuple]) -> Iterable[Any]:
+    def _get_annotation_from_model_service(cls, records: List[Any], config) -> Iterable[Any]:
         pass
+
+    @classmethod
+    def get_examples_from_model_service(cls, records: List[Any], config, image_processor):
+        return [
+            cls.process_item(item, config, image_processor)
+            for item in cls._get_annotation_from_model_service(records, config)
+        ]
 
     def _generate_examples(self, annotation_items):
         """Yields examples."""
         # these items are yielded by _get_annotation_generator
         for item in annotation_items:
-            doc_dict = self.process_item(item)
+            doc_dict = self.process_item(item, self.config, self.image_processor)
             if doc_dict is not None:
                 yield doc_dict["id"], doc_dict
 

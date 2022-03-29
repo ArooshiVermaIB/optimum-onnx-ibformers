@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -31,8 +32,18 @@ class ExtendedWandbCallback(WandbCallback):
         table_rows = defaultdict(list)
 
         is_classification = "test_eval_metrics" in metrics_dict
-        metric_prefix = "" if is_classification else "test_eval_"
-        metrics_dict = metrics_dict["test_eval_metrics"] if is_classification else metrics_dict
+        is_split_classification = "test_eval_splitter_metrics" in metrics_dict
+        metric_prefix = "" if is_classification or is_split_classification else "test_eval_"
+
+        if is_classification:
+            metrics_dict = metrics_dict["test_eval_metrics"]
+        elif is_split_classification:
+            sc_metrics_dict = deepcopy(metrics_dict["test_eval_classifier_metrics"])
+            for m_name in metric_names:
+                m_dict = metrics_dict["test_eval_splitter_metrics"][m_name]
+                for dp_name in ["split", "no-split"]:
+                    sc_metrics_dict[m_name][f"sc-{dp_name}"] = m_dict[dp_name]
+            metrics_dict = sc_metrics_dict
 
         for metric in metric_names:
             metric_subdict = metrics_dict[f"{metric_prefix}{metric}"]
@@ -58,6 +69,8 @@ class ExtendedWandbCallback(WandbCallback):
         ]
         prediction_data: List[List[Any]] = []
         for doc_path, doc_predictions in predictions.items():
+            if "entities" not in doc_predictions:
+                return
             doc_name = Path(doc_path).name
             for entity_name, entity_values in doc_predictions["entities"].items():
                 pred_value = entity_values["text"]

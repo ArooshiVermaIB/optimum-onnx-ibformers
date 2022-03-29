@@ -1,3 +1,6 @@
+import os
+
+os.environ["HF_DATASETS_OFFLINE"] = "1"
 import json
 import time
 from pathlib import Path
@@ -5,10 +8,10 @@ from typing import Any
 
 import numpy as np
 
-from ibformers.trainer.ib_package.model import IbModel
+from ibformers.trainer.ib_package.ModelServiceTemplate.extraction.src.py.package_name.model import IbModel
 from instabase.protos.model_service import model_service_pb2
-from ocr.client.libs.ibocr import ParsedIBOCRBuilder
-from protos.model_service.model_service_pb2 import RawData
+from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder
+from instabase.protos.model_service.model_service_pb2 import RawData
 
 dataset_files = Path("/Users/bartosztopolski/fs/driver_licenses/out_annotations/s1_process_files")
 

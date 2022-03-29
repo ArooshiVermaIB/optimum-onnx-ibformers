@@ -7,7 +7,8 @@ from typing import Tuple, List, Dict, Union, Optional, Sequence, Mapping, Iterab
 import datasets
 from datasets import DatasetInfo
 
-from ibformers.datasets.ib_common import (
+from ibformers.data.utils import ImageProcessor
+from ibformers.datasets.ib_common.ib_common import (
     assert_valid_record,
     get_common_feature_schema,
     load_datasets,
@@ -18,11 +19,6 @@ from ibformers.datasets.ib_common import (
     get_open_fn,
     get_image_features,
 )
-
-
-_DESCRIPTION = """\
-Internal Instabase Dataset format organized into set of IbDoc files.
-"""
 
 
 @dataclass
@@ -84,32 +80,26 @@ class IbClassificationDs(IbDs):
         ),
     ]
 
-    def _info(self) -> DatasetInfo:
+    def get_train_dataset_features(self) -> datasets.Features:
         data_files: Union[str, Sequence, Mapping] = self.config.data_files
-        assert isinstance(data_files, dict), "data_files argument should be a dict for this dataset"
-        if "train" in data_files:
-            self.datasets_list = load_datasets(data_files["train"], self.config.ibsdk)
-            dataset_classes = dict(
-                itertools.chain(
-                    *(dataset.metadata["classes_spec"]["classes"].items() for dataset in self.datasets_list)
-                )
-            )
-            classes = list(set([data_class["name"] for data_class in dataset_classes.values()]))
-        elif "test" in data_files:
-            assert self.config.id2label is not None, "Need to pass directly infromation about labels for the inference"
-            classes = [self.config.id2label[i] for i in range(len(self.config.id2label))]
-        else:
-            raise ValueError("data_file argument should be either in train or test mode")
-
-        ds_features = get_common_feature_schema(use_image=self.config.use_image)
-        ds_features["class_label"] = datasets.features.ClassLabel(names=classes)
-
-        return datasets.DatasetInfo(
-            # This is the description that will appear on the datasets page.
-            description=_DESCRIPTION,
-            features=datasets.Features(ds_features),
-            supervised_keys=None,
+        self.datasets_list = load_datasets(data_files["train"], self.config.ibsdk)
+        dataset_classes = dict(
+            itertools.chain(*(dataset.metadata["classes_spec"]["classes"].items() for dataset in self.datasets_list))
         )
+        classes = list(set([data_class["name"] for data_class in dataset_classes.values()]))
+        return self.create_dataset_features(self.config, classes)
+
+    @classmethod
+    def get_inference_dataset_features(cls, config: IBDSConfig) -> datasets.Features:
+        assert config.id2label is not None, "Need to pass directly infromation about labels for the inference"
+        classes = [config.id2label[i] for i in range(len(config.id2label))]
+        return cls.create_dataset_features(config, classes)
+
+    @staticmethod
+    def create_dataset_features(config, classes):
+        ds_features = get_common_feature_schema(use_image=config.use_image)
+        ds_features["class_label"] = datasets.features.ClassLabel(names=classes)
+        return datasets.Features(ds_features)
 
     def _get_annotation_generator(self, datasets_list: List["DatasetSDK"]) -> Iterable[ClassItem]:
         logging.info(f"Reading from Instabase datasets")
@@ -124,15 +114,17 @@ class IbClassificationDs(IbDs):
                 item = ClassItem(ann_item=record_anno, dataset_id=dataset_id, class_id2class_label=class_id2class_label)
                 yield item
 
-    def _get_annotation_from_model_service(self, records: List[Tuple]) -> Iterable[ClassItem]:
+    @classmethod
+    def _get_annotation_from_model_service(self, records: List[Tuple], config: IBDSConfig) -> Iterable[ClassItem]:
         # get similar format to the one defined by dataset SDK
         for prediction_item in records:
             item = ClassItem(
-                ann_item=prediction_item, dataset_id="model-inference", class_id2class_label=self.config.id2label
+                ann_item=prediction_item, dataset_id="model-inference", class_id2class_label=config.id2label
             )
             yield item
 
-    def process_item(self, item: ClassItem) -> Dict:
+    @classmethod
+    def process_item(cls, item: ClassItem, config: IBDSConfig, image_processor: ImageProcessor) -> Dict:
         full_path, record_index, record, anno = item.ann_item
 
         logging.info(f"Processing record_idx={record_index}\t path={full_path}")
@@ -147,11 +139,9 @@ class IbClassificationDs(IbDs):
         ocr_features = get_ocr_features(words, layouts, doc_id)
 
         anno_features = get_annotation_features(anno, item.class_id2class_label)
-        open_fn = get_open_fn(self.config.ibsdk)
+        open_fn = get_open_fn(config.ibsdk)
         image_features = (
-            get_image_features(ocr_features, layouts, full_path, open_fn, self.image_processor)
-            if self.config.use_image
-            else {}
+            get_image_features(ocr_features, layouts, full_path, open_fn, image_processor) if config.use_image else {}
         )
 
         return {**ocr_features, **anno_features, **image_features, "id": doc_id}

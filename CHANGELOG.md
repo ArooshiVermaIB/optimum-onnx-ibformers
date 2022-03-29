@@ -4,6 +4,9 @@ All notable changes to this repository will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Removed `datasets.load_dataset` call from inference code to eliminate disk IO operations.
+
 ### Fixed
 - Fixed a bug during fp16 prediction in split classification
 
