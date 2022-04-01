@@ -93,6 +93,16 @@ def get_extraction_labels(
                 # raise error as multi item annotations need to be supported by modelling part
                 raise ValueError("Mulitple item annotations are not supported yet")
 
+            # Add empty entity if no annotations
+            entity: LabelEntity = LabelEntity(
+                name=label_name,
+                order_id=0,
+                text="",
+                char_spans=[],
+                token_spans=[],
+                token_label_id=lab_id,
+            )
+
             for order_id, extraction_ann_dict in enumerate(extraction_field_ann):
                 value = extraction_ann_dict["value"]
                 label_indexes = []
