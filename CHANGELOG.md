@@ -2,12 +2,13 @@
 
 All notable changes to this repository will be documented in this file.
 
-## [Unreleased]
+## [1.0.5] - 2022-04-01
 
 ### Changed
 - Removed `datasets.load_dataset` call from inference code to eliminate disk IO operations.
 
 ### Fixed
+- Bug fix in extraction dataset creation, when the length of annotations is zero. 
 - Fixed a bug during fp16 prediction in split classification
 
 ## [1.0.4] - 2022-03-25
