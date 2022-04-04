@@ -121,6 +121,11 @@ class IbSplitClass(IbDs):
                 is_test = (is_test or anno["is_test_file"]) and not is_predict
                 class_label = item.class_id2class_label[class_id]
                 class_labels.append(class_label)
+
+        if len(words) == 0:
+            # No data from any records either because they were corrupt (OCR mismatch) or the document has zero records (possible?)
+            return None
+
         # assign layouts of any record
         layouts = rlayouts
         doc_path = record.get_absolute_ibocr_path()

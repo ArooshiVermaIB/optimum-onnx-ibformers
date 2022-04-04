@@ -221,10 +221,12 @@ class IbDs(datasets.GeneratorBasedBuilder, metaclass=ABCMeta):
 
     @classmethod
     def get_examples_from_model_service(cls, records: List[Any], config, image_processor):
-        return [
-            cls.process_item(item, config, image_processor)
-            for item in cls._get_annotation_from_model_service(records, config)
-        ]
+        examples = []
+        for item in cls._get_annotation_from_model_service(records, config):
+            doc_dict = cls.process_item(item, config, image_processor)
+            if doc_dict is not None:
+                examples.append(doc_dict)
+        return examples
 
     def _generate_examples(self, annotation_items):
         """Yields examples."""
@@ -414,9 +416,9 @@ def get_ocr_features(words: List, layouts: List, doc_id: str) -> Dict:
     # get content of the WordPolys
     word_lst: List[str] = [w["word"] for w in words]
     bbox_arr = np.array([[w["start_x"], w["start_y"], w["end_x"], w["end_y"]] for w in words])
-    word_pages_arr = np.array([w["page"] for w in words])
-    word_line_idx_arr = np.array([w["line_index"] for w in words])
-    word_in_line_idx_arr = np.array([w["word_index"] for w in words])
+    word_pages_arr = np.array([w["page"] for w in words], dtype=np.int32)
+    word_line_idx_arr = np.array([w["line_index"] for w in words], dtype=np.int32)
+    word_in_line_idx_arr = np.array([w["word_index"] for w in words], dtype=np.int32)
 
     # get number of tokens for each page,
     # below is a bit overcomplicated because there might be empty pages
@@ -456,6 +458,8 @@ def validate_and_fix_bboxes(bbox_arr, page_size_per_token, word_pages_arr, page_
     """
     Checks whether bboxes are correct. If not, tries to correct it
     """
+    if len(bbox_arr) == 0:
+        return bbox_arr
     fixed_arr = bbox_arr
     for dim in range(2):
         tokens_outside_dim = np.nonzero(fixed_arr[:, 2 + dim] > page_size_per_token[:, dim])
