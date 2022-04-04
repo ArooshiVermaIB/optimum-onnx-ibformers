@@ -9,7 +9,6 @@ _default:
     chunk_overlap: 64
     num_train_epochs: 40  # mind the early stopping!
     learning_rate: 5.e-5
-    optimizer_type: AdamW
     scheduler_type: constant_with_warmup
     fp16: true
     warmup_ratio: 0.0

@@ -6,6 +6,7 @@ All notable changes to this repository will be documented in this file.
 
 ### Changed
 - Removed `datasets.load_dataset` call from inference code to eliminate disk IO operations.
+- Change the way how parameters are passed to pipeline components
 
 ### Fixed
 - Bug fix in extraction dataset creation, when the length of annotations is zero. 

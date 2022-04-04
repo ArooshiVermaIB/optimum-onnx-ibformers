@@ -1,19 +1,9 @@
 import logging
 import os
 import traceback
+from dataclasses import fields
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-
-from transformers import HfArgumentParser
-
-from ibformers.data.collators.augmenters.args import AugmenterArguments
-from ibformers.trainer.arguments import (
-    ModelArguments,
-    DataAndPipelineArguments,
-    IbArguments,
-    EnhancedTrainingArguments,
-    ExtraModelArguments,
-)
 from ibformers.trainer.ib_utils import (
     MountDetails,
     prepare_ib_params,
@@ -21,10 +11,10 @@ from ibformers.trainer.ib_utils import (
     _abspath,
 )
 from ibformers.trainer.train import run_train
-from ibformers.trainer.arguments import ModelArguments, DataAndPipelineArguments, IbArguments, EnhancedTrainingArguments
 from ibformers.callbacks.split_classifier import SplitClassifierCallback
 from ibformers.callbacks.extraction import DocProCallback
 from ibformers.callbacks.classifier import DocProClassificationCallback
+from ibformers.trainer.train_utils import get_default_parser
 from instabase.dataset_utils.sdk import LocalDatasetSDK, RemoteDatasetSDK
 from instabase.training_utils.model_artifact import ModelArtifactTemplateGenerator
 from ibformers.utils.print_dir import print_dir
@@ -57,21 +47,19 @@ def prepare_classification_params(
 
     out_dict = prepare_ib_params(
         hyperparams,
-        None,
+        dataset_list,
         save_path,
         file_client,
         username,
         job_metadata_client,
         mount_details,
         model_name,
+        final_model_dir
     )
 
     out_dict["dataset_name_or_path"] = "ib_classification"
     out_dict["dataset_config_name"] = "ib_classification"
-    out_dict["train_file"] = dataset_list
-    out_dict["final_model_dir"] = final_model_dir
-    out_dict["report_to"] = "none"
-    out_dict["disable_tqdm"] = True
+
 
     return out_dict
 
@@ -103,27 +91,24 @@ def prepare_split_classification_params(
 
     out_dict = prepare_ib_params(
         hyperparams,
-        None,
+        dataset_list,
         save_path,
         file_client,
         username,
         job_metadata_client,
         mount_details,
         model_name,
+        final_model_dir
     )
 
     out_dict["dataset_name_or_path"] = "ib_split_class"
     out_dict["dataset_config_name"] = "ib_split_class"
     out_dict["label_names"] = ["sc_labels"]
-    out_dict["train_file"] = dataset_list
-    out_dict["final_model_dir"] = final_model_dir
-    out_dict["report_to"] = "none"
-    out_dict["disable_tqdm"] = True
 
     return out_dict
 
 
-def prepare_docpro_params(
+def prepare_extraction_params(
     hyperparams: Dict,
     dataset_list: List,
     save_path: str,
@@ -152,25 +137,19 @@ def prepare_docpro_params(
 
     out_dict = prepare_ib_params(
         hyperparams,
-        None,
+        dataset_list,
         save_path,
         file_client,
         username,
         job_metadata_client,
         mount_details,
         model_name,
+        final_model_dir
     )
 
     out_dict["dataset_name_or_path"] = hyperparams.get("dataset_name_or_path", "ib_extraction")
     out_dict["dataset_config_name"] = hyperparams.get("dataset_config_name", "ib_extraction")
-    out_dict["train_file"] = dataset_list
     out_dict["extraction_class_name"] = extraction_class_name
-    out_dict["final_model_dir"] = final_model_dir
-    out_dict["report_to"] = "none"
-    out_dict["disable_tqdm"] = True
-    out_dict["max_train_samples"] = hyperparams.get("max_train_samples", None)
-    out_dict["label_names"] = hyperparams.get("label_names", None)
-    out_dict["pad_to_max_length"] = hyperparams.get("pad_to_max_length", False)
 
     return out_dict
 
@@ -263,15 +242,7 @@ def run_train_split_classification(
     print_dir(save_folder)
 
     assert hyperparams is not None
-    parser = HfArgumentParser(
-        (
-            ModelArguments,
-            DataAndPipelineArguments,
-            EnhancedTrainingArguments,
-            IbArguments,
-            AugmenterArguments,
-        )
-    )
+    parser = get_default_parser()
 
     if hasattr(file_client, "file_client") and file_client.file_client is None:
         # support for InstabaseSDKDummy - debugging only
@@ -297,7 +268,10 @@ def run_train_split_classification(
         logging.warning("Setting up debbuging mode (CUDA_LAUNCH_BLOCKING=1)")
         os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-    model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hparams_dict)
+    validate_hyperparams(parser, hparams_dict)
+    model_args, data_args, prep_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(
+        hparams_dict
+    )
 
     callback = SplitClassifierCallback(
         dataset_list=dataset_list,
@@ -313,10 +287,11 @@ def run_train_split_classification(
     run_train(
         model_args,
         data_args,
+        prep_args,
         training_args,
         ib_args,
         augmenter_args,
-        ExtraModelArguments(None),
+        extra_model_args,
         extra_callbacks=[callback],
         extra_load_kwargs={"ibsdk": ibsdk},
     )
@@ -381,15 +356,7 @@ def run_train_classification(
     print_dir(save_folder)
 
     assert hyperparams is not None
-    parser = HfArgumentParser(
-        (
-            ModelArguments,
-            DataAndPipelineArguments,
-            EnhancedTrainingArguments,
-            IbArguments,
-            AugmenterArguments,
-        )
-    )
+    parser = get_default_parser()
 
     if hasattr(file_client, "file_client") and file_client.file_client is None:
         # support for InstabaseSDKDummy - debugging only
@@ -415,7 +382,10 @@ def run_train_classification(
         logging.warning("Setting up debbuging mode (CUDA_LAUNCH_BLOCKING=1)")
         os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-    model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hparams_dict)
+    validate_hyperparams(parser, hparams_dict)
+    model_args, data_args, prep_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(
+        hparams_dict
+    )
 
     callback = DocProClassificationCallback(
         dataset_list=dataset_list,
@@ -431,15 +401,25 @@ def run_train_classification(
     run_train(
         model_args,
         data_args,
+        prep_args,
         training_args,
         ib_args,
         augmenter_args,
-        ExtraModelArguments(None),
+        extra_model_args,
         extra_callbacks=[callback],
         extra_load_kwargs={"ibsdk": ibsdk},
     )
 
     return {"results": "Finished"}
+
+
+def validate_hyperparams(parser, hparams_dict):
+    parser_args = set(par.name for dc in parser.dataclass_types for par in fields(dc))
+    hyperparams_args = set(hparams_dict.keys())
+
+    diff = hyperparams_args.difference(parser_args)
+    if len(diff) > 0:
+        logging.error(f"Following parameters are not supported by the training package: {diff}")
 
 
 def run_train_doc_pro(
@@ -500,17 +480,7 @@ def run_train_doc_pro(
     logging.info("The folder structure so far is:")
     print_dir(save_folder)
 
-    assert hyperparams is not None
-    parser = HfArgumentParser(
-        (
-            ModelArguments,
-            DataAndPipelineArguments,
-            EnhancedTrainingArguments,
-            IbArguments,
-            AugmenterArguments,
-            ExtraModelArguments,
-        )
-    )
+    parser = get_default_parser()
 
     if hasattr(file_client, "file_client") and file_client.file_client is None:
         # support for InstabaseSDKDummy - debugging only
@@ -520,7 +490,7 @@ def run_train_doc_pro(
 
     dataset_list = load_datasets(dataset_paths, ibsdk)
 
-    hparams_dict = prepare_docpro_params(
+    hparams_dict = prepare_extraction_params(
         hyperparams,
         dataset_paths,
         save_path,
@@ -537,7 +507,10 @@ def run_train_doc_pro(
         logging.warning("Setting up debbuging mode (CUDA_LAUNCH_BLOCKING=1)")
         os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-    model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(hparams_dict)
+    validate_hyperparams(parser, hparams_dict)
+    model_args, data_args, prep_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(
+        hparams_dict
+    )
 
     extra_load_kwargs = {"ibsdk": ibsdk, "extraction_class_name": extraction_class_name}
 
@@ -557,6 +530,7 @@ def run_train_doc_pro(
     run_train(
         model_args,
         data_args,
+        prep_args,
         training_args,
         ib_args,
         augmenter_args,

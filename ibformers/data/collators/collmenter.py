@@ -1,4 +1,3 @@
-# TODO: better name
 from typing import Union, Optional, List, Type, Dict, Any, Callable
 
 from transformers import (
@@ -8,8 +7,16 @@ from transformers import (
 from transformers.data.data_collator import InputDataClass
 from transformers.file_utils import PaddingStrategy
 
+from ibformers.data.collators.augmenters import BboxAugmenter, MLMAugmenter, BboxMaskingAugmenter
 from ibformers.data.collators.augmenters.base import BaseAugmenter, AugmenterManager
 from ibformers.data.collators.collators.universal import UniversalDataCollator
+
+
+AUGMENTERS = {
+    "bbox": BboxAugmenter,
+    "mlm": MLMAugmenter,
+    "bbox_masking": BboxMaskingAugmenter,
+}
 
 
 class CollatorWithAugmentation(Callable[[List[InputDataClass]], Dict[str, Any]]):
@@ -19,16 +26,8 @@ class CollatorWithAugmentation(Callable[[List[InputDataClass]], Dict[str, Any]])
     While it is not the most convenient to keep both those functionalities in single class,
     it fits nicely into transformer's Trainer.
 
-    The initialization of this class is kinda tricky - we want to be able to define data processing
-    pipeline with information on what augmenters to use, but the initialization itself has to be done later,
-    in the training loop itself.
-    Hence, the two step creation process. First, a custom subclass should be defined with information
-    on what data collators should be used. For this, you can use `get_collator_class` function (see below).
-    This creates a subclass with selected augmenters saved into `augmenters_to_use` class attribute. Then,
     the instance is initialized in the training loop.
     """
-
-    augmenters_to_use: List[Type[BaseAugmenter]] = []
 
     def __init__(
         self,
@@ -37,7 +36,8 @@ class CollatorWithAugmentation(Callable[[List[InputDataClass]], Dict[str, Any]])
         padding: Union[bool, str, PaddingStrategy] = True,
         max_length: Optional[int] = None,
         pad_to_multiple_of: Optional[int] = None,
-        augmenter_kwargs: Optional[Dict] = None,
+        augmenters_list: Optional[List[str]] = None,
+        **augmenter_kwargs: Dict,
     ):
         """
         Args:
@@ -49,10 +49,12 @@ class CollatorWithAugmentation(Callable[[List[InputDataClass]], Dict[str, Any]])
             of provided value. Useful for fp16 training.
             augmenter_kwargs: Additional arguments to pass to the augmenters.
         """
+        self.augmenters_list = augmenters_list
+        self.augmenters_to_use = self.get_augmenters(augmenters_list)
+
         self.collator = UniversalDataCollator(
             tokenizer=tokenizer, padding=padding, max_length=max_length, pad_to_multiple_of=pad_to_multiple_of
         )
-        augmenter_kwargs = {} if augmenter_kwargs is None else augmenter_kwargs
         self.augmenter = AugmenterManager(
             tokenizer=tokenizer, model=model, augmenters_to_use=self.augmenters_to_use, **augmenter_kwargs
         )
@@ -61,6 +63,14 @@ class CollatorWithAugmentation(Callable[[List[InputDataClass]], Dict[str, Any]])
         batch = self.collator(features)
         return self.augmenter.augment(batch)
 
-
-def get_collator_class(*augmenters_to_use: Type[BaseAugmenter]):
-    return type("CustomCollatorAugmenter", (CollatorWithAugmentation,), {"augmenters_to_use": list(augmenters_to_use)})
+    @staticmethod
+    def get_augmenters(aug_list: Optional[List[str]]):
+        if aug_list is None:
+            return []
+        augs = []
+        for aug_name in aug_list:
+            if aug_name not in AUGMENTERS:
+                raise ValueError(f"{aug_name} augmentator is not supported")
+            aug = AUGMENTERS[aug_name]
+            augs.append(aug)
+        return augs

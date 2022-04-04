@@ -1,17 +1,6 @@
-from typing import List, Tuple, TypeVar
-
+from typing import List, Tuple, Dict
 import numpy as np
-from typing_extensions import TypedDict
-
 from ibformers.data.utils import feed_single_example
-
-
-class _NormBboxesInput(TypedDict):
-    bboxes: np.ndarray
-    page_bboxes: np.ndarray
-
-
-T = TypeVar("T", bound=_NormBboxesInput)
 
 
 def _fix_for_negative_dims(bboxes: np.ndarray) -> np.ndarray:
@@ -26,7 +15,7 @@ def _fix_for_negative_dims(bboxes: np.ndarray) -> np.ndarray:
 
 
 @feed_single_example
-def norm_bboxes_for_layoutlm(example: T, **kwargs) -> T:
+def norm_bboxes_for_layoutlm(example: Dict, **kwargs):
     bboxes, page_bboxes, page_spans = (
         example["bboxes"],
         example["page_bboxes"],

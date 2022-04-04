@@ -1,10 +1,23 @@
 import hashlib
+import json
 import logging
+import os
+from dataclasses import asdict
 from typing import Dict, List
 
 import numpy as np
 from datasets import Dataset, DatasetDict, ClassLabel, Sequence
+from transformers import HfArgumentParser
 
+from ibformers.data.collators.augmenters.args import AugmenterArguments
+from ibformers.data.pipelines.args import PreprocessArguments
+from ibformers.trainer.arguments import (
+    ModelArguments,
+    DataArguments,
+    EnhancedTrainingArguments,
+    IbArguments,
+    ExtraModelArguments,
+)
 from ibformers.utils import exceptions
 
 HASH_MODULO = 1000000
@@ -19,6 +32,23 @@ MIN_DOCUMENT_SIZES_WITH_VAL_SPLIT = {
     "validation": 1,
     "test": 2,
 }
+
+
+def get_default_parser():
+    """
+    get all available parsers
+    """
+    return HfArgumentParser(
+        (
+            ModelArguments,
+            DataArguments,
+            PreprocessArguments,
+            EnhancedTrainingArguments,
+            IbArguments,
+            AugmenterArguments,
+            ExtraModelArguments,
+        )
+    )
 
 
 def validate_dataset_sizes(raw_datasets: Dict[str, Dataset], is_eval_from_train: bool):
@@ -231,3 +261,21 @@ def prepare_config_kwargs(ds: Dataset) -> Dict:
         id2label=ib_id2label,
         ib_id2label=ib_id2label,
     )
+
+
+def dict_wo_nones(x):
+    return {k: v for (k, v) in dict(x).items() if v is not None}
+
+
+def save_pipeline_args(prep_args: PreprocessArguments, data_args: DataArguments, save_path: str,
+                       filename: str = "pipeline.json"):
+    """
+    Save arguments required to perform an inference step
+    """
+    save_dict = asdict(prep_args, dict_factory=dict_wo_nones)
+    save_dict["pipeline_name"] = data_args.pipeline_name
+    save_dict["dataset_name_or_path"] = data_args.dataset_name_or_path
+    save_dict["dataset_config_name"] = data_args.dataset_config_name
+
+    with open(os.path.join(save_path, filename), "w", encoding="utf-8") as writer:
+        json.dump(save_dict, writer, indent=2, sort_keys=True)

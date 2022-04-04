@@ -5,23 +5,15 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Dict, Optional, Any, Iterable, Tuple
+from typing import Dict, Optional, Any, Iterable, Tuple, List
 
 import boto3
 import shutil
 import zipfile
 
-from transformers import TrainerCallback, HfArgumentParser
+from transformers import TrainerCallback
 from typing_extensions import TypedDict
 
-from ibformers.data.collators.augmenters.args import AugmenterArguments
-from ibformers.trainer.arguments import (
-    ModelArguments,
-    DataAndPipelineArguments,
-    IbArguments,
-    EnhancedTrainingArguments,
-)
-from ibformers.trainer.train import run_train
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase, default_max_write_size
 from instabase.storage.fileservice import FileService
@@ -31,7 +23,6 @@ from instabase.utils.rpc.file_client import ThriftGRPCFileClient
 from instabase.utils.concurrency import executors
 from instabase.utils.concurrency.types import LocalThreadConfig
 from instabase.utils.path.ibpath import join
-from instabase.utils.strutils import decode
 
 
 logger = logging.getLogger(__name__)
@@ -388,26 +379,34 @@ def _abspath(relpath: str) -> str:
     return os.path.join(dirpath, relpath)
 
 
+HYPERPARAM_TO_HF_MAP = {"batch_size": "per_device_train_batch_size",
+                            "use_mixed_precision": "fp16",
+                            "model_name": "model_name_or_path"
+                            }
+
+
 def prepare_ib_params(
     hyperparams: Dict,
-    dataset_filename: Optional[str],
+    dataset_list: List[str],
     save_path: str,
     file_client: Any,
     username: str,
     job_metadata_client: "JobMetadataClient",
     mount_details: Optional[Dict] = None,
     model_name: str = "CustomModel",
+    final_model_dir: str = None,
 ) -> Dict:
     """
     Map parameters used by model service to names used in the Trainer
     :param hyperparams:
-    :param dataset_filename:
+    :param dataset_list: list of paths, can be either local or remote
     :param save_path:
     :param file_client:
     :param username:
     :param job_metadata_client:
     :param mount_details:
     :param model_name:
+    :param final_model_dir: where to save model files on the local fs
     :return:
     """
     hyperparams = {**hyperparams}
@@ -422,12 +421,10 @@ def prepare_ib_params(
         logging_strategy="epoch",
         evaluation_strategy="epoch",
         save_strategy="no",
-        disable_tqdm=False,
+        disable_tqdm=True,
         logging_steps=10,
         adafactor=False,
-        dataset_name_or_path="ibds",
-        dataset_config_name="ibds",
-        train_file=dataset_filename,
+        train_file=dataset_list,
         output_dir=temp_dir,
         ib_save_path=save_path,
         overwrite_output_dir=False,
@@ -437,80 +434,14 @@ def prepare_ib_params(
         job_metadata_client=job_metadata_client,
         mount_details=mount_details,
         model_name=model_name,
-        final_model_dir=os.path.join(temp_dir, "model"),
+        final_model_dir=final_model_dir,
         fully_deterministic_eval_split=False,
         hp_search_log_trials_to_wandb=False,
         do_post_train_cleanup=True,
     )
 
-    if "num_train_epochs" in hyperparams:
-        out_dict["num_train_epochs"] = hyperparams.pop("num_train_epochs")
-    if "batch_size" in hyperparams:
-        out_dict["per_device_train_batch_size"] = int(hyperparams.pop("batch_size"))
-    if "gradient_accumulation_steps" in hyperparams:
-        out_dict["gradient_accumulation_steps"] = int(hyperparams.pop("gradient_accumulation_steps"))
-    if "learning_rate" in hyperparams:
-        out_dict["learning_rate"] = hyperparams.pop("learning_rate")
-    if "max_grad_norm" in hyperparams:
-        out_dict["max_grad_norm"] = hyperparams.pop("max_grad_norm")
-    if "use_mixed_precision" in hyperparams:
-        out_dict["fp16"] = hyperparams.pop("use_mixed_precision")
     if "use_gpu" in hyperparams:
         out_dict["no_cuda"] = not hyperparams.pop("use_gpu")
-    if "warmup_ratio" in hyperparams:
-        out_dict["warmup_ratio"] = hyperparams.pop("warmup_ratio")
-    if "weight_decay" in hyperparams:
-        out_dict["weight_decay"] = hyperparams.pop("weight_decay")
-    if "max_length" in hyperparams:
-        out_dict["max_length"] = int(hyperparams.pop("max_length"))
-    if "chunk_overlap" in hyperparams:
-        out_dict["chunk_overlap"] = int(hyperparams.pop("chunk_overlap"))
-    if "upload" in hyperparams:
-        out_dict["upload"] = hyperparams.pop("upload")
-
-    if "lr_scheduler_type" in hyperparams:
-        scheduler_type = hyperparams.pop("lr_scheduler_type")
-        if scheduler_type == "constant_schedule_with_warmup":
-            out_dict["lr_scheduler_type"] = "constant_with_warmup"
-        elif scheduler_type == "linear_schedule_with_warmup":
-            out_dict["lr_scheduler_type"] = "linear"
-        else:
-            out_dict["lr_scheduler_type"] = scheduler_type
-
-    pipeline_name = None
-    if "pipeline_name" in hyperparams:
-        pipeline_name = hyperparams.pop("pipeline_name")
-    if "model_name" in hyperparams:
-        model_name = hyperparams.pop("model_name")
-        out_dict["model_name_or_path"] = model_name
-        if not pipeline_name:
-            if "layoutlmv2" in model_name.lower():
-                pipeline_name = "layoutlmv2_sl"
-            elif "layoutxlm" in model_name.lower():
-                pipeline_name = "layoutxlm_sl"
-            elif "laymqav1" in model_name.lower():
-                pipeline_name = "laymqav1"
-            else:
-                if pipeline_name is None:
-                    pipeline_name = "layoutlm_sl"
-        out_dict["pipeline_name"] = pipeline_name
-    if "report_to" in hyperparams:
-        out_dict["report_to"] = hyperparams.pop("report_to")
-
-    if "class_weights" in hyperparams:
-        out_dict["class_weights"] = hyperparams.pop("class_weights")
-
-    if "loss_type" in hyperparams:
-        out_dict["loss_type"] = hyperparams.pop("loss_type")
-
-    if "class_weights_ins_power" in hyperparams:
-        out_dict["class_weights_ins_power"] = hyperparams.pop("class_weights_ins_power")
-
-    if "max_no_annotation_examples_share" in hyperparams:
-        out_dict["max_no_annotation_examples_share"] = hyperparams.pop("max_no_annotation_examples_share")
-
-    if "label_names" in hyperparams:
-        out_dict["label_names"] = hyperparams.pop("label_names")
 
     # early stopping
     early_stopping_patience = hyperparams.pop("early_stopping_patience", 0)
@@ -529,83 +460,41 @@ def prepare_ib_params(
         out_dict["save_total_limit"] = 1
         out_dict["metric_for_best_model"] = hyperparams.pop("metric_for_best_model", "macro_f1")
 
-    # hyperparam search
-    out_dict["do_hyperparam_optimization"] = hyperparams.pop("do_hyperparam_optimization", False)
-    if "hp_search_objective_name" in hyperparams:
-        out_dict["hp_search_objective_name"] = hyperparams.pop("hp_search_objective_name")
-    if "hp_search_do_minimize_objective" in hyperparams:
-        out_dict["hp_search_do_minimize_objective"] = hyperparams.pop("hp_search_do_minimize_objective")
-    if "hp_search_num_trials" in hyperparams:
-        out_dict["hp_search_num_trials"] = hyperparams.pop("hp_search_num_trials")
-    if "hp_search_param_space" in hyperparams:
-        out_dict["hp_search_param_space"] = hyperparams.pop("hp_search_param_space")
+    # temporarily support old names for the scheduler
+    if "lr_scheduler_type" in hyperparams:
+        scheduler_type = hyperparams.pop("lr_scheduler_type")
+        if scheduler_type == "constant_schedule_with_warmup":
+            out_dict["lr_scheduler_type"] = "constant_with_warmup"
+        elif scheduler_type == "linear_schedule_with_warmup":
+            out_dict["lr_scheduler_type"] = "linear"
+        else:
+            out_dict["lr_scheduler_type"] = scheduler_type
 
-    if hyperparams:
-        logging.warning(f"The following hyperparams were ignored by the training loop: {hyperparams.keys()}")
+    if "pipeline_name" not in hyperparams:
+        logging.warning('Please explicitly add pipeline_name parameter')
+        model_name = hyperparams["model_name"]
+        if "layoutlmv2" in model_name.lower():
+            pipeline_name = "layoutlmv2_sl"
+        elif "layoutxlm" in model_name.lower():
+            pipeline_name = "layoutxlm_sl"
+        elif "layoutlm" in model_name.lower():
+            pipeline_name = "layoutlm_sl"
+        else:
+            raise ValueError('pipeline_name cannot be inferred from the model name')
+        out_dict['pipeline_name'] = pipeline_name
+
+    # cast to int - front end is breaking some of hyperparameters
+    for par in ('batch_size', 'gradient_accumulation_steps', 'max_length', 'chunk_overlap'):
+        if par in hyperparams:
+            hyperparams[par] = int(hyperparams[par])
+
+    for old, new in HYPERPARAM_TO_HF_MAP.items():
+        hyperparams[new] = hyperparams.pop(old)
+
+    out_dict.update(hyperparams)
+
 
     return out_dict
-
-
-def run_train_annotator(
-    hyperparams: Dict,
-    dataset_filename: str,
-    save_path: str,
-    file_client: Any,
-    username: Optional[str] = "user",
-    job_metadata_client: Optional["JobMetadataClient"] = None,
-    mount_details: Optional[Dict] = None,
-    model_name: Optional[str] = "CustomModel",
-    overwrite_arguments_with_cli: bool = False,
-    **kwargs: Any,
-):
-    assert hyperparams is not None
-    parser = HfArgumentParser(
-        (
-            ModelArguments,
-            DataAndPipelineArguments,
-            EnhancedTrainingArguments,
-            IbArguments,
-            AugmenterArguments,
-        )
-    )
-
-    hparams_dict = prepare_ib_params(
-        hyperparams,
-        dataset_filename,
-        save_path,
-        file_client,
-        username,
-        job_metadata_client,
-        mount_details,
-        model_name,
-    )
-    model_args, data_args, training_args, ib_args, augmenter_args = parser.parse_dict(hparams_dict)
-
-    if hasattr(file_client, "file_client") and file_client.file_client is None:
-        # support for InstabaseSDKDummy - debugging only
-        ibsdk = file_client
-    else:
-        ibsdk = InstabaseSDK(file_client, username)
-
-    callback = IbCallback(
-        job_metadata_client=ib_args.job_metadata_client,
-        ibsdk=ibsdk,
-        username=ib_args.username,
-        mount_details=ib_args.mount_details,
-        model_name=ib_args.model_name,
-        ib_save_path=ib_args.ib_save_path,
-        upload=ib_args.upload,
-    )
-
-    run_train(
-        model_args,
-        data_args,
-        training_args,
-        ib_args,
-        augmenter_args,
-        extra_callbacks=[callback],
-        extra_load_kwargs={"ibsdk": ibsdk},
-    )
 
 
 class DummyJobStatus:

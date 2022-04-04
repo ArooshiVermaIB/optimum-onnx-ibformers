@@ -2,6 +2,7 @@ import json
 import json
 import os
 
+from ibformers.data.collators.collmenter import CollatorWithAugmentation
 from ibformers.data.utils import convert_to_dict_of_lists
 from ibformers.datasets.ib_common import IB_DATASETS
 
@@ -67,12 +68,10 @@ class IbModel(Model):
 
         self.model = model_class.from_pretrained(self.model_data_path)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        collate_fn = self.pipeline["collate"]
         compute_metrics = self.pipeline["compute_metrics"]
 
         # Data collator
-        data_collator = collate_fn(self.tokenizer, pad_to_multiple_of=8, model=self.model)
+        data_collator = CollatorWithAugmentation(tokenizer=self.tokenizer, pad_to_multiple_of=8, model=self.model)
 
         # Get training arguments
         train_args = torch.load(os.path.join(self.model_data_path, "training_args.bin"))
@@ -131,8 +130,7 @@ class IbModel(Model):
 
         fn_kwargs = {
             **self.pipeline_config,
-            **{"tokenizer": self.tokenizer},
-            **{"padding": "max_length" if self.pipeline_config["pad_to_max_length"] else False},
+            **{"tokenizer": self.tokenizer}
         }
 
         map_kwargs = {

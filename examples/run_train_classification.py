@@ -55,7 +55,7 @@ def run(ds_path, out_path):
         "chunk_overlap": 16,
         "num_train_epochs": 1,
         "learning_rate": 5e-05,
-        "lr_scheduler_type": "constant_schedule_with_warmup",
+        "lr_scheduler_type": "constant_with_warmup",
         "warmup_ratio": 0.0,
         "weight_decay": 0,
         "model_name": "microsoft/layoutlm-base-uncased",

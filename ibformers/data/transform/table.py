@@ -1,3 +1,5 @@
+from typing import Dict
+
 import numpy as np
 
 from ibformers.data.utils import feed_single_example
@@ -38,7 +40,7 @@ def _create_labels_for_page(example, page_no):
 
 
 @feed_single_example
-def create_non_merged_table_labels(example, **kwargs):
+def create_non_merged_table_labels(example: Dict, **kwargs):
     word_bboxes = example["bboxes"]
     labels = {
         "token_row_ids": np.zeros((word_bboxes.shape[0],), dtype=np.int32),
@@ -54,13 +56,13 @@ def create_non_merged_table_labels(example, **kwargs):
 
 
 @feed_single_example
-def stack_table_labels(example, **kwargs):
+def stack_table_labels(example: Dict, **kwargs):
     stacked_labels = np.stack([example["token_row_ids"], example["token_col_ids"], example["token_table_ids"]], axis=-1)
     return {"stacked_table_labels": stacked_labels}
 
 
 @feed_single_example
-def produce_checkered_ids(example, **kwargs):
+def produce_checkered_ids(example: Dict, **kwargs):
     row_ids = np.array(example["token_row_ids"])
     col_ids = np.array(example["token_col_ids"])
 

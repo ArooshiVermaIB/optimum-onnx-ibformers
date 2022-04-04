@@ -3,6 +3,7 @@ from typing import List, Any, Dict, Mapping, Callable, Sequence
 
 import numpy as np
 from fuzzysearch import find_near_matches
+from functools import wraps
 from transformers.image_utils import ImageFeatureExtractionMixin
 from PIL import Image
 
@@ -50,6 +51,7 @@ def feed_single_example(fn):
     :return: batch of examples updated with function results
     """
 
+    @wraps(fn)
     def split_batch(batch, **kwargs) -> Dict[str, List[Any]]:
         batch_keys = list(batch.keys())
         len_of_batch = len(batch[batch_keys[0]])
@@ -77,6 +79,7 @@ def feed_single_example_and_flatten(fn: Callable[[Mapping[str, List[Any]]], Sequ
     :return: batch of examples updated with function results
     """
 
+    @wraps(fn)
     def split_batch(batch, **kwargs) -> Dict[str, List[Any]]:
         batch_keys = list(batch.keys())
         len_of_batch = len(batch[batch_keys[0]])
@@ -103,6 +106,7 @@ def feed_batch(fn):
     :return: batch of examples updated with function results
     """
 
+    @wraps(fn)
     def update_batch(batch, **kwargs):
         out = fn(batch, **kwargs)
         batch.update(out)

@@ -26,7 +26,7 @@
           "stride": 64,
           "epochs": 10,
           "learning_rate": 5e-05,
-          "scheduler_type": "constant_schedule_with_warmup",
+          "scheduler_type": "constant_with_warmup",
           "use_mixed_precision": true,
           "warmup": 0.0,
           "weight_decay": 0,

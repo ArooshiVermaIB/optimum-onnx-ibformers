@@ -31,7 +31,6 @@ from datasets import DownloadConfig
 from transformers import (
     AutoConfig,
     AutoTokenizer,
-    HfArgumentParser,
     PreTrainedTokenizerFast,
     set_seed,
 )
@@ -41,11 +40,13 @@ from transformers.utils.versions import require_version
 
 from ibformers.callbacks.early_stopping import IbEarlyStoppingCallback
 from ibformers.data.collators.augmenters.args import AugmenterArguments
+from ibformers.data.collators.collmenter import CollatorWithAugmentation
+from ibformers.data.pipelines.args import PreprocessArguments
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.trainer.arguments import (
     ModelArguments,
     EnhancedTrainingArguments,
-    DataAndPipelineArguments,
+    DataArguments,
     IbArguments,
     ExtraModelArguments,
     get_matching_commandline_params,
@@ -58,6 +59,7 @@ from ibformers.trainer.hp_search.optimize import optimize_hyperparams
 check_min_version("4.12.3")
 from ibformers.trainer.train_utils import (
     prepare_config_kwargs,
+    get_default_parser, save_pipeline_args, dict_wo_nones,
 )
 from ibformers.trainer import metrics_utils
 from ibformers.trainer.trainer import IbTrainer
@@ -71,19 +73,12 @@ logger = logging.getLogger(__name__)
 
 
 def run_hyperparams_and_cmdline_train(hyperparams: Dict):
-    parser = HfArgumentParser(
-        (
-            ModelArguments,
-            DataAndPipelineArguments,
-            EnhancedTrainingArguments,
-            IbArguments,
-            AugmenterArguments,
-            ExtraModelArguments,
-        )
-    )
+    parser = get_default_parser()
     parsed_cli_params = get_matching_commandline_params(parser)
     hyperparams.update(**parsed_cli_params)
-    model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(hyperparams)
+    model_args, data_args, prep_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(
+        hyperparams
+    )
 
     # workaround for docpro params
     if hyperparams.get("dataset_config_name", "") in {"ib_extraction", "ib_classification", "ib_split_class"}:
@@ -92,6 +87,7 @@ def run_hyperparams_and_cmdline_train(hyperparams: Dict):
     run_train(
         model_args,
         data_args,
+        prep_args,
         training_args,
         ib_args,
         augmenter_args,
@@ -105,16 +101,7 @@ def run_hyperparams_and_cmdline_train(hyperparams: Dict):
 
 
 def run_cmdline_train():
-    parser = HfArgumentParser(
-        (
-            ModelArguments,
-            DataAndPipelineArguments,
-            EnhancedTrainingArguments,
-            IbArguments,
-            AugmenterArguments,
-            ExtraModelArguments,
-        )
-    )
+    parser = get_default_parser()
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
@@ -136,7 +123,8 @@ def run_cmdline_train():
 
 def run_train(
     model_args: ModelArguments,
-    data_args: DataAndPipelineArguments,
+    data_args: DataArguments,
+    prep_args: PreprocessArguments,
     training_args: EnhancedTrainingArguments,
     ib_args: IbArguments,
     augmenter_args: AugmenterArguments,
@@ -176,7 +164,7 @@ def run_train(
 
     # load pipeline
     pipeline = PIPELINES[data_args.pipeline_name]
-    collate_fn = pipeline["collate"]
+    pip_aug_kwargs = pipeline["augmenters_kwargs"]
     compute_metrics = pipeline["compute_metrics"]
     load_kwargs = pipeline["dataset_load_kwargs"]
     model_class = pipeline["model_class"]
@@ -208,15 +196,17 @@ def run_train(
     # Preprocessing the dataset
     # Padding strategy
 
+    # get pipeline arguments which where passed (different than None)
+
+    prep_args_to_use = asdict(prep_args, dict_factory=dict_wo_nones)
     fn_kwargs = {
         "tokenizer": tokenizer,
-        "padding": "max_length" if data_args.pad_to_max_length else False,
-        "max_length": data_args.max_length,
-        "chunk_overlap": data_args.chunk_overlap,
+        **prep_args_to_use
     }
     map_kwargs = {
         "num_proc": data_args.preprocessing_num_workers,
         "load_from_cache_file": not data_args.overwrite_cache,
+        "batch_size": data_args.preprocessing_batch_size,
         "fn_kwargs": fn_kwargs,
     }
 
@@ -285,7 +275,7 @@ def run_train(
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=token,
-        **asdict(extra_model_args, dict_factory=lambda x: {k: v for (k, v) in dict(x).items() if v is not None}),
+        **asdict(extra_model_args, dict_factory=dict_wo_nones),
     )
     config.update(config_kwargs)
 
@@ -308,11 +298,15 @@ def run_train(
         callbacks.append(early_stopping)
 
     # Data collator
-    data_collator = collate_fn(
+
+    aug_args_passed = asdict(augmenter_args, dict_factory=dict_wo_nones)
+    # not-None arguments passed as hyperparams can override pipeline specific arguments
+    aug_args_with_pipeline = {**pip_aug_kwargs, **aug_args_passed}
+    data_collator = CollatorWithAugmentation(
         tokenizer,
         pad_to_multiple_of=8 if training_args.fp16 else None,
         model=model,
-        augmenter_kwargs=asdict(augmenter_args),
+        **aug_args_with_pipeline,
     )
 
     # Initialize our Trainer
@@ -357,7 +351,7 @@ def run_train(
         metrics = train_result.metrics
         final_model_dir = ib_args.final_model_dir if ib_args.final_model_dir is not None else training_args.output_dir
         trainer.save_model(final_model_dir)  # Saves the tokenizer too for easy upload
-        data_args.save(final_model_dir)  # Saves the pipeline & data arguments
+        save_pipeline_args(prep_args, data_args, final_model_dir)
         max_train_samples = (
             data_args.max_train_samples if data_args.max_train_samples is not None else len(train_dataset)
         )

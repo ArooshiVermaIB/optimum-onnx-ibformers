@@ -12,7 +12,7 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 from transformers.utils import logging
 
 from ibformers.callbacks.wandb import ExtendedWandbCallback
-from ibformers.trainer.arguments import EnhancedTrainingArguments, ModelArguments, DataAndPipelineArguments
+from ibformers.trainer.arguments import EnhancedTrainingArguments, ModelArguments, DataArguments
 from ibformers.trainer.hp_search.param_space import HyperParamSpace, get_default_param_config_path
 
 if is_optuna_available():
@@ -190,7 +190,7 @@ def trial_name_fn(trial: Optional["Trial"]):
 
 
 def optimize_hyperparams(
-    trainer, training_args: EnhancedTrainingArguments, model_args: ModelArguments, data_args: DataAndPipelineArguments
+    trainer, training_args: EnhancedTrainingArguments, model_args: ModelArguments, data_args: DataArguments
 ) -> "Study":
     handle_wandb_cb = "wandb" in training_args.report_to
     handle_early_stopping_cb = (

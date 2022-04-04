@@ -11,10 +11,6 @@ from transformers import (
 )
 
 from ibformers.data.chunk import produce_chunks, pairer
-from ibformers.data.collators.augmenters.bbox import BboxAugmenter
-from ibformers.data.collators.augmenters.bbox_masking import BboxMaskingAugmenter
-from ibformers.data.collators.augmenters.mlm import MLMAugmenter
-from ibformers.data.collators.collmenter import get_collator_class
 from ibformers.data.metrics import (
     compute_legacy_metrics_for_sl,
     compute_legacy_metrics_for_mqa,
@@ -118,7 +114,7 @@ layoutlm_sl = {
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "preprocess_kwargs": {"chunking_strategy": "SINGLE_PAGES"},
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": get_collator_class(BboxAugmenter),
+    "augmenters_kwargs": {"augmenters_list": ["bbox"]},
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -128,7 +124,7 @@ layoutxlm_sl = {
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "preprocess_kwargs": {"chunking_strategy": "SINGLE_PAGES"},
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox"), ("images", "image")],
-    "collate": get_collator_class(BboxAugmenter),
+    "augmenters_kwargs": {"augmenters_list": ["bbox"]},
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -138,7 +134,7 @@ layoutlmv2_sl = {
     "preprocess": [tokenize_layoutlmv2, norm_bboxes_for_layoutlm, produce_chunks],
     "preprocess_kwargs": {"chunking_strategy": "SINGLE_PAGES"},
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox"), ("images", "image")],
-    "collate": get_collator_class(BboxAugmenter),
+    "augmenters_kwargs": {"augmenters_list": ["bbox"]},
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -147,7 +143,7 @@ laymqav1 = {
     "dataset_load_kwargs": {"use_image": False},
     "preprocess": [build_prefix_with_mqa_ids, tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": LayMQAForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_mqa,
 }
@@ -163,7 +159,7 @@ from_docvqa_to_mqa = {
         produce_chunks,
     ],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": LayMQAForTokenClassification,
     "compute_metrics": compute_metrics_for_qa_task,
 }
@@ -178,7 +174,7 @@ from_websrc_to_mqa = {
     ],
     "preprocess_kwargs": {"convert_to_question": False, "shuffle_mqa_ids": True},
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": get_collator_class(BboxAugmenter),
+    "augmenters_kwargs": {"augmenters_list": ['bbox']},
     "model_class": LayMQAForTokenClassification,
     "compute_metrics": compute_metrics_for_qa_task,
 }
@@ -187,7 +183,7 @@ plain_sl = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, produce_chunks],
     "column_mapping": [("token_label_ids", "labels")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -197,7 +193,7 @@ single_qa = {
     "preprocess": [build_prefix_single_qa, tokenize, produce_chunks, token_spans_to_start_end],
     "preprocess_kwargs": {"save_memory": False},  # token_spans_to_start_end is after chunking and it requires entities
     "column_mapping": [("token_label_ids", "labels")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForQuestionAnswering,
     "compute_metrics": compute_metrics_for_singleqa_task,
 }
@@ -215,7 +211,7 @@ layoutlm_table_nonmerged = {
     ],
     "preprocess_kwargs": {"save_memory": False},  # for debugging
     "column_mapping": [("bboxes", "bbox")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": LayoutLMForTableStructureClassification,
     "compute_metrics": compute_metrics_for_sl_grp,
 }
@@ -231,7 +227,7 @@ layoutlm_table_adjacency = {
     ],
     "preprocess_kwargs": {"save_memory": False},  # for debugging
     "column_mapping": [("bboxes", "bbox")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": LayoutLMForTableAdjacencyMatrix,
     "compute_metrics": None,
 }
@@ -242,7 +238,7 @@ layoutlm_mlm = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("bboxes", "bbox")],
-    "collate": get_collator_class(MLMAugmenter),
+    "augmenters_kwargs": {"augmenters_list": ['mlm']},
     "model_class": AutoModelForMaskedLM,
     "compute_metrics": None,
 }
@@ -251,7 +247,7 @@ layoutlm_mlm_bm = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("bboxes", "bbox")],
-    "collate": get_collator_class(MLMAugmenter, BboxMaskingAugmenter),
+    "augmenters_kwargs": {"augmenters_list": ['mlm', 'bbox_masking']},
     "model_class": LayoutLMForMaskedLMAndLayout,
     "compute_metrics": None,
 }
@@ -260,7 +256,7 @@ layoutlm_mlm_bm_regresssion = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("bboxes", "bbox")],
-    "collate": get_collator_class(MLMAugmenter, BboxMaskingAugmenter),
+    "augmenters_kwargs": {"augmenters_list": ['mlm', 'bbox_masking']},
     "model_class": LayoutLMForMaskedLMAndLayoutRegression,
     "compute_metrics": None,
 }
@@ -270,7 +266,7 @@ layoutlm_mlm_bm_regresssion_positionless = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("bboxes", "bbox")],
-    "collate": get_collator_class(MLMAugmenter, BboxMaskingAugmenter),
+    "augmenters_kwargs": {"augmenters_list": ['mlm', 'bbox_masking']},
     "model_class": LayoutLMPositionlessForMaskedLMAndLayoutRegression,
     "compute_metrics": None,
 }
@@ -280,7 +276,7 @@ plain_mlm = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, produce_chunks],
     "column_mapping": [("token_label_ids", "labels")],
-    "collate": get_collator_class(MLMAugmenter),
+    "augmenters_kwargs": {"augmenters_list": ['mlm']},
     "model_class": AutoModelForMaskedLM,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -297,7 +293,7 @@ splinter_qa = {
         token_spans_to_start_end,
     ],
     "column_mapping": [],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForQuestionAnswering,
     "compute_metrics": squad_metric,
 }
@@ -314,7 +310,7 @@ squad_qa = {
         token_spans_to_start_end,
     ],
     "column_mapping": [],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForQuestionAnswering,
     "compute_metrics": squad_metric,
 }
@@ -328,7 +324,7 @@ splinter_unsupervised = {
         find_recurring_spans,
     ],
     "column_mapping": [("qid", "id")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": LayoutSplinterModel,
     "compute_metrics": splinter_metric,
 }
@@ -338,7 +334,7 @@ splinter_sl = {
     "dataset_load_kwargs": {"use_image": False},
     "preprocess": [build_prefix_with_mqa_splinter, tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": LayoutSplinterModel,
     "compute_metrics": compute_metrics_for_splinter_mqa,
 }
@@ -354,7 +350,7 @@ docvqa_splinter_sl = {
         produce_chunks,
     ],
     "column_mapping": [],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": LayoutSplinterModel,
     "compute_metrics": splinter_metric,
 }
@@ -363,7 +359,7 @@ layoutlm_sc = {
     "dataset_load_kwargs": {},
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, pairer],
     "column_mapping": [],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForSplitClassification,
     "compute_metrics": compute_metrics_for_sc,
 }
@@ -374,7 +370,7 @@ plain_text_cls = {
     # which itself is a kwarg of prepare_dataset and pipeline_preprocess
     "preprocess": [tokenize, produce_chunks],
     "column_mapping": [("class_label", "labels")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForSequenceClassification,
     "compute_metrics": compute_metrics_for_cls,
 }
@@ -385,7 +381,7 @@ layoutlm_cls = {
     # which itself is a kwarg of prepare_dataset and pipeline_preprocess
     "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("class_label", "labels"), ("bboxes", "bbox")],
-    "collate": get_collator_class(),
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForSequenceClassification,
     "compute_metrics": compute_metrics_for_cls,
 }

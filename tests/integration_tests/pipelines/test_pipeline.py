@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 from transformers.pipelines.base import Dataset
 
+from ibformers.data.collators.collmenter import CollatorWithAugmentation
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.trainer.hf_token import HF_TOKEN
 from tests.resources.hypothesis_strategies import example, create_dataset_from_examples
@@ -44,9 +45,11 @@ class TestPipeline(unittest.TestCase):
             }
             model = MagicMock()
             model.training = True
-            data_collator = pipeline["collate"](
+            aug_args = pipeline["augmenters_kwargs"]
+            data_collator = CollatorWithAugmentation(
                 tokenizer,
                 model=model,
+                **aug_args,
             )
             supported_fields = set(data_collator.collator.supported_fields)
 

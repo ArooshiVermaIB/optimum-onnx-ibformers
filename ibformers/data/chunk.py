@@ -1,9 +1,10 @@
 import logging
-from typing import TypeVar, List, Sequence, Any, Mapping, Tuple
+from typing import List, Sequence, Any, Mapping, Tuple, Dict
 
 import numpy as np
+from transformers import PreTrainedTokenizer
 
-from ibformers.data.utils import feed_single_example, feed_single_example_and_flatten
+from ibformers.data.utils import feed_single_example_and_flatten
 
 KEYS_TO_CHUNK = [
     "input_ids",
@@ -69,7 +70,13 @@ def get_single_page_chunk_ranges(input_len, chunk_size, overlap, page_nums):
 
 @feed_single_example_and_flatten
 def produce_chunks(
-    example, tokenizer, max_length, chunking_strategy="ALL_CHUNKS", chunk_overlap=64, save_memory=True, **kwargs
+    example: Dict,
+    tokenizer: PreTrainedTokenizer,
+    max_length: int,
+    chunking_strategy: str = "ALL_CHUNKS",
+    chunk_overlap: int = 64,
+    save_memory: bool = True,
+    **kwargs,
 ) -> Sequence:
     """
     Produce chunks of required lenght
@@ -282,7 +289,7 @@ def get_model_inp(input_ids, bboxes, tokenizer, max_length=512):
 
 
 @feed_single_example_and_flatten
-def pairer(example, tokenizer, max_length=512, save_memory=True, **kwargs):
+def pairer(example: Dict, tokenizer: PreTrainedTokenizer, max_length: int = 512, save_memory: bool = True, **kwargs):
     """Creates a page pair feature for splitting and classification"""
     page_spans = example["page_spans"]
     record_page_ranges = example["record_page_ranges"]

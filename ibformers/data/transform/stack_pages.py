@@ -1,10 +1,12 @@
+from typing import Dict
+
 import numpy as np
 
 from ibformers.data.utils import feed_single_example
 
 
 @feed_single_example
-def stack_pages(example, **kwargs):
+def stack_pages(example: Dict, **kwargs):
     bboxes = np.array(example["bboxes"])
     if example["token_page_nums"][0] == example["token_page_nums"][-1]:
         return {"bboxes": bboxes}

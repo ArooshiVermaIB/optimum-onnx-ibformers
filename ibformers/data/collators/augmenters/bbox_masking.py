@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 import torch
 from transformers import DataCollatorForWholeWordMask

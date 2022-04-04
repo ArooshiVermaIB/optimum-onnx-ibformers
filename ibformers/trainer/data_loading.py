@@ -10,7 +10,7 @@ from datasets.data_files import DataFilesDict
 from typing import Dict, Any, Optional, Union, Sequence
 
 from ibformers.datasets import DATASETS_PATH
-from ibformers.trainer.arguments import DataAndPipelineArguments, ModelArguments
+from ibformers.trainer.arguments import DataArguments, ModelArguments
 from ibformers.trainer.train_utils import split_eval_from_train, split_train_with_column, validate_dataset_sizes
 
 logger = logging.getLogger(__name__)
@@ -25,9 +25,7 @@ class DatasetConfig:
     test_file: Optional[str] = None
 
 
-def load_raw_dataset(
-    data_args: DataAndPipelineArguments, load_kwargs: Dict[str, Any], model_args: ModelArguments
-) -> DatasetDict:
+def load_raw_dataset(data_args: DataArguments, load_kwargs: Dict[str, Any], model_args: ModelArguments) -> DatasetDict:
     if data_args.dataset_config_json_file is not None:
         logger.info(f"Loading dataset from {data_args.dataset_config_json_file} config.")
         return load_raw_datasets_from_config(data_args, load_kwargs, model_args)
@@ -36,7 +34,7 @@ def load_raw_dataset(
 
 
 def load_raw_dataset_from_args(
-    data_args: DataAndPipelineArguments, load_kwargs: Dict[str, Any], model_args: ModelArguments
+    data_args: DataArguments, load_kwargs: Dict[str, Any], model_args: ModelArguments
 ) -> DatasetDict:
     data_files = _prepare_data_files(data_args)
     # Downloading and loading a dataset from the hub or from local datasets
@@ -47,7 +45,7 @@ def load_raw_dataset_from_args(
 
 
 def load_raw_datasets_from_config(
-    data_args: DataAndPipelineArguments, load_kwargs: Dict[str, Any], model_args: ModelArguments
+    data_args: DataArguments, load_kwargs: Dict[str, Any], model_args: ModelArguments
 ) -> DatasetDict:
     config_path = Path(data_args.dataset_config_json_file)
     dataset_configs = [DatasetConfig(**kwargs) for kwargs in json.loads(config_path.read_text())]
@@ -70,7 +68,7 @@ def load_raw_datasets_from_config(
 
 def _load_dataset_from_config(
     dataset_config: DatasetConfig,
-    data_args: DataAndPipelineArguments,
+    data_args: DataArguments,
     load_kwargs: Dict[str, Any],
     model_args: ModelArguments,
 ):
@@ -99,7 +97,7 @@ def _load_raw_dataset(
     data_files: DataFilesDict,
     dataset_name_or_path: str,
     dataset_config_name: str,
-    data_args: DataAndPipelineArguments,
+    data_args: DataArguments,
     load_kwargs: Dict[str, Any],
     model_args: ModelArguments,
 ):
@@ -128,7 +126,7 @@ def _load_raw_dataset(
     return raw_datasets
 
 
-def _prepare_data_files(data_args: Union[DatasetConfig, DataAndPipelineArguments]) -> DataFilesDict:
+def _prepare_data_files(data_args: Union[DatasetConfig, DataArguments]) -> DataFilesDict:
     data_files = DataFilesDict()
     if data_args.train_file is not None:
         data_files["train"] = data_args.train_file

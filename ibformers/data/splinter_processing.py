@@ -1,8 +1,9 @@
 import logging
 from collections import namedtuple, defaultdict
-from typing import List
+from typing import List, Dict
 
 import numpy as np
+from transformers import PreTrainedTokenizer
 
 from ibformers.data.chunk import fill_special_tokens, get_chunk_ranges
 from ibformers.data.utils import (
@@ -354,15 +355,15 @@ def is_interesting_span(span):
 
 
 @feed_single_example
-def find_recurring_spans(example, tokenizer, max_questions=10, **kwargs):
+def find_recurring_spans(example: Dict, tokenizer: PreTrainedTokenizer, **kwargs):
     """
     :param example: example after chunking process
     :param tokenizer: tokenizer
-    :param max_questions: maximum number of questions in the training/inference example. For docuemnts with
-    many entities multiple examples will be yielded
     :param kwargs:
     :return: new example with additional fields
     """
+
+    max_questions = SPLINTER_MAX_QUESTIONS
     words, chunk_range, word_map, word_starts, input_ids, content_tokens_mask = (
         example["words"],
         example["chunk_ranges"],
@@ -428,7 +429,7 @@ def find_recurring_spans(example, tokenizer, max_questions=10, **kwargs):
 
 
 @feed_single_example_and_flatten
-def build_prefix_with_mqa_splinter(example, tokenizer, **kwargs):
+def build_prefix_with_mqa_splinter(example: Dict, tokenizer: PreTrainedTokenizer, **kwargs):
     """
     @param example: document features
     @param tokenizer: used tokenizer, have to contain mask_token or question_token

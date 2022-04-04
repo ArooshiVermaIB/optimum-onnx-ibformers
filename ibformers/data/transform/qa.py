@@ -1,8 +1,8 @@
 import logging
 from random import shuffle
-from typing import List, TypeVar, Tuple
+from typing import Dict, Optional
 import numpy as np
-from typing_extensions import TypedDict
+from transformers import PreTrainedTokenizer
 
 from ibformers.data.utils import (
     convert_to_dict_of_lists,
@@ -15,7 +15,7 @@ from ibformers.data.utils import (
 
 
 @feed_single_example
-def fuzzy_tag_in_document(example, **kwargs):
+def fuzzy_tag_in_document(example: Dict, **kwargs):
     # try to find an answer inside the text of the document
     # example will be skipped in case of no spans found
     words, entities = example["words"], example["entities"]
@@ -65,10 +65,15 @@ def add_token_labels_qa(example, **kwargs):
 
 
 @feed_single_example
-def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=False, convert_to_question=True, **kwargs):
+def build_prefix_with_mqa_ids(
+    example: Dict,
+    tokenizer: PreTrainedTokenizer,
+    shuffle_mqa_ids: Optional[bool] = False,
+    convert_to_question: bool = True,
+    **kwargs,
+):
     entities = example["entities"]
     mqa_size = 20
-    pad_mqa_id = 1
 
     # limit entities to max 17 ent
     # entities = {k: v[:17] for k, v in entities.items()}
@@ -120,7 +125,7 @@ def build_prefix_with_mqa_ids(example, tokenizer, shuffle_mqa_ids=False, convert
 
 
 @feed_single_example_and_flatten
-def build_prefix_single_qa(example, tokenizer, **kwargs):
+def build_prefix_single_qa(example: Dict, tokenizer: PreTrainedTokenizer, **kwargs):
     """
     Create an example per question as required by QA model, and also keep
     one entity per example for simplicity and to avoid any confusion later.
@@ -136,7 +141,7 @@ def build_prefix_single_qa(example, tokenizer, **kwargs):
 
 
 @feed_single_example
-def token_spans_to_start_end(example, **kwargs):
+def token_spans_to_start_end(example: Dict, **kwargs):
     """
     Create start and end positions of answer from entity token span. Token
     spans are relative to context tokens only but start and end positions in QA
@@ -163,7 +168,7 @@ def token_spans_to_start_end(example, **kwargs):
 
 
 @feed_single_example_and_flatten
-def prepare_input_squad(example, tokenizer, **kwargs):
+def prepare_input_squad(example: Dict, tokenizer: PreTrainedTokenizer, **kwargs):
     """
     Create an example per question as required by QA model, and also keep
     one entity per example for simplicity and to avoid any confusion later.
@@ -181,7 +186,7 @@ def prepare_input_squad(example, tokenizer, **kwargs):
 
 
 @feed_single_example
-def convert_from_mrqa_fmt(example, **kwargs):
+def convert_from_mrqa_fmt(example: Dict, **kwargs):
     if "entities" in example:
         return {}
 

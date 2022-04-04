@@ -1,4 +1,7 @@
+from typing import Dict
+
 import numpy as np
+from transformers import PreTrainedTokenizer
 
 from ibformers.data.utils import (
     spread_with_mapping,
@@ -9,7 +12,7 @@ from ibformers.data.utils import (
 
 
 @feed_batch
-def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
+def tokenize(example_batch: Dict, tokenizer: PreTrainedTokenizer, **kwargs):
     # Tokenize contexts and questions (as pairs of inputs)
 
     encodings = tokenizer(
@@ -18,7 +21,7 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
         return_offsets_mapping=True,
         add_special_tokens=False,
         return_token_type_ids=False,
-        padding=padding,
+        padding=False,
     )
 
     # add token offsets for a document
@@ -41,7 +44,7 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
             return_offsets_mapping=False,
             add_special_tokens=False,
             return_token_type_ids=False,
-            padding=padding,
+            padding=False,
         )
 
         encodings["prefix_input_ids"] = prefix_encodings["input_ids"]
@@ -97,7 +100,7 @@ def tokenize(example_batch, tokenizer, max_length=510, padding=False, **kwargs):
 
 
 @feed_batch
-def tokenize_layoutlmv2(example_batch, tokenizer, padding=False, **kwargs):
+def tokenize_layoutlmv2(example_batch: Dict, tokenizer: PreTrainedTokenizer, **kwargs):
     # Tokenize contexts and questions (as pairs of inputs)
 
     encodings = tokenizer(
@@ -107,7 +110,7 @@ def tokenize_layoutlmv2(example_batch, tokenizer, padding=False, **kwargs):
         return_offsets_mapping=True,
         add_special_tokens=False,
         return_token_type_ids=False,
-        padding=padding,
+        padding=False,
     )
 
     # add token offsets for a document
@@ -136,7 +139,7 @@ def tokenize_layoutlmv2(example_batch, tokenizer, padding=False, **kwargs):
             return_offsets_mapping=False,
             add_special_tokens=False,
             return_token_type_ids=False,
-            padding=padding,
+            padding=False,
         )
 
         encodings["prefix_input_ids"] = prefix_encodings["input_ids"]

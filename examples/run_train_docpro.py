@@ -51,20 +51,20 @@ class InstabaseSDKDummy:
 def run(ds_path, out_path):
     hyperparams = {
         "adam_epsilon": 1e-8,
-        "batch_size": 8,
+        "batch_size": 8.0,
         "max_length": 512,
-        "num_train_epochs": 5,
+        "num_train_epochs": 5.0,
         "learning_rate": 5e-05,
         "gradient_accumulation_steps": 2,
         "max_grad_norm": 1.0,
-        "optimizer_type": "AdamW",
-        "lr_scheduler_type": "constant_schedule_with_warmup",
+        "lr_scheduler_type": "constant_with_warmup",
         "chunk_overlap": 64,
         "use_gpu": True,
         "use_mixed_precision": False,
         "warmup_ratio": 0.0,
         "weight_decay": 0,
         "model_name": "microsoft/layoutlm-base-uncased",
+        "bbox_augmenter_max_scale": 0.10,
     }
 
     # ds_path = '/Users/rafalpowalski/python/annotation/UberEatsDataset'

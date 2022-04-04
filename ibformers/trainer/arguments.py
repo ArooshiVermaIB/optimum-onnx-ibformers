@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from copy import deepcopy
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Optional, Any, Dict, TypeVar, Tuple, List
 
 from transformers import HfArgumentParser, TrainingArguments
@@ -199,7 +199,7 @@ class EnhancedTrainingArguments(TrainingArguments):
 
 
 @dataclass
-class DataAndPipelineArguments:
+class DataArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
@@ -233,24 +233,9 @@ class DataAndPipelineArguments:
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
-    max_length: int = field(
+    preprocessing_batch_size: Optional[int] = field(
         default=None,
-        metadata={
-            "help": "The maximum total input sequence length after tokenization. If set, sequences longer "
-            "than this will be truncated, sequences shorter will be padded."
-        },
-    )
-    chunk_overlap: int = field(
-        default=64,
-        metadata={"help": "Overlap needed for producing multiple chunks"},
-    )
-    pad_to_max_length: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to pad all samples to model maximum sentence length. "
-            "If False, will pad the samples dynamically when batching to the maximum length in the batch. More "
-            "efficient on GPU but very bad for TPU."
-        },
+        metadata={"help": "Batch size (number of examples) to use for the preprocessing."},
     )
     max_train_samples: Optional[int] = field(
         default=None,
@@ -309,6 +294,7 @@ class DataAndPipelineArguments:
         },
     )
 
+
     def __post_init__(self):
         if (
             self.dataset_name_or_path is None
@@ -317,14 +303,6 @@ class DataAndPipelineArguments:
             and self.dataset_config_json_file is None
         ):
             raise ValueError("Need either a dataset name, training/validation file or dataset config file")
-
-    def save(self, save_path, filename="pipeline.json"):
-        save_dict = asdict(self)
-        save_dict.pop("train_file")
-        save_dict.pop("validation_file")
-        save_dict.pop("test_file")
-        with open(os.path.join(save_path, filename), "w", encoding="utf-8") as writer:
-            json.dump(save_dict, writer, indent=2, sort_keys=True)
 
 
 @dataclass
