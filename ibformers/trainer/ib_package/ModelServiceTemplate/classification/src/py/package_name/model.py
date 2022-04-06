@@ -125,12 +125,14 @@ class IbModel(Model):
 
         # process the data
         examples = dataset_class.get_examples_from_model_service([prediction_item], config, image_processor)
+
+        if len(examples) == 0:
+          # See assert_valid_record for what makes a record valid.
+          raise ValueError("Found no records to process for inference. Check if input documents have records with valid OCR output.")
+
         prediction_schema = dataset_class.get_inference_dataset_features(config)
         data = convert_to_dict_of_lists(examples, examples[0].keys())
         predict_dataset = Dataset.from_dict(data, prediction_schema)
-
-        if len(predict_dataset) == 0:
-            raise ValueError("There is no documents processed for the inference. Check if record is correct")
 
         fn_kwargs = {**self.pipeline_config, **{"tokenizer": self.tokenizer}}
 
