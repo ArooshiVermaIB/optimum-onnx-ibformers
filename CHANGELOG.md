@@ -2,6 +2,9 @@
 
 All notable changes to this repository will be documented in this file.
 
+## Unreleased
+- Bug fix: classifier generation code skips over the first class label by mistake.
+
 ## [1.0.5] - 2022-04-01
 
 ### Changed
@@ -9,7 +12,7 @@ All notable changes to this repository will be documented in this file.
 - Change the way how parameters are passed to pipeline components
 
 ### Fixed
-- Bug fix in extraction dataset creation, when the length of annotations is zero. 
+- Bug fix in extraction dataset creation, when the length of annotations is zero.
 - Fixed a bug during fp16 prediction in split classification
 
 ## [1.0.4] - 2022-03-25

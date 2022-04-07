@@ -224,13 +224,11 @@ class DocProClassificationCallback(DocProCallback):
 
     def on_predict(self, args, state, control, **kwargs):
         # called after the training finish
-        predictions = kwargs["metrics"]["predict_predictions"]
         # FINALIZE STEPS
         self.write_metrics()
-        self.write_predictions(predictions)
-
+        self.write_predictions(kwargs["metrics"]["predict_predictions"])
         id2label = kwargs["model"].config.id2label
-        label_names = [id2label[idx] for idx in range(1, len(id2label))]
+        label_names = list(id2label.values())
         self.generate_classifier(label_names)
         self.move_data_to_ib()
         self.write_epoch_summary()
