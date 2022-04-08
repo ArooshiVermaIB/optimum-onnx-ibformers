@@ -35,7 +35,7 @@ class BaseCollator(CollatorABC):
     """
     Base data collator. Uses provided tokenizer for data collation.
 
-    We assume that this collator should be called for each model.
+    We assume that this collator should be called for each hf-based model.
     Each subclass of this class gets registered in `extra_collators` field.
     """
 
@@ -62,6 +62,8 @@ class BaseCollator(CollatorABC):
         return self.tokenizer.model_input_names
 
     def _collate_features(self, features, target_length: Optional[int] = None):
+        if all(len(feature) == 0 for feature in features):
+            return {}
         return self.tokenizer.pad(
             features,
             padding="max_length",

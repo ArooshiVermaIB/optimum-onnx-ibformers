@@ -102,6 +102,11 @@ class IBDSBuilderConfig(BuilderConfig):
             return self.name
 
 
+class ExtractionMode:
+    TEXT = "text"
+    TABLE = "table"
+
+
 class IBDSConfig(IBDSBuilderConfig):
     """
     Config for Instabase Datasets which contain additional attributes related to Doc Pro dataset
@@ -112,16 +117,35 @@ class IBDSConfig(IBDSBuilderConfig):
     :param kwargs: keyword arguments forwarded to super.
     """
 
-    def __init__(self, use_image=False, ibsdk=None, id2label=None, extraction_class_name=None, **kwargs):
+    def __init__(
+        self,
+        use_image=False,
+        ibsdk=None,
+        id2label=None,
+        table_id2label=None,
+        extraction_class_name=None,
+        norm_bboxes_to_max: bool = False,
+        bbox_scale_factor: int = 1000,
+        extraction_mode: str = ExtractionMode.TEXT,
+        **kwargs,
+    ):
         super(IBDSConfig, self).__init__(**kwargs)
         self.use_image = use_image
         self.ibsdk = ibsdk
         self.id2label = id2label
+        self.table_id2label = table_id2label
         self.extraction_class_name = extraction_class_name
+        self.norm_bboxes_to_max = norm_bboxes_to_max
+        self.bbox_scale_factor = bbox_scale_factor
+        self.extraction_mode = extraction_mode
 
     @property
     def label2id(self) -> Optional[Dict[int, str]]:
         return {v: k for k, v in self.id2label.items()} if self.id2label is not None else None
+
+    @property
+    def table_label2id(self) -> Optional[Dict[int, str]]:
+        return {v: k for k, v in self.table_id2label.items()} if self.table_id2label is not None else None
 
     @property
     def classes(self) -> Optional[List[str]]:
@@ -405,7 +429,9 @@ def prepare_word_pollys_and_layouts_for_record(record: IBOCRRecord) -> Tuple[Lis
     return words, layouts
 
 
-def get_ocr_features(words: List, layouts: List, doc_id: str) -> Dict:
+def get_ocr_features(
+    words: List, layouts: List, doc_id: str, norm_bboxes_to_max: bool = False, bbox_scale_factor: int = 1000
+) -> Dict:
     """
 
     :param words: List of WordPolyDict
@@ -433,12 +459,20 @@ def get_ocr_features(words: List, layouts: List, doc_id: str) -> Dict:
 
     # get page height and width
     page_bboxes = np.array([[0, 0, pg.get_width(), pg.get_height()] for pg in layouts])
-    # normalize bboxes - divide only by width to keep information about ratio
+    # normalize bboxes -
     size_per_token = np.take(page_bboxes[:, 2:], word_pages_arr, axis=0)
+    if norm_bboxes_to_max:
+        word_bbox_norm_factor = size_per_token.max(1)[:, None]
+        page_bbox_norm_factor = page_bboxes[:, 2:].max(1)[:, None]
+    else:
+        # divide only by width to keep information about ratio
+        word_bbox_norm_factor = size_per_token[:, 0][:, None]
+        page_bbox_norm_factor = page_bboxes[:, 2][:, None]
+
     # Validate bboxes
     fix_bbox_arr = validate_and_fix_bboxes(bbox_arr, size_per_token, word_pages_arr, page_bboxes, doc_id)
-    norm_bboxes = fix_bbox_arr * 1000 / size_per_token[:, 0:1]
-    norm_page_bboxes = page_bboxes * 1000 / page_bboxes[:, 2:3]
+    norm_bboxes = fix_bbox_arr * bbox_scale_factor / word_bbox_norm_factor
+    norm_page_bboxes = page_bboxes * bbox_scale_factor / page_bbox_norm_factor
 
     features = {
         "words": word_lst,

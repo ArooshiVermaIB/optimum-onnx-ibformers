@@ -11,26 +11,55 @@ logger = logging.getLogger(__name__)
 
 
 class ImageProcessor(ImageFeatureExtractionMixin):
-    def __init__(self, do_resize=True, size=224, resample=Image.BILINEAR, **kwargs):
+    def __init__(
+        self,
+        do_resize=True,
+        size=224,
+        do_convert_to_detectron=True,
+        keep_aspect_ratio=False,
+        rescale=False,
+        resample=Image.BILINEAR,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.do_resize = do_resize
         self.size = size
+        self.do_convert_to_detectron = do_convert_to_detectron
+        self.keep_aspect_ratio = keep_aspect_ratio
         self.resample = resample
+        self.rescale = rescale
 
-    def get_default_image(self) -> Image:
+    def get_default_image(self) -> Image.Image:
         return Image.fromarray(np.ones((self.size, self.size, 3), dtype=np.uint8) * 255, mode="RGB")
 
     def get_default_processed_image(self) -> np.array:
         return self.postprocess(self.get_default_image())
 
-    def postprocess(self, image: Image) -> np.array:
+    def resize_image(self, image: Image.Image) -> Image.Image:
+        if not self.keep_aspect_ratio:
+            return self.resize(image=image, size=self.size, resample=self.resample)
+
+        current_size = image.size
+        max_dim = max(current_size)
+        scale_factor = self.size / max_dim
+
+        new_size = map(lambda x: int(x * scale_factor), current_size)
+        new_size = tuple(new_size)
+        resized = self.resize(image=image, size=new_size, resample=self.resample)
+        square_image = Image.new(image.mode, (self.size, self.size), (255, 255, 255))
+        square_image.paste(resized, (0, 0))
+        return square_image
+
+    def postprocess(self, image: Image.Image) -> np.array:
         # transformations (resizing)
         if self.do_resize and self.size is not None:
-            image = self.resize(image=image, size=self.size, resample=self.resample)
+            image = self.resize_image(image=image)
 
-        image = self.to_numpy_array(image, rescale=False)
-        # flip color channels from RGB to BGR (as Detectron2 requires this)
-        return image[::-1, :, :]
+        image = self.to_numpy_array(image, rescale=self.rescale)
+        if self.do_convert_to_detectron:
+            # flip color channels from RGB to BGR (as Detectron2 requires this)
+            return image[::-1, :, :]
+        return image
 
     def __call__(self, f) -> np.array:
         try:

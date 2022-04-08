@@ -5,7 +5,10 @@ fuzzysearch==0.7.3
 more_itertools==8.8.0
 seqeval==1.2.2
 # install torch separately to match cuda distribiution
+--find-links https://download.pytorch.org/whl/torch_stable.html
 torch==1.10.0
+torchvision==0.11.0
 wandb>=0.12.6
 boto3>=1.20.3
 optuna==2.10.0
+PyMuPDF==1.16.14

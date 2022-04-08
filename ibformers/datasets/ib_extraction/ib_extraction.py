@@ -21,9 +21,12 @@ from ibformers.datasets.ib_common.ib_common import (
     get_open_fn,
     get_image_features,
     _DESCRIPTION,
+    ExtractionMode,
 )
 from instabase.dataset_utils.shared_types import ExtractionFieldDict
 
+TEXT_FIELD_TYPE = "Text"
+TABLE_FIELD_TYPE = "Table"
 
 # Define some helper classes for easier typing
 @dataclass
@@ -32,6 +35,7 @@ class ExtractionItem:
     ann_item: "AnnotationItem"
     class_id: Optional[str]
     label2ann_label_id: Dict
+    table_label_to_id: Dict
 
 
 class LabelEntity(TypedDict):
@@ -135,6 +139,48 @@ def get_extraction_labels(
     return {"entities": entities, "token_label_ids": token_label_ids}
 
 
+def get_empty_extraction_labels(
+    ocr_features: Dict,
+    annotations: Optional[List[ExtractionFieldDict]] = None,
+    label2id: Optional[Dict[str, int]] = None,
+    label2ann_label_id: Optional[Dict[str, str]] = None,
+) -> Dict:
+    word_line_idx = ocr_features["word_line_idx"]
+    token_label_ids = np.zeros((len(word_line_idx)), dtype=np.int64)
+    entities = []
+    for label_name, lab_id in label2id.items():
+        if lab_id == 0 and label_name == "O":
+            continue
+
+        ann_label_id = label2ann_label_id[label_name]
+        entity: LabelEntity = LabelEntity(
+            name=label_name,
+            order_id=0,
+            text="",
+            char_spans=[],
+            token_spans=[],
+            token_label_id=lab_id,
+        )
+        entities.append(entity)
+    return {"entities": entities, "token_label_ids": token_label_ids}
+
+
+def get_table_labels(
+    annotations: Optional[List[ExtractionFieldDict]] = None,
+    label2id: Optional[Dict[str, int]] = None,
+    label2ann_label_id: Optional[Dict[str, str]] = None,
+) -> Dict:
+    return {"tables": []}
+
+
+def get_empty_table_labels(
+    annotations: Optional[List[ExtractionFieldDict]] = None,
+    label2id: Optional[Dict[str, int]] = None,
+    label2ann_label_id: Optional[Dict[str, str]] = None,
+) -> Dict:
+    return {"tables": []}
+
+
 def get_extraction_split(anno: Optional[Dict]):
     """
     :param anno: annotation dictionary
@@ -142,9 +188,13 @@ def get_extraction_split(anno: Optional[Dict]):
     """
     if anno is None or len(anno) == 0:
         return False, "predict"
-    exist_any_annotations = any(
-        [len(ann.get("words", [])) > 0 for fld in anno.get("fields", []) for ann in fld["annotations"]]
+    exist_any_text_annotations = any(
+        [len(ann.get("words", [])) > 0 for fld in anno.get("fields", []) for ann in fld.get("annotations", [])]
     )
+    exist_any_table_annotations = any(
+        [len(ann.get("bboxes", [])) > 0 for fld in anno.get("fields", []) for ann in fld.get("table_annotations", [])]
+    )
+    exist_any_annotations = exist_any_text_annotations or exist_any_table_annotations
     if not exist_any_annotations:
         return False, "predict"
     if anno["is_test_file"]:
@@ -228,6 +278,36 @@ class IbExtraction(IbDs):
                 "token_label_id": datasets.Value("int64"),
             }
         )
+        ds_features["tables"] = datasets.Sequence(
+            {
+                "table_idx": datasets.Value("int32"),
+                "page_span": datasets.Sequence(datasets.Value("int32"), length=2),  # table should be continuous
+                "table_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
+                "rows": datasets.Sequence(
+                    {
+                        "page_idx": datasets.Value("int32"),
+                        "bbox": datasets.Sequence(datasets.Value("int32"), length=4),
+                        "is_column_header": datasets.Value("bool"),
+                    }
+                ),
+                "columns": datasets.Sequence(
+                    {
+                        "page_idx": datasets.Value("int32"),
+                        "bbox": datasets.Sequence(datasets.Value("int32"), length=4),
+                    }
+                ),
+                "cells": datasets.Sequence(
+                    {
+                        "row_ids": datasets.Sequence(datasets.Value("int32")),
+                        "col_ids": datasets.Sequence(datasets.Value("int32")),
+                        "page_idx": datasets.Value("int32"),
+                        "bbox": datasets.Sequence(datasets.Value("int32"), length=4),
+                        "is_row_header": datasets.Value("bool"),
+                        "is_column_header": datasets.Value("bool"),
+                    }
+                ),
+            }
+        )
         return datasets.Features(ds_features)
 
     def _get_annotation_generator(self, datasets_list: List["DatasetSDK"]) -> Iterable[ExtractionItem]:
@@ -240,7 +320,12 @@ class IbExtraction(IbDs):
             dataset_id = dataset.metadata["id"]
             # then get all records with this class id and their annotations
             class_schema = dataset_classes[class_id]["schema"]
-            label2ann_label_id = {field["name"]: field["id"] for field in class_schema}
+            label2ann_label_id = {
+                field["name"]: field["id"] for field in class_schema if field["type"] == TEXT_FIELD_TYPE
+            }
+            table_label_to_id = {
+                field["name"]: field["id"] for field in class_schema if field["type"] == TABLE_FIELD_TYPE
+            }
 
             for record_anno in dataset.iterator_over_annotations():
                 item = ExtractionItem(
@@ -248,6 +333,7 @@ class IbExtraction(IbDs):
                     dataset_id=dataset_id,
                     class_id=class_id,
                     label2ann_label_id=label2ann_label_id,
+                    table_label_to_id=table_label_to_id,
                 )
                 yield item
 
@@ -256,11 +342,15 @@ class IbExtraction(IbDs):
         # get similar format to the one defined by dataset SDK
         for prediction_item in records:
             label2ann_label_id = {lab: None for lab in config.id2label.values()}
+            table_label_to_id = (
+                {lab: None for lab in config.table_id2label.values()} if config.table_id2label is not None else {}
+            )
             item = ExtractionItem(
                 ann_item=prediction_item,
                 dataset_id="model-inference",
                 class_id=None,
                 label2ann_label_id=label2ann_label_id,
+                table_label_to_id=table_label_to_id,
             )
             yield item
 
@@ -284,8 +374,12 @@ class IbExtraction(IbDs):
         words, layouts = prepare_word_pollys_and_layouts_for_record(record)
         doc_id = f"{item.dataset_id}-{os.path.basename(full_path)}-{record_index}.json"
 
-        ocr_features = get_ocr_features(words, layouts, doc_id)
-        label_features = get_extraction_labels(ocr_features, anno_fields, config.label2id, item.label2ann_label_id)
+        ocr_features = get_ocr_features(words, layouts, doc_id, config.norm_bboxes_to_max, config.bbox_scale_factor)
+        extraction_label_getter = (
+            get_extraction_labels if config.extraction_mode == ExtractionMode.TEXT else get_empty_extraction_labels
+        )
+        label_features = extraction_label_getter(ocr_features, anno_fields, config.label2id, item.label2ann_label_id)
+
         is_test_file, split = get_extraction_split(anno)
         open_fn = get_open_fn(config.ibsdk)
         image_features = (
@@ -293,7 +387,8 @@ class IbExtraction(IbDs):
             if image_processor is not None
             else {}
         )
-
+        table_label_getter = get_table_labels if config.extraction_mode == ExtractionMode.TABLE else get_table_labels
+        table_features = table_label_getter(anno_fields, config.table_label2id, item.label2ann_label_id)
         return {
             **ocr_features,
             **label_features,
@@ -301,4 +396,5 @@ class IbExtraction(IbDs):
             "is_test_file": is_test_file,
             "split": split,
             "id": doc_id,
+            **table_features,
         }

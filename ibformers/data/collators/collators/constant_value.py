@@ -4,6 +4,12 @@ from typing import ClassVar, List, Any, Optional
 import numpy as np
 
 from ibformers.data.collators.collators.base import BaseCollator
+from ibformers.datasets.table_utils import (
+    DETR_STRUCTURE_CLASS_MAP,
+    DetrStructureClassNames,
+    DETR_DETECTION_CLASS_MAP,
+    DetrDetectionClassNames,
+)
 
 
 @dataclass
@@ -71,7 +77,14 @@ class DefaultValueCollator(BaseCollator):
 
 @dataclass
 class BboxCollator(DefaultValueCollator):
-    _supported_fields: ClassVar[List[str]] = ["bbox", "bboxes", "next_bboxes"]
+    _supported_fields: ClassVar[List[str]] = [
+        "bbox",
+        "bboxes",
+        "next_bboxes",
+        "page_bboxes",
+        "table_page_bbox",
+        "structure_image_size",
+    ]
     _default_value: ClassVar[Any] = 0
 
 
@@ -150,3 +163,8 @@ class SequenceClassLabelCollator(NoValueCollator):
 class NextPageCollator(DefaultValueCollator):
     _supported_fields: ClassVar[List[str]] = ["next_input_ids", "next_attention_mask"]
     _default_value: ClassVar[Any] = 0
+
+
+@dataclass
+class PageMarginCollator(NoValueCollator):
+    _supported_fields: ClassVar[List[str]] = ["page_margins"]

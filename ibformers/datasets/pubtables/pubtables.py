@@ -3,15 +3,16 @@ import json
 import logging
 import multiprocessing
 from collections import Counter
+from enum import Enum
 from pathlib import Path
-from typing import List, Dict, Any, Iterable, Sequence
+from typing import List, Dict, Any, Iterable, Sequence, Tuple, Optional
 
 import datasets
 import numpy as np
 from datasets import BuilderConfig, DatasetInfo, DownloadManager
 
 from ibformers.data.utils import ImageProcessor
-from ibformers.datasets.ib_common import validate_and_fix_bboxes
+from ibformers.datasets.ib_common.ib_common import validate_and_fix_bboxes
 from ibformers.datasets.table_utils import (
     CellAnnotation,
     TableAnnotation,
@@ -23,13 +24,15 @@ from ibformers.datasets.table_utils import (
 logger = logging.getLogger(__name__)
 
 HASH_MODULO = 1000000
-DATASET_SPLITS = 0.97, 0.015, 0.015
+DATASET_SPLITS = 0.90, 0.05, 0.05
 
 
 def pubtables_cell_to_cell_annotation(raw_cell_data: Dict[str, Any]) -> CellAnnotation:
     return CellAnnotation(
-        row_ids=raw_cell_data["row_nums"],
-        col_ids=raw_cell_data["column_nums"],
+        row_start_index=min(raw_cell_data["row_nums"]),
+        row_end_index=max(raw_cell_data["row_nums"]),
+        col_start_index=min(raw_cell_data["column_nums"]),
+        col_end_index=max(raw_cell_data["column_nums"]),
         bbox=raw_cell_data["pdf_bbox"],
         page_idx=0,
         is_column_header=raw_cell_data["is_column_header"],
@@ -40,17 +43,19 @@ def pubtables_cell_to_cell_annotation(raw_cell_data: Dict[str, Any]) -> CellAnno
 def pubtables_anno_to_table_annotation(raw_table_data: Dict[str, Any], current_table_id: int) -> TableAnnotation:
     base_page_bboxes = [raw_table_data["pdf_full_page_bbox"]]
     table_bboxes = [raw_table_data["pdf_table_bbox"]]
-    rows = [RowAnnotation(r["pdf_row_bbox"], 0, r["is_column_header"]) for r in raw_table_data["rows"]]
-    columns = [ColumnAnnotation(r["pdf_column_bbox"], 0) for r in raw_table_data["columns"]]
+    rows = [RowAnnotation(r["pdf_row_bbox"], 0, r["is_column_header"], 0) for r in raw_table_data["rows"]]
+    columns = [ColumnAnnotation(r["pdf_column_bbox"], 0, False, 0) for r in raw_table_data["columns"]]
     cells = [pubtables_cell_to_cell_annotation(cell_data) for cell_data in raw_table_data["cells"]]
     return TableAnnotation(
         table_idx=current_table_id,
         cells=cells,
-        page_span=(0, 1),
+        start_page_index=0,
+        end_page_index=0,
         base_page_bboxes=base_page_bboxes,
         table_bboxes=table_bboxes,
         rows=rows,
         columns=columns,
+        table_label_id=0,
     )
 
 
@@ -102,10 +107,23 @@ def read_and_process_pdf_words(pdf_words_path: Path):
     return features_dict
 
 
+class PubTablesProcessingModes(Enum):
+    LAYOUTLM = "LAYOUTLM"
+    DETR = "DETR"
+
+
 class PubTablesConfig(BuilderConfig):
-    def __init__(self, use_image: bool = False, num_processes: int = 12, limit_files: int = None, **kwargs):
+    def __init__(
+        self,
+        use_image: bool = False,
+        processing_mode: PubTablesProcessingModes = PubTablesProcessingModes.LAYOUTLM,
+        num_processes: int = 12,
+        limit_files: int = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.use_image = use_image
+        self.processing_mode = processing_mode
         self.num_processes = num_processes
         self.limit_files = limit_files
 
@@ -121,17 +139,61 @@ class PubTables(datasets.GeneratorBasedBuilder):
             version=datasets.Version("1.0.0"),
             description="PubTables dataset",
         ),
+        PubTablesConfig(
+            name="pubtables_detr",
+            version=datasets.Version("1.0.0"),
+            description="PubTables dataset",
+            use_image=True,
+            processing_mode=PubTablesProcessingModes.DETR,
+        ),
+        PubTablesConfig(
+            name="pubtables_detr_1k",
+            version=datasets.Version("1.0.0"),
+            description="PubTables dataset",
+            use_image=True,
+            processing_mode=PubTablesProcessingModes.DETR,
+            limit_files=1000,
+        ),
+        PubTablesConfig(
+            name="pubtables_detr_150",
+            version=datasets.Version("1.0.0"),
+            description="PubTables dataset",
+            use_image=True,
+            processing_mode=PubTablesProcessingModes.DETR,
+            limit_files=150,
+        ),
     ]
 
     ANNOTATION_SUBDIR = "PubTables1M-PDF-Annotations-JSON"
     PAGE_WORDS_SUBDIR = "PubTables1M-Page-Words-JSON"
     IMAGE_SUBDIR = "PubTables1M-Detection-PASCAL-VOC/images"
 
+    LAYOUTLM_IMAGE_SIZE = 224
+    DETR_IMAGE_SIZE = 1000
+
+    DEFAULT_WRITER_BATCH_SIZE = 8
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.image_processor = ImageProcessor(do_resize=True, size=224) if self.config.use_image else None
         self.num_processes = self.config.num_processes
         self.limit_files = self.config.limit_files
+        self.processing_mode = self.config.processing_mode
+        self.image_processor = self._prepare_image_processor()
+
+    def _prepare_image_processor(self):
+        if not self.config.use_image:
+            return None
+        if self.processing_mode == PubTablesProcessingModes.LAYOUTLM:
+            return ImageProcessor(do_resize=True, size=self.LAYOUTLM_IMAGE_SIZE)
+        if self.processing_mode == PubTablesProcessingModes.DETR:
+            return ImageProcessor(
+                do_resize=True,
+                do_convert_to_detectron=False,
+                size=self.DETR_IMAGE_SIZE,
+                keep_aspect_ratio=True,
+                rescale=True,
+            )
+        # TODO: move to dataset load kwargs
 
     def _info(self) -> DatasetInfo:
         ds_features = {
@@ -144,29 +206,37 @@ class PubTables(datasets.GeneratorBasedBuilder):
             "word_line_idx": datasets.Sequence(datasets.Value("int32")),
             "word_in_line_idx": datasets.Sequence(datasets.Value("int32")),
             "page_bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
+            "page_original_bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
             "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
             "tables": datasets.Sequence(
                 {
                     "table_idx": datasets.Value("int32"),
-                    "page_span": datasets.Sequence(datasets.Value("int32"), length=2),  # table should be continuous
+                    "table_label_id": datasets.Value("int32"),
+                    "start_page_index": datasets.Value("int32"),
+                    "end_page_index": datasets.Value("int32"),
                     "table_bboxes": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=4)),
                     "rows": datasets.Sequence(
                         {
                             "page_idx": datasets.Value("int32"),
                             "bbox": datasets.Sequence(datasets.Value("int32"), length=4),
-                            "is_column_header": datasets.Value("bool"),
+                            "is_header": datasets.Value("bool"),
+                            "label_id": datasets.Value("int32"),
                         }
                     ),
                     "columns": datasets.Sequence(
                         {
                             "page_idx": datasets.Value("int32"),
                             "bbox": datasets.Sequence(datasets.Value("int32"), length=4),
+                            "is_header": datasets.Value("bool"),
+                            "label_id": datasets.Value("int32"),
                         }
                     ),
                     "cells": datasets.Sequence(
                         {
-                            "row_ids": datasets.Sequence(datasets.Value("int32")),
-                            "col_ids": datasets.Sequence(datasets.Value("int32")),
+                            "row_start_index": datasets.Value("int32"),
+                            "row_end_index": datasets.Value("int32"),
+                            "col_start_index": datasets.Value("int32"),
+                            "col_end_index": datasets.Value("int32"),
                             "page_idx": datasets.Value("int32"),
                             "bbox": datasets.Sequence(datasets.Value("int32"), length=4),
                             "is_row_header": datasets.Value("bool"),
@@ -178,7 +248,13 @@ class PubTables(datasets.GeneratorBasedBuilder):
         }
         if self.config.use_image:
             # first dimension is defined as a number of pages in the document
-            ds_features["images"] = datasets.Array4D(shape=(None, 3, 224, 224), dtype="uint8")
+            img_size = (
+                self.LAYOUTLM_IMAGE_SIZE
+                if self.config.processing_mode == PubTablesProcessingModes.LAYOUTLM
+                else self.DETR_IMAGE_SIZE
+            )
+            dtype = "uint8" if self.config.processing_mode == PubTablesProcessingModes.LAYOUTLM else "float32"
+            ds_features["images"] = datasets.Array4D(shape=(None, 3, img_size, img_size), dtype=dtype)
             ds_features["images_page_nums"] = datasets.Sequence(datasets.Value("int32"))
 
         return datasets.DatasetInfo(
@@ -244,12 +320,15 @@ class PubTables(datasets.GeneratorBasedBuilder):
             ),
         ]
 
-    def _scale_bbox(self, bbox: Sequence[int], scale_factor: int) -> Sequence[int]:
-        return [int(coord * 1000 / scale_factor) for coord in bbox]
+    def _scale_bbox(self, bbox: Sequence[int], scale_factor: float) -> Sequence[int]:
+        return [int(coord * scale_factor) for coord in bbox]
 
-    def _prepare_feature_for_layoutlm(self, feature: Dict[str, Any]):
+    def _rename_bbox_fields(self, feature: Dict[str, Any]):
         feature["bboxes"] = np.array(feature["word_original_bboxes"])
-        feature["page_bboxes"] = np.array(feature.pop("page_original_bboxes"))
+        feature["page_bboxes"] = np.array(feature["page_original_bboxes"])
+        return feature
+
+    def _prepare_feature_for_layoutlm(self, feature: Dict[str, Any], image_path: Optional[Path]):
         word_pages_arr = np.array(feature["word_page_nums"])
         size_per_token = np.take(feature["page_bboxes"][:, 2:], word_pages_arr, axis=0)
         fix_bbox_arr = validate_and_fix_bboxes(
@@ -260,13 +339,13 @@ class PubTables(datasets.GeneratorBasedBuilder):
 
         for table in feature["tables"]:
             table["table_bboxes"] = [
-                self._scale_bbox(box, feature["page_bboxes"][page_index][2])
+                self._scale_bbox(box, 1000 / feature["page_bboxes"][page_index][2])
                 for box, page_index in zip(table["table_bboxes"], range(table["page_span"][0], table["page_span"][1]))
             ]
             for structure_name in ["cells", "rows", "columns"]:
                 for structure in table[structure_name]:
                     structure["bbox"] = self._scale_bbox(
-                        structure["bbox"], feature["page_bboxes"][structure["page_idx"]][2]
+                        structure["bbox"], 1000 / feature["page_bboxes"][structure["page_idx"]][2]
                     )
 
         # TODO: fix the bbox rescaling to do it all in the pipeline
@@ -277,18 +356,49 @@ class PubTables(datasets.GeneratorBasedBuilder):
         raw_annos = read_single_pubtable_anno(file_path)
         feature_dicts = []
         for anno in raw_annos:
+            image_path = self._get_image_path(file_path, anno.anno_id)
+            image_path = None if not image_path.exists() else image_path
+            if self.image_processor is not None and image_path is None:
+                continue
             features_dict = anno.to_dataset_features_part()
             pdf_words_path = self._get_word_path(file_path, anno.anno_id)
             pdf_words_features = read_and_process_pdf_words(pdf_words_path)
             features_dict.update(**pdf_words_features)
-            features_dict = self._prepare_feature_for_layoutlm(features_dict)
+            features_dict = self._rename_bbox_fields(features_dict)
+            features_dict = self._mode_specific_postprocess(features_dict, image_path)
+            if self.image_processor is not None:
+                pass
             feature_dicts.append(features_dict)
         return feature_dicts
+
+    def _mode_specific_postprocess(self, feature: Dict[str, Any], image_path: Optional[Path]):
+        if self.processing_mode == PubTablesProcessingModes.LAYOUTLM:
+            return self._prepare_feature_for_layoutlm(feature, image_path)
+        if self.processing_mode == PubTablesProcessingModes.DETR:
+            return self._prepare_feature_for_detr(feature, image_path)
+
+    def _prepare_feature_for_detr(self, feature: Dict[str, Any], image_path: Optional[Path]):
+        image = self.image_processor(image_path)
+        feature["images"] = image[None, :, :, :]
+        feature["images_page_nums"] = [0]
+
+        # rescale bboxes
+        scale_factor = self.image_processor.size / feature["page_bboxes"].max()
+
+        feature["bboxes"] = feature["bboxes"] * scale_factor
+        feature["page_bboxes"] = feature["page_bboxes"] * scale_factor
+
+        for table in feature["tables"]:
+            table["table_bboxes"] = [self._scale_bbox(box, scale_factor) for box in table["table_bboxes"]]
+            for structure_name in ["cells", "rows", "columns"]:
+                for structure in table[structure_name]:
+                    structure["bbox"] = self._scale_bbox(structure["bbox"], scale_factor)
+        return feature
 
     def _generate_examples(self, index_content: List[Path]):
         logger.info(f"Generating {len(index_content)} examples")
 
-        with multiprocessing.Pool(self.num_processes) as pool:
-            for doc_list in pool.imap(self._load_single_anno, index_content):
-                for doc_dict in doc_list:
-                    yield doc_dict["id"], doc_dict
+        # with multiprocessing.Pool(self.num_processes) as pool:
+        for doc_list in map(self._load_single_anno, index_content):
+            for doc_dict in doc_list:
+                yield doc_dict["id"], doc_dict

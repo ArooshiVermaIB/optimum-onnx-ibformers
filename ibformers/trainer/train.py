@@ -33,6 +33,7 @@ from transformers import (
     AutoTokenizer,
     PreTrainedTokenizerFast,
     set_seed,
+    PreTrainedTokenizer,
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
@@ -59,7 +60,9 @@ from ibformers.trainer.hp_search.optimize import optimize_hyperparams
 check_min_version("4.12.3")
 from ibformers.trainer.train_utils import (
     prepare_config_kwargs,
-    get_default_parser, save_pipeline_args, dict_wo_nones,
+    get_default_parser,
+    save_pipeline_args,
+    dict_wo_nones,
 )
 from ibformers.trainer import metrics_utils
 from ibformers.trainer.trainer import IbTrainer
@@ -105,20 +108,27 @@ def run_cmdline_train():
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_json_file(
-            json_file=os.path.abspath(sys.argv[1])
-        )
+        (
+            model_args,
+            data_args,
+            prep_args,
+            training_args,
+            ib_args,
+            augmenter_args,
+            extra_model_args,
+        ) = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
         (
             model_args,
             data_args,
+            prep_args,
             training_args,
             ib_args,
             augmenter_args,
             extra_model_args,
         ) = parser.parse_args_into_dataclasses()
 
-    run_train(model_args, data_args, training_args, ib_args, augmenter_args, extra_model_args)
+    run_train(model_args, data_args, prep_args, training_args, ib_args, augmenter_args, extra_model_args)
 
 
 def run_train(
@@ -175,23 +185,28 @@ def run_train(
 
     raw_datasets = load_raw_dataset(data_args, load_kwargs, model_args)
 
-    tokenizer_name_or_path = model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        _get_model_name_or_path(tokenizer_name_or_path, base_model_local_path),
-        cache_dir=model_args.cache_dir,
-        use_fast=True,
-        revision=model_args.model_revision,
-        use_auth_token=token,
-    )
-
-    # Tokenizer check: this script requires a fast tokenizer.
-    if not isinstance(tokenizer, PreTrainedTokenizerFast):
-        raise ValueError(
-            "This example script only works for models that have a fast tokenizer. Checkout the big table of models "
-            "at https://huggingface.co/transformers/index.html#supported-frameworks to find the model types that meet this "
-            "requirement"
+    if pipeline.get("needs_tokenizer", True):
+        tokenizer_name_or_path = (
+            model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path
         )
+
+        tokenizer = AutoTokenizer.from_pretrained(
+            _get_model_name_or_path(tokenizer_name_or_path, base_model_local_path),
+            cache_dir=model_args.cache_dir,
+            use_fast=True,
+            revision=model_args.model_revision,
+            use_auth_token=token,
+        )
+
+        # Tokenizer check: this script requires a fast tokenizer.
+        if not isinstance(tokenizer, PreTrainedTokenizerFast):
+            raise ValueError(
+                "This example script only works for models that have a fast tokenizer. Checkout the big table of models "
+                "at https://huggingface.co/transformers/index.html#supported-frameworks to find the model types that meet this "
+                "requirement"
+            )
+    else:
+        tokenizer = PreTrainedTokenizer()
 
     # Preprocessing the dataset
     # Padding strategy
@@ -199,10 +214,7 @@ def run_train(
     # get pipeline arguments which where passed (different than None)
 
     prep_args_to_use = asdict(prep_args, dict_factory=dict_wo_nones)
-    fn_kwargs = {
-        "tokenizer": tokenizer,
-        **prep_args_to_use
-    }
+    fn_kwargs = {"tokenizer": tokenizer, **prep_args_to_use}
     map_kwargs = {
         "num_proc": data_args.preprocessing_num_workers,
         "load_from_cache_file": not data_args.overwrite_cache,
@@ -302,15 +314,19 @@ def run_train(
     aug_args_passed = asdict(augmenter_args, dict_factory=dict_wo_nones)
     # not-None arguments passed as hyperparams can override pipeline specific arguments
     aug_args_with_pipeline = {**pip_aug_kwargs, **aug_args_passed}
-    data_collator = CollatorWithAugmentation(
-        tokenizer,
+    collator_class = pipeline.get("custom_collate", CollatorWithAugmentation)
+
+    data_collator = collator_class(
+        tokenizer=tokenizer,
         pad_to_multiple_of=8 if training_args.fp16 else None,
         model=model,
         **aug_args_with_pipeline,
     )
 
     # Initialize our Trainer
-    trainer = IbTrainer(
+    trainer_class = pipeline.get("trainer_class", IbTrainer)
+
+    trainer = trainer_class(
         model=model,
         model_init=lambda x: model_class.from_pretrained(
             _get_model_name_or_path(model_args.model_name_or_path, base_model_local_path),

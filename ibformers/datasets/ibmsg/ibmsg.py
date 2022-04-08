@@ -10,7 +10,7 @@ import numpy as np
 from datasets import BuilderConfig, DatasetInfo, DownloadManager
 
 from ibformers.data.utils import ImageProcessor
-from ibformers.datasets.ib_common import validate_and_fix_bboxes, assert_valid_record
+from ibformers.datasets.ib_common.ib_common import validate_and_fix_bboxes, assert_valid_record
 from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder, IBOCRRecord
 
 HASH_MODULO = 1000000
