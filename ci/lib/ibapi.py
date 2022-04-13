@@ -36,7 +36,7 @@ class Instabase:
         base_model: str,
         hyperparams: Dict[str, Any],
         package: str,
-    ) -> [bool, Union[str, Dict[str, Any], None]]:
+    ) -> Union[bool, Union[str, Dict[str, Any], None]]:
         url = os.path.join(self._host, "api/v1/model/training_job")
 
         arguments = dict(
@@ -139,7 +139,7 @@ class Instabase:
     @backoff.on_exception(
         backoff.expo, (aiohttp.client_exceptions.ClientError, aiohttp.client_exceptions.ContentTypeError), max_tries=3
     )
-    async def prepare_publish(self, ib_path: str, job_id: str) -> [bool, Union[str, dict, None]]:
+    async def prepare_publish(self, ib_path: str, job_id: str) -> Union[bool, Union[str, dict, None]]:
         """parepare training job to be published
 
         :param ib_path: The location of the model_project_path
@@ -166,7 +166,7 @@ class Instabase:
     )
     async def create_ibsolution(
         self, content_folder: str, output_folder: str
-    ) -> [bool, Union[str, Dict[str, Any], None]]:
+    ) -> Union[bool, Union[str, Dict[str, Any], None]]:
         """creates the ibsolution
 
         :param content_folder: The location of the model artifact folder
@@ -204,7 +204,7 @@ class Instabase:
         ),
         max_tries=8,
     )
-    async def publish_solution(self, ib_path: str) -> [bool, Union[str, Dict[str, Any], None]]:
+    async def publish_solution(self, ib_path: str) -> Union[bool, Union[str, Dict[str, Any], None]]:
         """Publishes the ibsolution located at ib_path on instabase.com to the marketplace
 
         :param ib_path: The location of the ibsolution on instabase.com

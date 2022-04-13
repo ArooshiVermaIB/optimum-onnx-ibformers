@@ -86,34 +86,6 @@ pipeline {
         }
         stage ('Run ibformer ci tests in each environment:') {
             parallel {
-                stage ('[Run ibformer tests on doc-insights-sandbox and publish if run successfully]') {
-                    steps {
-                        dir ('.') {
-                            ansiColor('xterm') {
-                                sh '''#!/bin/bash
-                                cd ci/
-                                IB_TEST_ENV=doc-insights-sandbox make run-docker-test
-                                '''
-                            }
-                        }
-                    }
-                    post {
-                        success {
-                            dir ('.') {
-                                ansiColor('xterm') {
-                                    sh '''#!/bin/bash
-                                    cd ci/
-                                    IB_TEST_ENV=doc-insights-sandbox make run-docker-publish
-                                    '''
-                                }
-                            }
-                            postResultsToSlack('doc-insights-sandbox', 'good')
-                        }
-                        unsuccessful {
-                            postResultsToSlack('doc-insights-sandbox', 'danger')
-                        }
-                    }
-                }
                 stage ('[Run ibformer tests on dogfood and publish if run successfully]') {
                     steps {
                         dir ('.') {
