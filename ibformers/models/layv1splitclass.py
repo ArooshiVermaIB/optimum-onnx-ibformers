@@ -1,9 +1,21 @@
+from typing import Optional, List
 import torch
-from transformers import LayoutLMModel, LayoutLMPreTrainedModel
+from transformers import LayoutLMConfig, LayoutLMModel, LayoutLMPreTrainedModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 
+class SplitClassifierConfig(LayoutLMConfig):
+    def __init__(
+        self, class_weights: Optional[List[float]] = None, split_weights: Optional[List[float]] = None, **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.class_weights = class_weights if class_weights is not None else [1.0] * self.num_labels
+        self.split_weights = split_weights if split_weights is not None else [1.0] * 2
+
+
 class SplitClassifier(LayoutLMPreTrainedModel):
+    config_class = SplitClassifierConfig
+
     def __init__(self, config):
         super(SplitClassifier, self).__init__(config)
         self.layoutlm = LayoutLMModel(config)
@@ -12,8 +24,8 @@ class SplitClassifier(LayoutLMPreTrainedModel):
         self.drop1 = torch.nn.Dropout(config.hidden_dropout_prob)
         self.dense2 = torch.nn.Linear(config.hidden_size, 2)
         self.cls_dense = torch.nn.Linear(config.hidden_size, self.config.num_labels)
-        self.splitter_criterion = torch.nn.CrossEntropyLoss()
-        self.classifier_criterion = torch.nn.CrossEntropyLoss()
+        self.splitter_criterion = torch.nn.CrossEntropyLoss(weight=torch.FloatTensor(self.config.split_weights))
+        self.classifier_criterion = torch.nn.CrossEntropyLoss(weight=torch.FloatTensor(self.config.class_weights))
 
         self.init_weights()
 

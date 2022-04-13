@@ -29,7 +29,7 @@ from instabase.model_service.input_utils import resolve_parsed_ibocr_from_reques
 from instabase.model_service.model_cache import Model
 from instabase.protos.model_service import model_service_pb2
 from instabase.model_service.file_utils import get_file_client
-from transformers import AutoTokenizer, PreTrainedTokenizerFast, PreTrainedModel
+from transformers import AutoTokenizer, PreTrainedTokenizerFast, PreTrainedModel, AutoConfig
 from ibformers.data.pipelines.pipeline import PIPELINES, prepare_dataset
 from ibformers.datasets import DATASETS_PATH
 from ibformers.trainer.trainer import IbTrainer
@@ -66,7 +66,11 @@ class IbModel(Model):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_data_path, use_fast=True)
         model_class = self.pipeline["model_class"]
 
-        self.model = model_class.from_pretrained(self.model_data_path)
+        # Get the config class for the model and initialize it from the config file
+        config_class = getattr(model_class, "config_class", AutoConfig)
+        config = config_class.from_pretrained(self.model_data_path)
+
+        self.model = model_class.from_pretrained(self.model_data_path, config=config)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         compute_metrics = self.pipeline["compute_metrics"]
 
@@ -124,17 +128,16 @@ class IbModel(Model):
         examples = dataset_class.get_examples_from_model_service([parsed_ibocr], config, image_processor)
 
         if len(examples) == 0:
-          # See assert_valid_record for what makes a record valid.
-          raise ValueError("Found no records to process for inference. Check if input documents have records with valid OCR output.")
+            # See assert_valid_record for what makes a record valid.
+            raise ValueError(
+                "Found no records to process for inference. Check if input documents have records with valid OCR output."
+            )
 
         prediction_schema = dataset_class.get_inference_dataset_features(config)
         data = convert_to_dict_of_lists(examples, examples[0].keys())
         predict_dataset = Dataset.from_dict(data, prediction_schema)
 
-        fn_kwargs = {
-            **self.pipeline_config,
-            **{"tokenizer": self.tokenizer}
-        }
+        fn_kwargs = {**self.pipeline_config, **{"tokenizer": self.tokenizer}}
 
         map_kwargs = {
             "num_proc": 1,

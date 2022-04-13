@@ -224,7 +224,23 @@ def get_label_list(labels):
     return label_list
 
 
-def prepare_config_kwargs(ds: Dataset) -> Dict:
+def get_class_weights_for_sc(ds: Dataset, training_args: EnhancedTrainingArguments, num_labels: int) -> Dict:
+    class_weights = [1.0] * num_labels
+    split_weights = [1.0] * 2
+    if training_args.loss_type == "ce_ins":
+        split_labels = [x[0] for x in ds["sc_labels"]]
+        split_weights = [1.0] * 2
+        for split_idx, freq in zip(*np.unique(split_labels, return_counts=True)):
+            split_weights[split_idx] = 1 / (freq ** training_args.class_weights_ins_power)
+        class_labels = [x[1] for x in ds["sc_labels"]]
+        class_weights = [1.0] * num_labels
+        for class_idx, freq in zip(*np.unique(class_labels, return_counts=True)):
+            class_weights[class_idx] = 1 / (freq ** training_args.class_weights_ins_power)
+
+    return class_weights, split_weights
+
+
+def prepare_config_kwargs(ds: Dataset, training_args: EnhancedTrainingArguments) -> Dict:
     """
     Function prepares a dictionary of parameters suited to given dataset.
     Additonal kwargs will be passed to the model config for extraction or classification task
@@ -255,6 +271,18 @@ def prepare_config_kwargs(ds: Dataset) -> Dict:
     ib_id2label = {i: lab for lab, i in label_to_id.items()}
     if "start_positions" in features:  # for QA model
         return dict(ib_id2label=ib_id2label)
+    # for Split classifier model class weights inverse proportion to the number of labels
+    elif "sc_labels" in features:
+        num_labels = len(label_list)
+        class_weights, split_weights = get_class_weights_for_sc(ds, training_args, num_labels)
+        return dict(
+            num_labels=num_labels,
+            label2id=label_to_id,
+            id2label=ib_id2label,
+            ib_id2label=ib_id2label,
+            class_weights=class_weights,
+            split_weights=split_weights,
+        )
     return dict(
         num_labels=len(label_list),
         label2id=label_to_id,
@@ -267,8 +295,9 @@ def dict_wo_nones(x):
     return {k: v for (k, v) in dict(x).items() if v is not None}
 
 
-def save_pipeline_args(prep_args: PreprocessArguments, data_args: DataArguments, save_path: str,
-                       filename: str = "pipeline.json"):
+def save_pipeline_args(
+    prep_args: PreprocessArguments, data_args: DataArguments, save_path: str, filename: str = "pipeline.json"
+):
     """
     Save arguments required to perform an inference step
     """

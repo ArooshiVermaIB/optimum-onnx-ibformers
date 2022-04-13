@@ -1,4 +1,5 @@
 import math
+from typing import Optional, List
 
 import torch
 import torch.utils.checkpoint
@@ -24,6 +25,15 @@ from ibformers.models.layv1splitclass import SplitClassifier
 
 class LayoutLMPositionlessConfig(LayoutLMConfig):
     model_type = "layoutlm_positionless"
+
+
+class PositionlessSplitClassifierConfig(LayoutLMPositionlessConfig):
+    def __init__(
+        self, class_weights: Optional[List[float]] = None, split_weights: Optional[List[float]] = None, **kwargs
+    ):
+        super().__init__(**kwargs)
+        self.class_weights = class_weights if class_weights is not None else [1.0] * self.num_labels
+        self.split_weights = split_weights if split_weights is not None else [1.0] * 2
 
 
 class LayoutLMPositionlessEmbeddings(nn.Module):
@@ -247,7 +257,7 @@ class LayoutLMPositionlessForMaskedLMAndLayoutRegression(LayoutLMForMaskedLMAndL
 
 
 class PositionlessSplitClassifier(SplitClassifier):
-    config_class = LayoutLMPositionlessConfig
+    config_class = PositionlessSplitClassifierConfig
 
     def __init__(self, config):
         super().__init__(config)

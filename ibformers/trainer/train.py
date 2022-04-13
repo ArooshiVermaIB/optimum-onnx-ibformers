@@ -277,7 +277,7 @@ def run_train(
         test_dataset = joint_test_predict.filter(lambda x: x["id"] in test_ids)
         predict_dataset = joint_test_predict
 
-    config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset)
+    config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset, training_args)
 
     config_class = getattr(model_class, "config_class", AutoConfig)
     config = config_class.from_pretrained(
