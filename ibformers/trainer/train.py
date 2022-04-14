@@ -415,7 +415,7 @@ def prepare_base_model_loading(model_args):
     # check if base model is already downloaded
     base_model_local_path = None
     if model_args.model_name_or_path:
-        BASE_MODEL_CACHE_PREFIX = Path("~/.cache/instabase").expanduser()
+        BASE_MODEL_CACHE_PREFIX = Path("/home/ibuser/.cache/instabase")
         _base_model_local_path = BASE_MODEL_CACHE_PREFIX / model_args.model_name_or_path
         logging.info(f"check if {_base_model_local_path} exists")
         if _base_model_local_path.exists():
