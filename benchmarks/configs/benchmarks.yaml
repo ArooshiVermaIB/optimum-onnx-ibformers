@@ -145,4 +145,44 @@ split-classification-dummy:
     save_total_limit: 0
     load_best_model_at_end: false
     metric_for_best_model: loss
-    label_names: sc_labels
+    label_names:
+     - sc_labels
+
+lender-presentation:
+  name: Lender Presentation
+  hyperparams:
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
+    train_file:
+     - /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/lender_presentation/lender_presentation_1
+     - /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/lender_presentation/lender_presentation_2
+     - /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/lender_presentation/lender_presentation_3
+    extraction_class_name: lender_presentation_fields
+
+debt-prospectus:
+  name: Debt Prospectus
+  hyperparams:
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_extraction
+    train_file:
+     - /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/debt_prospectus/debt_prospectus_1.0
+     - /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/debt_prospectus/debt_prospectus_2.0
+     - /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/debt_prospectus/debt_prospectus_dcm
+     - /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/debt_prospectus/debt_prospectus_wf2
+    extraction_class_name: Prospectus
+
+paystub-bankstatement-sc:
+  name: Paystub-BankStatement Split Classifier
+  hyperparams:
+    train_file:
+     - /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/paystub_bankstatement_sc/papers_classify_2
+     - /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/paystub_bankstatement_sc/papers_classify_3
+    dataset_name_or_path: ib_split_class
+    dataset_config_name: ib_split_class
+    early_stopping_patience: 0
+    validation_set_size: 0.0
+    save_total_limit: 0
+    load_best_model_at_end: false
+    metric_for_best_model: loss
+    label_names: 
+      - sc_labels

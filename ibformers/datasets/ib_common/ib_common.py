@@ -360,7 +360,10 @@ def get_image_features(
         # try relative path - useful if dataset was moved
         ocr_path = Path(ocr_path)
         img_rel_path = ocr_path.parent.parent / "s1_process_files" / "images" / img_path.name
-        img_arr = get_image(img_path, img_rel_path, open_fn, image_processor)
+        img_rel_path_original = ocr_path.parent.parent / "s1_process_files" / "original" / "images" / img_path.name
+        img_possible_paths = [img_path, img_rel_path, img_rel_path_original]
+
+        img_arr = get_image(img_possible_paths, open_fn, image_processor)
 
         if img_arr is None:
             raise OSError(
@@ -376,11 +379,30 @@ def get_image_features(
     return {"images": img_arr_all, "images_page_nums": page_nums}
 
 
-def get_image(img_path: str, img_rel_path: str, open_fn: Any, image_processor: ImageProcessor) -> np.ndarray:
+def try_get_image_with_paths(img_paths: List[str], open_fn: Any, image_processor: ImageProcessor) -> np.ndarray:
+    """
+    Try to get image from the list of paths. If image is not found, raise OSError
+    :param img_paths: list of possible paths to images either absolute or relative
+    :param open_fn: fn used to open the files. Can be either local files or files on Instabase FS
+    :param image_processor: ImageProcessor used to process the image to array
+    :return: image array if image was found else raise OSError
+    """
+    for img_path in img_paths:
+        try:
+            img_bytes = open_fn(str(img_path))
+            img_file = BytesIO(img_bytes)
+            img_arr = image_processor(img_file).astype(np.uint8)
+            return img_arr
+        except OSError as e:
+            continue
+
+    raise e
+
+
+def get_image(img_paths: List[str], open_fn: Any, image_processor: ImageProcessor) -> np.ndarray:
     """
     Get image data based on the paths
-    :param img_path: absolute path of the image page
-    :param img_rel_path: path relative to actual path of ibdoc
+    :param img_paths: list of possible paths to images either absolute or relative
     :param open_fn: fn used to open the files. Can be either local files or files on Instabase FS
     :param image_processor: ImageProcessor used to process the image to array
     :return: np.ndarray with the image
@@ -391,22 +413,14 @@ def get_image(img_path: str, img_rel_path: str, open_fn: Any, image_processor: I
     img_arr = None
     for i in range(16):
         try:
-            img_bytes = open_fn(str(img_path))
-            img_file = BytesIO(img_bytes)
-            img_arr = image_processor(img_file).astype(np.uint8)
+            img_arr = try_get_image_with_paths(img_paths, open_fn, image_processor)
             break
         except OSError:
-            try:
-                img_bytes = open_fn(str(img_rel_path))
-                img_file = BytesIO(img_bytes)
-                img_arr = image_processor(img_file).astype(np.uint8)
-                break
-            except OSError:
-                time.sleep(2)
-                time_waited += 2
+            time.sleep(2)
+            time_waited += 2
 
     if time_waited > 0 and img_arr is not None:
-        logging.warning(f"Script waited for {time_waited} sec for image {img_path} to be saved")
+        logging.warning(f"Script waited for {time_waited} sec for image {img_paths[0]} to be saved")
 
     return img_arr
 
