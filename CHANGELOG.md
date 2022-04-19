@@ -3,7 +3,13 @@
 All notable changes to this repository will be documented in this file.
 
 ## Unreleased
+
+## [1.0.6] - 2022-04-19
+### Fixed
 - Bug fix: classifier generation code skips over the first class label by mistake.
+- Avoid expanduser when determining cache dir path
+- Better message if there are no records processed for inference
+- Fix bug in split-classifier if all records are skipped
 
 ## [1.0.5] - 2022-04-01
 
