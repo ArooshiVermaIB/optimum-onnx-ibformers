@@ -25,21 +25,22 @@ def _make_refiner_field(label: str, function: str, output_type: str = "") -> ibr
 
 def _make_run_model_script_contents() -> str:
     return f"""
-from typing import Any, Mapping, Union, List
+import json
+from typing import Any, Dict, Union, List, cast
 from ib.market.ib_intelligence.functions import IntelligencePlatform, kwargs_to_ms_params, resolve_input, log
 from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder
 from instabase.provenance.tracking import Value
 
 # we expect this format to come out ner_result_to_values(), and is used as input for get_confidence() and get_field()
-ModelResultType =  Value[Mapping[str, Value[List[Value[List[Union[Value[str], float]]]]]]]
-ModelResultNoProvType = Mapping[str, List[List[Union[str, float]]]]
-
+FieldType = Value[Any]
+ModelResultType = Value[Dict[str, Value[List[FieldType]]]]
+ModelResultNoProvType = Dict[str, List[List[Union[str, float]]]]
 
 def table_result_to_values(result: Any, INPUT_COL: Value[str]) -> ModelResultType:
     raw_data: bytes = result.get('raw_data', {{}}).get('data', [])
     json_result = json.loads(raw_data.decode("utf-8"))
     fields = json_result['fields']
-    results = {{}}
+    results: Dict[str, Any] = {{}}
 
     for field in fields:
         table_annotations = field['table_annotations']
@@ -51,7 +52,8 @@ def table_result_to_values(result: Any, INPUT_COL: Value[str]) -> ModelResultTyp
                 # TODO(qxie3): handle merge cell
                 # we currently assume start_index == end_index before supporting merge cell
                 cells[cell['row_start_index']][cell['col_start_index']] = INPUT_COL[cell['start_index']:cell['end_index']]
-            results[field['field_name']].append(cells)
+            results[field['field_name']].append(Value(cells))
+        results[field['field_name']] = Value(results[field['field_name']])
 
     return Value(results)
 
@@ -59,7 +61,7 @@ def table_result_to_values(result: Any, INPUT_COL: Value[str]) -> ModelResultTyp
 def ner_result_to_values(result: Any, INPUT_COL: Value[str]) -> ModelResultType:
   entities = result.get('ner_result', {{}}).get('entities', [])
 
-  fields = {{}}
+  fields: Dict[str, Value[List[Any]]] = {{}}
 
   for ent in entities:
     if ent['label'] == 'O':
@@ -140,7 +142,7 @@ def get_confidence_no_provenance(MODEL_RESULT_COL: ModelResultNoProvType, field_
 
   \"\"\"
   field_values = MODEL_RESULT_COL.get(field_name, [])
-  confidences = [ conf for val, conf in field_values ]
+  confidences = [ cast(float, conf) for val, conf in field_values ]
   if len(confidences) == 0:
     return 'Error: no confidences obtained'
 
