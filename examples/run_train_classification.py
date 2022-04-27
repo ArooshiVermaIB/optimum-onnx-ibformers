@@ -61,6 +61,7 @@ def run(ds_path, out_path):
         "model_name": "microsoft/layoutlm-base-uncased",
         "pipeline_name": "layoutlm_cls",
         "task_type": "classification",
+        "use_mixed_precision": False,
     }
 
     # ds_path = '/Users/rafalpowalski/python/annotation/UberEatsDataset'

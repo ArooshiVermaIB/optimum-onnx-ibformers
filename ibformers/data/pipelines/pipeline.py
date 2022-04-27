@@ -32,6 +32,7 @@ from ibformers.data.transform import (
     convert_from_mrqa_fmt,
     prepare_input_squad,
 )
+from ibformers.data.transform.stack_pages import filter_npages
 from ibformers.data.transform.table import (
     prepare_image_and_table_data,
     calculate_margins,
@@ -354,7 +355,7 @@ plain_text_cls = {
     "dataset_load_kwargs": {},
     # tokenizer is passed to pipeline externally: in train.run_train tokenizer is passed to map_kwargs,
     # which itself is a kwarg of prepare_dataset and pipeline_preprocess
-    "preprocess": [tokenize, produce_chunks],
+    "preprocess": [filter_npages, tokenize, produce_chunks],
     "column_mapping": [("class_label", "labels")],
     "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForSequenceClassification,
@@ -365,7 +366,7 @@ layoutlm_cls = {
     "dataset_load_kwargs": {},
     # tokenizer is passed to pipeline externally: in train.run_train tokenizer is passed to map_kwargs,
     # which itself is a kwarg of prepare_dataset and pipeline_preprocess
-    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "preprocess": [filter_npages, tokenize, norm_bboxes_for_layoutlm, produce_chunks],
     "column_mapping": [("class_label", "labels"), ("bboxes", "bbox")],
     "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForSequenceClassification,

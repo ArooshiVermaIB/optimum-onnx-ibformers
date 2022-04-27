@@ -4,6 +4,10 @@ All notable changes to this repository will be documented in this file.
 
 ## Unreleased
 
+## Added
+- Added ce_ins loss type to classifier and split classififer
+- Added logic to filter first n pages for classification
+
 ## [1.0.6] - 2022-04-19
 ### Fixed
 - Bug fix: classifier generation code skips over the first class label by mistake.

@@ -85,7 +85,26 @@ class IbTrainer(Trainer):
         # TODO: Add replace the default wandb callback with the custom one that logs more data'
         self.post_process_function = post_process_function
         self.test_dataset = None
+        self._populate_cls_weights()
         self._update_callbacks()
+
+    def _populate_cls_weights(self):
+        # This is a bit hacky
+        self.is_cls_task = self._check_if_its_cls()
+        if self.is_cls_task:
+            num_labels = self.model.config.num_labels
+            class_weights = [1.0] * num_labels
+            class_labels = [x for x in self.train_dataset["labels"]]
+            for class_idx, freq in zip(*np.unique(class_labels, return_counts=True)):
+                class_weights[class_idx] = 1 / (freq**self.args.class_weights_ins_power)
+            self.class_weights_for_cls = class_weights
+
+    def _check_if_its_cls(self):
+        if "labels" in self.train_dataset.features:
+            label_sample = self.train_dataset[0]["labels"]
+            if isinstance(label_sample, int):
+                return True
+        return False
 
     def _update_callbacks(self) -> None:
         if is_wandb_available():
@@ -125,24 +144,28 @@ class IbTrainer(Trainer):
 
             # class weights as inverse number of samples
             elif self.args.loss_type == "ce_ins":
-                losses = []
-                for ex_labels, ex_logits, att in zip(labels, logits, attention_mask):
-                    flat_labels = ex_labels.view(-1)
-                    flat_logits = ex_logits.view(-1, class_num)
-                    active_loss = torch.logical_and(att.view(-1) == 1, flat_labels != -100)
+                if not self.is_cls_task:
+                    losses = []
+                    for ex_labels, ex_logits, att in zip(labels, logits, attention_mask):
+                        flat_labels = ex_labels.view(-1)
+                        flat_logits = ex_logits.view(-1, class_num)
+                        active_loss = torch.logical_and(att.view(-1) == 1, flat_labels != -100)
 
-                    active_labels = flat_labels[active_loss]
-                    active_logits = flat_logits[active_loss]
+                        active_labels = flat_labels[active_loss]
+                        active_logits = flat_logits[active_loss]
 
-                    class_weights = [1.0] * class_num
-                    for idx, freq in zip(*np.unique(active_labels.cpu().numpy(), return_counts=True)):
-                        class_weights[idx] = 1 / (freq ** self.args.class_weights_ins_power)
+                        class_weights = [1.0] * class_num
+                        for idx, freq in zip(*np.unique(active_labels.cpu().numpy(), return_counts=True)):
+                            class_weights[idx] = 1 / (freq**self.args.class_weights_ins_power)
 
-                    loss_fct = CrossEntropyLoss(weight=torch.FloatTensor(class_weights).to(labels.device))
-                    ex_loss = loss_fct(active_logits, active_labels)
-                    losses.append(ex_loss)
+                        loss_fct = CrossEntropyLoss(weight=torch.FloatTensor(class_weights).to(labels.device))
+                        ex_loss = loss_fct(active_logits, active_labels)
+                        losses.append(ex_loss)
 
-                loss = sum(losses)
+                    loss = sum(losses)
+                else:
+                    loss_fct = CrossEntropyLoss(weight=torch.FloatTensor(self.class_weights_for_cls).to(labels.device))
+                    loss = loss_fct(logits, labels)
 
             return (loss, outputs) if return_outputs else loss
         else:

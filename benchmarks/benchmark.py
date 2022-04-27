@@ -45,14 +45,20 @@ class BenchmarkArguments:
         metadata={"help": f"Extra wandb tags for all jobs in this run."},
     )
     disable_wandb: bool = field(default=False, metadata={"help": f"If set, disables all wandb logging for this run."})
+    wandb_project: str = field(
+        default=WANDB_DEFAULT_PROJECT, metadata={"help": f"Default wandb project to log train/eval metrics to"}
+    )
+    wandb_entity: str = field(
+        default=WANDB_DEFAULT_ENTITY, metadata={"help": f"Default wandb entity to log train/eval metrics to"}
+    )
 
 
 def configure_wandb(model_name_or_path: str, benchmark_id: str, benchmark_args: BenchmarkArguments):
     wandb.ensure_configured()  # TODO: does it actually check if wandb works properly?
 
     wandb.init(
-        project=WANDB_DEFAULT_PROJECT,
-        entity=WANDB_DEFAULT_ENTITY,
+        project=benchmark_args.wandb_project,
+        entity=benchmark_args.wandb_entity,
         tags=["/".join(model_name_or_path.split("/")[-2:]), benchmark_id] + benchmark_args.extra_tags,
         reinit=True,
     )
