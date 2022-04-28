@@ -468,8 +468,17 @@ def get_ocr_features(
         page_ct_arr[page_num] = page_token_ct
 
     # get page spans
-    page_offsets = np.cumsum(page_ct_arr)
+    # actual page order can be non increasing if records are not ordered based on page number
+    # For eg : page orders can be something like [0, 1, 7, 8, 9, 4, 5, 6, 2, 3]
+    # Here pages [0, 1] is record-1, pages [7, 8, 9] is record-2 and so on ...
+    # Hence we need to handle page offsets in such a case, (initially we assumed fully
+    # sorted page order i.e increasing)
+    page_switches = word_pages_arr != np.append(word_pages_arr[1:], word_pages_arr[-1] + 1)
+    page_order = word_pages_arr[page_switches]
+    page_offsets = np.cumsum(page_ct_arr[page_order])
     page_spans = np.stack((np.pad(page_offsets[:-1], (1, 0)), page_offsets), axis=-1)
+    # reorder back to ordered page nums
+    page_spans = page_spans[page_order.argsort()]
 
     # get page height and width
     page_bboxes = np.array([[0, 0, pg.get_width(), pg.get_height()] for pg in layouts])
