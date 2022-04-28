@@ -85,7 +85,6 @@ class IbTrainer(Trainer):
         # TODO: Add replace the default wandb callback with the custom one that logs more data'
         self.post_process_function = post_process_function
         self.test_dataset = None
-        self._populate_cls_weights()
         self._update_callbacks()
 
     def _populate_cls_weights(self):
@@ -173,6 +172,7 @@ class IbTrainer(Trainer):
 
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
 
+        self._populate_cls_weights()
         if self.args.max_no_annotation_examples_share < 1.0:
             # Build the sampler.
             max_no_annotation_examples_share = self.args.max_no_annotation_examples_share
