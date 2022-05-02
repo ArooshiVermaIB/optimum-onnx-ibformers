@@ -474,7 +474,11 @@ def get_ocr_features(
     # Hence we need to handle page offsets in such a case, (initially we assumed fully
     # sorted page order i.e increasing)
     page_switches = word_pages_arr != np.append(word_pages_arr[1:], word_pages_arr[-1] + 1)
-    page_order = word_pages_arr[page_switches]
+    page_shuffle = word_pages_arr[page_switches]
+    # To handle empty pages which wont appear in word_pages_arr need to have an initial
+    # array page_order with all pages and only modify the order where word_count is non zero
+    page_order = np.arange(0, len(layouts))
+    page_order[page_ct_arr != 0] = page_shuffle
     page_offsets = np.cumsum(page_ct_arr[page_order])
     page_spans = np.stack((np.pad(page_offsets[:-1], (1, 0)), page_offsets), axis=-1)
     # reorder back to ordered page nums
