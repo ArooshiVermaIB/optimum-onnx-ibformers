@@ -78,7 +78,7 @@ async def download_and_save_file(sdk: Instabase, file_path: Path, root_path: Pat
     return content, output_file_path
 
 
-async def _download_single_file(sdk: Instabase, cfg: DownloaderConfig, file_path: str, relative_root: Path):
+async def _download_single_ibdoc(sdk: Instabase, cfg: DownloaderConfig, file_path: str, relative_root: Path):
     async with cfg.download_semaphore:
         file_path = Path(file_path)
         ib_doc_content, output_ibdoc_path = await download_and_save_file(
@@ -94,8 +94,15 @@ async def _download_single_file(sdk: Instabase, cfg: DownloaderConfig, file_path
 async def _download_files_from_list(
     sdk: Instabase, cfg: DownloaderConfig, file_list: List[Union[Path, str]], relative_root: Path
 ):
+    tasks = [download_and_save_file(sdk, file_path, relative_root, cfg.output_path, True) for file_path in file_list]
+    await asyncio.gather(*tasks, return_exceptions=False)
+
+
+async def _download_ibdocs_from_list(
+    sdk: Instabase, cfg: DownloaderConfig, file_list: List[Union[Path, str]], relative_root: Path
+):
     tasks = [
-        _download_single_file(sdk, cfg, file_path, relative_root)
+        _download_single_ibdoc(sdk, cfg, file_path, relative_root)
         for file_path in file_list
         if "ibdoc" in str(file_path)
     ]
@@ -111,7 +118,7 @@ async def _ibannotator(sdk: Instabase, cfg: DownloaderConfig):
     annotation_dict = json.loads(annotation_file_content)
 
     file_list = [Path(file["ocrPath"]) for file in annotation_dict["files"]]
-    await _download_files_from_list(sdk, cfg, file_list, relative_root)
+    await _download_ibdocs_from_list(sdk, cfg, file_list, relative_root)
 
 
 async def _ml_studio(sdk: Instabase, cfg: DownloaderConfig):
@@ -124,10 +131,15 @@ async def _ml_studio(sdk: Instabase, cfg: DownloaderConfig):
     dataset_text, _ = await download_and_save_file(sdk, dataset_path, relative_root, cfg.output_path, False)
     dataset_content = json.loads(dataset_text)
     dataset_dir = dataset_content["docs_path"]
+    annotations_dir = dataset_content["annotations_folder_path"]
+
+    annotations_list = await sdk.list_directory(cfg.input_path / annotations_dir)
+    anno_file_list = [cfg.input_path / annotations_dir / f for f in annotations_list]
+    await _download_files_from_list(sdk, cfg, anno_file_list, relative_root)
 
     filename_list = await sdk.list_directory(cfg.input_path / dataset_dir)
     file_list = [cfg.input_path / dataset_dir / f for f in filename_list]
-    await _download_files_from_list(sdk, cfg, file_list, relative_root)
+    await _download_ibdocs_from_list(sdk, cfg, file_list, relative_root)
 
 
 async def _directory(sdk: Instabase, cfg: DownloaderConfig):
@@ -135,7 +147,7 @@ async def _directory(sdk: Instabase, cfg: DownloaderConfig):
     relative_root = cfg.input_path
     filename_list = await sdk.list_directory(str(cfg.input_path))
     file_list = [cfg.input_path / f for f in filename_list]
-    await _download_files_from_list(sdk, cfg, file_list, relative_root)
+    await _download_ibdocs_from_list(sdk, cfg, file_list, relative_root)
 
 
 class ProjectDownloader(object):
