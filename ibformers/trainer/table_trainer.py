@@ -49,11 +49,9 @@ class TableIbTrainer(IbTrainer):
 
         Works both with or without labels.
         """
-
         prediction_loss_only = (
             prediction_loss_only if prediction_loss_only is not None else self.args.prediction_loss_only
         )
-
         model = self._wrap_model(self.model, training=False)
 
         # if full fp16 is wanted on eval and this ``evaluation`` or ``predict`` isn't called while
@@ -107,7 +105,7 @@ class TableIbTrainer(IbTrainer):
                 all_losses = np.array(losses) if all_losses is None else np.concatenate((all_losses, losses), axis=0)
             if logits is not None:
                 logits = nested_numpify(logits)
-                all_preds = all_preds + logits[0]
+                all_preds = all_preds + logits[-1]
             if labels is not None:
                 labels = nested_numpify(labels)
                 labels = [*zip(*labels)]

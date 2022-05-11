@@ -51,7 +51,10 @@ def iob(bbox1, bbox2):
     Compute the intersection area over box area, for bbox1.
     """
     intersection = Rect(bbox1).intersect(bbox2)
-    return intersection.getArea() / Rect(bbox1).getArea()
+    area = Rect(bbox1).getArea()
+    if area == 0:
+        return 1.0 if (Rect(bbox1).contains(Rect(bbox2)) or Rect(bbox2).contains(Rect(bbox1))) else 0.0
+    return intersection.getArea() / area
 
 
 def objects_to_cells(table, objects_in_table, tokens_in_table, class_map, class_thresholds):
@@ -222,8 +225,7 @@ def slot_into_containers(
         package_area = package_rect.getArea()
         for container_num, container in enumerate(container_objects):
             container_rect = Rect(container["bbox"])
-            intersect_area = container_rect.intersect(package["bbox"]).getArea()
-            overlap_fraction = intersect_area / package_area
+            overlap_fraction = iob(package_rect, container_rect)
             match_scores.append({"container": container, "container_num": container_num, "score": overlap_fraction})
 
         sorted_match_scores = sort_objects_by_score(match_scores)

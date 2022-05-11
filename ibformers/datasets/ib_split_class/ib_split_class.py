@@ -65,7 +65,7 @@ class IbSplitClass(IbDs):
 
     @staticmethod
     def create_dataset_features(config, classes):
-        ds_features = get_common_feature_schema(use_image=config.use_image)
+        ds_features = get_common_feature_schema(config=config)
         ds_features["record_page_ranges"] = datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2))
         ds_features["class_label"] = datasets.Sequence(datasets.features.ClassLabel(names=classes))
         return datasets.Features(ds_features)

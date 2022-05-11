@@ -100,7 +100,6 @@ class DocProCallback(TrainerCallback):
 
         ibformers_path = Path(_abspath("")).parent
         assert ibformers_path.name == "ibformers", f"ibformers_path is wrong. Path: {ibformers_path}"
-        # TODO(rafal): once ibformers is converted to relative imports copy ibformers into py/package_name/ibformers dir
         # py directory location
         py_directory = Path(self.artifacts_context.artifact_path) / "src" / "py"
         zip_dir(
@@ -394,13 +393,14 @@ class DocProCallback(TrainerCallback):
             logging.error(traceback.format_exc())
         self.set_status({"predictions_uuid": uuid.uuid4().hex})
 
-    def generate_refiner(self, label_names):
+    def generate_refiner(self, label_names, is_table=False):
         self.update_message("Generating Refiner module.", log=True)
 
         try:
             ib_model_path = os.path.join(self.ib_save_path, "artifact")
             dev_path = os.path.join(self.dataset_list[0].dataset_path, self.dataset_list[0].metadata["docs_path"])
-            write_refiner_program(self.artifacts_context, ib_model_path, label_names, self.model_name, dev_path)
+            write_refiner_program(self.artifacts_context, ib_model_path, label_names,
+                                  self.model_name, dev_path, is_table=is_table)
             logging.info("Finished generating the Refiner module")
         except Exception as e:
             logging.error(traceback.format_exc())

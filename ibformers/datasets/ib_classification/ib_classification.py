@@ -97,7 +97,7 @@ class IbClassificationDs(IbDs):
 
     @staticmethod
     def create_dataset_features(config, classes):
-        ds_features = get_common_feature_schema(use_image=config.use_image)
+        ds_features = get_common_feature_schema(config=config)
         ds_features["class_label"] = datasets.features.ClassLabel(names=classes)
         return datasets.Features(ds_features)
 

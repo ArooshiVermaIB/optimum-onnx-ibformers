@@ -24,7 +24,7 @@ from .transformer import build_transformer
 class DETR(nn.Module):
     """This is the DETR module that performs object detection"""
 
-    def __init__(self, backbone, transformer, num_classes, num_queries, aux_loss=False):
+    def __init__(self, backbone, transformer, num_classes, num_queries, aux_loss=False, extra_head_num_classes=0):
         """Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -39,6 +39,9 @@ class DETR(nn.Module):
         self.transformer = transformer
         hidden_dim = transformer.d_model
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
+        self.extra_head_num_classes = extra_head_num_classes
+        if self.extra_head_num_classes > 0:
+            self.extra_class_embed = nn.Linear(hidden_dim, extra_head_num_classes)
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
@@ -70,7 +73,13 @@ class DETR(nn.Module):
 
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()
-        out = {"pred_logits": outputs_class[-1], "pred_boxes": outputs_coord[-1]}
+
+        out = {"pred_logits": outputs_class[-1], "pred_boxes": outputs_coord[-1], "hidden_states": hs}
+
+        if self.extra_head_num_classes:
+            outputs_extra_class = self.extra_class_embed(hs.detach())
+            out["pred_extra"] = outputs_extra_class[-1]
+
         if self.aux_loss:
             out["aux_outputs"] = self._set_aux_loss(outputs_class, outputs_coord)
         return out
@@ -129,6 +138,33 @@ class SetCriterion(nn.Module):
         if log:
             # TODO this should probably be a separate loss, not hacked in this one here
             losses["class_error"] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
+        return losses
+
+    def loss_extra(self, outputs, targets, indices, num_boxes, log=True):
+        """Classification loss (Negative Log Likelihood)
+        targets dicts must contain the key "labels" containing a tensor of dim [nb_target_boxes]
+        """
+        assert "pred_extra" in outputs
+        src_logits = outputs["pred_extra"]
+
+        idx = self._get_src_permutation_idx(indices)
+        target_classes_o = torch.cat([t["extra_labels"][J] for t, (_, J) in zip(targets, indices)])
+        target_classes = torch.full(src_logits.shape[:2], 0, dtype=torch.int64, device=src_logits.device)
+        target_classes[idx] = target_classes_o
+
+        # preds = src_logits.argmax(2)
+        # acc = (preds == target_classes).cpu().numpy().mean()
+        # print(f'table label id accuracy: {acc}')
+
+        num_classes = src_logits.shape[-1]
+
+        class_weights = torch.FloatTensor([1.0] + [5] * (num_classes - 1)).to(src_logits.device)
+        loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, weight=class_weights)
+        losses = {"loss_extra": loss_ce}
+
+        if log:
+            # TODO this should probably be a separate loss, not hacked in this one here
+            losses["extra_class_error"] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
         return losses
 
     @torch.no_grad()
@@ -212,6 +248,7 @@ class SetCriterion(nn.Module):
             "cardinality": self.loss_cardinality,
             "boxes": self.loss_boxes,
             "masks": self.loss_masks,
+            "extra_labels": self.loss_extra,
         }
         assert loss in loss_map, f"do you really want to compute {loss} loss?"
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
@@ -321,6 +358,7 @@ def build(args):
         num_classes=args.num_classes,
         num_queries=args.num_queries,
         aux_loss=args.aux_loss,
+        extra_head_num_classes=args.extra_head_num_classes,
     )
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
@@ -330,6 +368,10 @@ def build(args):
     if args.masks:
         weight_dict["loss_mask"] = args.mask_loss_coef
         weight_dict["loss_dice"] = args.dice_loss_coef
+
+    if args.extra_head_num_classes:
+        weight_dict["loss_extra"] = args.extra_loss_coef
+
     # TODO this is a hack
     if args.aux_loss:
         aux_weight_dict = {}
@@ -340,6 +382,8 @@ def build(args):
     losses = ["labels", "boxes", "cardinality"]
     if args.masks:
         losses += ["masks"]
+    if args.extra_head_num_classes:
+        losses += ["extra_labels"]
     criterion = SetCriterion(
         num_classes,
         matcher=matcher,

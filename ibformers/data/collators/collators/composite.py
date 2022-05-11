@@ -6,7 +6,7 @@ import numpy as np
 
 from ibformers.data.collators.collators import BboxCollator
 from ibformers.data.collators.collators.base import BaseCollator, CollatorABC
-from ibformers.data.collators.collators.constant_value import PageMarginCollator
+from ibformers.data.collators.collators.constant_value import PageMarginCollator, BboxShiftVectorCollator
 from ibformers.data.collators.collators.image import DetrSubImageImageExtractor
 from ibformers.data.collators.collators.table_structure import TableStructureBboxCollator, StructureObjectCollator
 from ibformers.data.collators.collators.universal import safe_dataclass_init
@@ -20,9 +20,11 @@ class TableDetrCollator(CollatorABC):
         StructureObjectCollator,
         TableStructureBboxCollator,
         PageMarginCollator,
+        BboxShiftVectorCollator,
     ]
 
-    ALREADY_TENSORIZED = ["detection_boxes", "detection_labels", "structure_boxes", "structure_labels"]
+    ALREADY_TENSORIZED = ["detection_boxes", "detection_labels", "table_label_ids",
+                          "structure_boxes", "structure_labels"]
 
     def __init__(
         self,

@@ -6,12 +6,13 @@ from typing import Union, Optional, Callable
 import torch
 from torch import nn
 from transformers import PreTrainedModel, WEIGHTS_NAME, PretrainedConfig
+from transformers.file_utils import PushToHubMixin
 from transformers.modeling_utils import unwrap_model, get_parameter_dtype
 
 logger = logging.getLogger(__name__)
 
 
-class PreTrainedLikeMixin(nn.Module):
+class PreTrainedLikeMixin(PreTrainedModel):
     base_model_prefix = ""
     config_class = PretrainedConfig
     _keys_to_ignore_on_save = None
@@ -20,6 +21,8 @@ class PreTrainedLikeMixin(nn.Module):
 
     def tie_weights(self):
         pass
+
+    # TODO: ask Bartosz why we need separate save_pretrained method
 
     def save_pretrained(
         self,

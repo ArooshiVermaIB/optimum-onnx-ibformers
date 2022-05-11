@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, List, Any, Callable, Tuple
 
 import numpy as np
@@ -23,14 +24,19 @@ def calculate_margins(example: Dict, **kwargs):
     scale_factors = [
         bbox[-1] / orig_bbox[-1] for bbox, orig_bbox in zip(example["page_bboxes"], example["page_original_bboxes"])
     ]
-    return {"margins": [int(BASE_MARGIN * scale_factor) for scale_factor in scale_factors]}
+    # return {"margins": [int(BASE_MARGIN * scale_factor) for scale_factor in scale_factors]}
+    # TODO (BT): find a better way to calculate those margins. Alternatively, randomise on training.
+    return {"margins": [50 for scale_factor in scale_factors]}
 
 
 @feed_single_example_and_flatten
 def prepare_image_and_table_data(example: Dict, **kwargs):
+    logging.info(f'prepare tables: {list(example["tables"].keys())}')
+
     list_of_tables = convert_to_list_of_dicts(example["tables"])
 
-    for page_no in np.unique(example["word_page_nums"]):
+    for page_no in example["images_page_nums"]:
+        record_table_page_no = example["images_page_nums"].index(page_no)
         tables_within_page = [table for table in list_of_tables if is_table_in_page(table, page_no)]
 
         # getting some negative examples. Not sure if necessary though
@@ -49,12 +55,19 @@ def prepare_image_and_table_data(example: Dict, **kwargs):
             yield {
                 **example,
                 "table_page_bbox": example["page_bboxes"][page_no],
+                "record_table_page_no": record_table_page_no,
                 "table_page_no": page_no,
                 "structure_image_bbox": table_subimage_bbox,
                 "page_margins": margin,
                 **detection_labels,
                 **structure_labels,
             }
+
+
+@feed_single_example_and_flatten
+def prepare_empty_table_data(example: Dict, **kwargs):
+    for page_no in example["images_page_nums"]:
+        yield get_empty_table_anno(example, page_no)
 
 
 def is_table_in_page(table, page_no):
@@ -65,14 +78,16 @@ def get_empty_table_anno(example, page_no):
     return {
         **example,
         "table_page_bbox": example["page_bboxes"][page_no],
+        "record_table_page_no": example["images_page_nums"].index(page_no),
         "table_page_no": page_no,
-        "structure_image_bbox": example["page_bboxes"][page_no],
+        "structure_image_bbox": example["page_bboxes"][page_no].astype(np.int64),
         "page_margins": example["margins"][page_no],
-        "raw_detection_boxes": np.empty((0, 4)),
-        "detection_labels": np.empty((0,), dtype=np.int32),
-        "raw_structure_boxes": np.empty((0, 4)),
-        "structure_labels": np.empty((0,), dtype=np.int32),
+        "raw_detection_boxes": np.empty((0, 4), dtype=np.int64),
+        "detection_labels": np.empty((0,), dtype=np.int64),
+        "raw_structure_boxes": np.empty((0, 4), dtype=np.int64),
+        "structure_labels": np.empty((0,), dtype=np.int64),
         "bbox_shift_vector": [0, 0, 0, 0],
+        "table_label_ids": np.empty((0,), dtype=np.int64),
     }
 
 
@@ -83,6 +98,7 @@ def extract_page_table_objects(table: Dict[str, Any], page_no: int) -> Dict[str,
         "rows": _filter_dict_items(table["rows"], page_compare_fn),
         "columns": _filter_dict_items(table["columns"], page_compare_fn),
         "cells": _filter_dict_items(table["cells"], page_compare_fn),
+        "table_label_id": table["table_label_id"],
     }
 
 
@@ -94,9 +110,11 @@ def _filter_dict_items(dict_of_lists: Dict[str, List[Any]], filter_fn: Callable[
 
 def prepare_detection_labels(all_page_table_objects: List[Dict[str, Any]]) -> Dict[str, Any]:
     table_bboxes = [table["table_bbox"] for table in all_page_table_objects]
+    table_label_ids = [table["table_label_id"] for table in all_page_table_objects]
     return {
         "raw_detection_boxes": np.array(table_bboxes),
         "detection_labels": [DETR_DETECTION_CLASS_MAP[DetrDetectionClassNames.TABLE]] * len(table_bboxes),
+        "table_label_ids": table_label_ids
     }
 
 

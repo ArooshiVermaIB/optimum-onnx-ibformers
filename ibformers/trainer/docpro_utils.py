@@ -4,6 +4,8 @@ import traceback
 from dataclasses import fields
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+
+from ibformers.callbacks.table_extraction import IbTableExtractionCallback
 from ibformers.trainer.ib_utils import (
     MountDetails,
     prepare_ib_params,
@@ -59,7 +61,6 @@ def prepare_classification_params(
 
     out_dict["dataset_name_or_path"] = "ib_classification"
     out_dict["dataset_config_name"] = "ib_classification"
-
 
     return out_dict
 
@@ -149,6 +150,43 @@ def prepare_extraction_params(
 
     out_dict["dataset_name_or_path"] = hyperparams.get("dataset_name_or_path", "ib_extraction")
     out_dict["dataset_config_name"] = hyperparams.get("dataset_config_name", "ib_extraction")
+    out_dict["extraction_class_name"] = extraction_class_name
+
+    return out_dict
+
+
+def prepare_table_extraction_params(
+    hyperparams: Dict,
+    dataset_list: List,
+    save_path: str,
+    final_model_dir: str,
+    extraction_class_name: str,
+    file_client: Any,
+    username: str,
+    job_metadata_client: Any,
+    mount_details: Optional[MountDetails] = None,
+    model_name: str = "CustomModel",
+):
+    """
+    Handles defaults for table extractions and set up special parameters
+    Params as in prepare_extraction_params
+    :return: Dict with hyperparameters
+    """
+
+    out_dict = prepare_ib_params(
+        hyperparams,
+        dataset_list,
+        save_path,
+        file_client,
+        username,
+        job_metadata_client,
+        mount_details,
+        model_name,
+        final_model_dir
+    )
+
+    out_dict["dataset_name_or_path"] = hyperparams.get("dataset_name_or_path", "ib_extraction")
+    out_dict["dataset_config_name"] = hyperparams.get("dataset_config_name", "ib_table_extraction")
     out_dict["extraction_class_name"] = extraction_class_name
 
     return out_dict
@@ -515,6 +553,141 @@ def run_train_doc_pro(
     extra_load_kwargs = {"ibsdk": ibsdk, "extraction_class_name": extraction_class_name}
 
     callback = DocProCallback(
+        dataset_list=dataset_list,
+        artifacts_context=context,
+        extraction_class_name=extraction_class_name,
+        job_metadata_client=ib_args.job_metadata_client,
+        ibsdk=ibsdk,
+        username=ib_args.username,
+        mount_details=ib_args.mount_details,
+        model_name=ib_args.model_name,
+        ib_save_path=ib_args.ib_save_path,
+        log_metrics_to_metadata=hyperparams.get("log_metrics_to_metadata", False),
+    )
+
+    run_train(
+        model_args,
+        data_args,
+        prep_args,
+        training_args,
+        ib_args,
+        augmenter_args,
+        extra_model_args,
+        extra_callbacks=[callback],
+        extra_load_kwargs=extra_load_kwargs,
+    )
+
+    return {"results": "Finished"}
+
+
+def run_train_doc_pro_depracated(
+    hyperparams: Dict,
+    dataset_paths: List[str],
+    save_path: str,
+    extraction_class_name: str,
+    file_client: Any,
+    username: str,
+    job_metadata_client: Any,
+    mount_details: Optional[MountDetails] = None,
+    model_name: str = "CustomModel",
+    **kwargs: Any,
+):
+    raise ValueError("run into run_train_doc_pro_depracated")
+
+
+def run_train_table_extraction(
+    hyperparams: Dict,
+    dataset_paths: List[str],
+    save_path: str,
+    extraction_class_name: str,
+    file_client: Any,
+    username: str,
+    job_metadata_client: Any,
+    mount_details: Optional[MountDetails] = None,
+    model_name: str = "CustomModel",
+    **kwargs: Any,
+):
+    """
+    Endpoint used to run doc pro jobs.
+
+    :param hyperparams: dictionary of hyperparams passed from the frontend
+    :param dataset_paths: list of paths, can be either local or remote
+    :param save_path: ib location of the training job output
+    :param extraction_class_name: name of the extracted class
+    :param file_client: file_client used to open remote files
+    :param username: username of user who runs the training job
+    :param job_metadata_client: client used by callback to log progress/status of the training
+    :param mount_details: optional details of s3 mount
+    :param model_name: name of the model used in front end
+    :param kwargs:
+    :return:
+    """
+    logging.info("Starting Table Extraction Model Training ----------")
+    logging.info("Arguments to this training session:")
+    logging.info(f"Hyperparameters: {hyperparams}")
+    logging.info(f"Dataset Paths: {dataset_paths}")
+    logging.info(f"Model Name: {model_name}")
+    logging.info(f"Save Path: {save_path}")
+    logging.info(f"Extraction Class Name: {extraction_class_name}")
+
+    # Generate local folder to save in
+    logging.info("Creating Model Service Model template...")
+    template_path = _abspath(f"ib_package/ModelServiceTemplate/table_extraction")
+    if not Path(template_path).is_dir():
+        logging.error(f"Directory with template files ({template_path}) does not exist")
+
+    context = ModelArtifactTemplateGenerator(
+        file_client,
+        username,
+        template_path,
+        model_name,
+        model_name,
+        model_name,
+        {"training_job_id": job_metadata_client.job_id},
+    ).generate()
+    save_folder = context.tmp_dir.name
+    save_model_dir = os.path.join(context.artifact_path, f"src/py/{model_name}/model_data")
+
+    # Debug folder structure
+    logging.info("Copied Model Service Model template to local file system")
+    logging.info("The folder structure so far is:")
+    print_dir(save_folder)
+
+    parser = get_default_parser()
+
+    if hasattr(file_client, "file_client") and file_client.file_client is None:
+        # support for InstabaseSDKDummy - debugging only
+        ibsdk = file_client
+    else:
+        ibsdk = InstabaseSDK(file_client, username)
+
+    dataset_list = load_datasets(dataset_paths, ibsdk)
+
+    hparams_dict = prepare_table_extraction_params(
+        hyperparams,
+        dataset_paths,
+        save_path,
+        save_model_dir,
+        extraction_class_name,
+        file_client,
+        username,
+        job_metadata_client,
+        mount_details,
+        model_name,
+    )
+
+    if hyperparams.get("debug_cuda_launch_blocking", False):
+        logging.warning("Setting up debbuging mode (CUDA_LAUNCH_BLOCKING=1)")
+        os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
+    validate_hyperparams(parser, hparams_dict)
+    model_args, data_args, prep_args, training_args, ib_args, augmenter_args, extra_model_args = parser.parse_dict(
+        hparams_dict
+    )
+
+    extra_load_kwargs = {"ibsdk": ibsdk, "extraction_class_name": extraction_class_name}
+
+    callback = IbTableExtractionCallback(
         dataset_list=dataset_list,
         artifacts_context=context,
         extraction_class_name=extraction_class_name,

@@ -23,7 +23,7 @@ DETR_STRUCTURE_CLASS_THRESHOLDS = {
     DetrStructureClassNames.ROW.value: 0.5,
     DetrStructureClassNames.COLUMN_HEADER.value: 0.5,
     DetrStructureClassNames.PROJECTED_ROW_HEADER.value: 0.5,
-    DetrStructureClassNames.SPANNING_CELL.value: 0.5,
+    DetrStructureClassNames.SPANNING_CELL.value: 20,  # TODO: bring back when spanning cells are supported in ML Studio
     DetrStructureClassNames.NO_OBJECT.value: 20,
 }
 
@@ -82,9 +82,24 @@ class RowAnnotation:
     page_idx: int
     is_header: Optional[bool] = False
     label_id: Optional[int] = None
+    confidence_score: Optional[float] = None
 
     def to_json(self):
-        return {"bbox": self.bbox, "page_idx": self.page_idx, "is_header": self.is_header, "label_id": self.label_id}
+        if self.confidence_score is not None:
+            return {
+                "bbox": self.bbox,
+                "page_idx": self.page_idx,
+                "is_header": self.is_header,
+                "label_id": self.label_id,
+                "confidence_score": self.confidence_score,
+            }
+        else:
+            return {
+                "bbox": self.bbox,
+                "page_idx": self.page_idx,
+                "is_header": self.is_header,
+                "label_id": self.label_id,
+            }
 
 
 @dataclass
@@ -93,9 +108,24 @@ class ColumnAnnotation:
     page_idx: int
     is_header: Optional[bool] = False
     label_id: Optional[int] = None
+    confidence_score: Optional[float] = None
 
     def to_json(self):
-        return {"bbox": self.bbox, "page_idx": self.page_idx, "is_header": self.is_header, "label_id": self.label_id}
+        if self.confidence_score is not None:
+            return {
+                "bbox": self.bbox,
+                "page_idx": self.page_idx,
+                "is_header": self.is_header,
+                "label_id": self.label_id,
+                "confidence_score": self.confidence_score,
+            }
+        else:
+            return {
+                "bbox": self.bbox,
+                "page_idx": self.page_idx,
+                "is_header": self.is_header,
+                "label_id": self.label_id,
+            }
 
 
 @dataclass
@@ -109,6 +139,8 @@ class TableAnnotation:
     table_bboxes: List[Tuple[float, float, float, float]]
     base_page_bboxes: Optional[List[Tuple[float, float, float, float]]] = None
     table_label_id: Optional[int] = None
+    table_label_name: Optional[str] = None
+    confidence_score: Optional[float] = None
 
     def to_json(self):
         return {
@@ -121,6 +153,8 @@ class TableAnnotation:
             "table_bboxes": self.table_bboxes,
             "base_page_bboxes": self.base_page_bboxes,
             "table_label_id": self.table_label_id,
+            "table_label_name": self.table_label_name,
+            "confidence_score": self.confidence_score,
         }
 
 

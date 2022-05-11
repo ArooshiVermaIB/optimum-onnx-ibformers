@@ -11,6 +11,7 @@ class StructureObjectCollator(CollatorABC):
     _supported_fields: ClassVar[List[str]] = [
         "structure_labels",
         "detection_labels",
+        "table_label_ids",
     ]
 
     @property

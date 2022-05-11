@@ -227,12 +227,13 @@ def get_label_list(labels):
 def get_class_weights_for_sc(ds: Dataset, training_args: EnhancedTrainingArguments, num_labels: int) -> Dict:
     class_weights = [1.0] * num_labels
     split_weights = [1.0] * 2
+    sc_labels = ds["sc_labels"]
     if training_args.loss_type == "ce_ins":
-        split_labels = [x[0] for x in ds["sc_labels"]]
+        split_labels = [x[0] for x in sc_labels]
         split_weights = [1.0] * 2
         for split_idx, freq in zip(*np.unique(split_labels, return_counts=True)):
             split_weights[split_idx] = 1 / (freq ** training_args.class_weights_ins_power)
-        class_labels = [x[1] for x in ds["sc_labels"]]
+        class_labels = [x[1] for x in sc_labels]
         class_weights = [1.0] * num_labels
         for class_idx, freq in zip(*np.unique(class_labels, return_counts=True)):
             class_weights[class_idx] = 1 / (freq ** training_args.class_weights_ins_power)
@@ -245,13 +246,14 @@ def prepare_config_kwargs(ds: Dataset, training_args: EnhancedTrainingArguments)
     Function prepares a dictionary of parameters suited to given dataset.
     Additonal kwargs will be passed to the model config for extraction or classification task
     """
-    label_names = ["labels", "class_label", "token_label_ids"]
+    label_names = ["labels", "class_label", "token_label_ids", 'tables']
     features = ds.features
     if not any(label in features for label in label_names):
         return dict()
     for label in label_names:
         if not label in features:
             continue
+
         if isinstance(features[label], ClassLabel):
             label_list = features[label].names
             break
@@ -269,6 +271,7 @@ def prepare_config_kwargs(ds: Dataset, training_args: EnhancedTrainingArguments)
 
     label_to_id = {l: i for i, l in enumerate(label_list)}
     ib_id2label = {i: lab for lab, i in label_to_id.items()}
+
     if "start_positions" in features:  # for QA model
         return dict(ib_id2label=ib_id2label)
     # for Split classifier model class weights inverse proportion to the number of labels
@@ -283,6 +286,20 @@ def prepare_config_kwargs(ds: Dataset, training_args: EnhancedTrainingArguments)
             class_weights=class_weights,
             split_weights=split_weights,
         )
+    elif "tables" in features:
+        table_label_list = features["tables"].feature['table_label_id'].names
+        if len(table_label_list) > 1:
+            table_label2id = {l: i for i, l in enumerate(table_label_list)}
+            table_id2label = {i: lab for lab, i in table_label2id.items()}
+            return dict(
+                table_id2label=table_id2label,
+                table_label2id=table_label2id,
+                num_labels=len(label_list),
+                label2id=label_to_id,
+                id2label=ib_id2label,
+                ib_id2label=ib_id2label,
+            )
+
     return dict(
         num_labels=len(label_list),
         label2id=label_to_id,

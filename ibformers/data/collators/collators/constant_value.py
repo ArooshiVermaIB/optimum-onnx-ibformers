@@ -168,3 +168,8 @@ class NextPageCollator(DefaultValueCollator):
 @dataclass
 class PageMarginCollator(NoValueCollator):
     _supported_fields: ClassVar[List[str]] = ["page_margins"]
+
+
+@dataclass
+class BboxShiftVectorCollator(NoValueCollator):
+    _supported_fields: ClassVar[List[str]] = ["bbox_shift_vector"]

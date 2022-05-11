@@ -11,7 +11,8 @@ TO_SKIP = ["__pycache__", ".DS_Store", ".gitignore"]
 
 
 class PackageType(Enum):
-    EXTRACTION: str = "ibformers_extraction"
+    EXTRACTION: str = "ibformers_all_tasks"
+    # leave for backward compatibility separate classification package
     CLASSIFICATION: str = "ibformers_classification"
 
 

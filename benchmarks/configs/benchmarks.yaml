@@ -94,6 +94,77 @@ medical-records:
     train_file: /home/ib/shared/datasets/benchmarks/benchmarks-ml-studio/medical-records-ml-studio
     extraction_class_name: medical_records
 
+table-extraction-sharp:
+  name: Table extraction
+  hyperparams:
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_table_extraction
+    train_file:
+      - /home/ib/shared/datasets/benchmarks/table-extraction-mlstudio
+    extraction_class_name: Table class
+    metric_for_best_model: null
+    load_best_model_at_end: false
+    per_device_train_batch_size: 2
+    per_device_train_eval_size: 2
+    validation_set_size: 0
+
+table-extraction-fedloan:
+  name: Table extraction
+  hyperparams:
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_table_extraction
+    train_file:
+      - /home/ib/shared/datasets/benchmarks/fedloan-tables
+    extraction_class_name: tables
+    metric_for_best_model: null
+    load_best_model_at_end: false
+    per_device_train_batch_size: 2
+    per_device_train_eval_size: 4
+    validation_set_size: 0
+    lr_scheduler_type: constant_with_warmup
+    learning_rate: 0.00005
+    warmup_ratio: 0
+    weight_decay: 0
+    save_strategy: "no"
+
+table-extraction-with-fields:
+  name: Table extraction
+  hyperparams:
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_table_extraction
+    train_file:
+      - /home/ib/shared/datasets/benchmarks/table-test-with-fields
+    extraction_class_name: tables-and-fields
+    metric_for_best_model: null
+    load_best_model_at_end: false
+    per_device_train_batch_size: 2
+    per_device_train_eval_size: 4
+    validation_set_size: 0
+    lr_scheduler_type: constant_with_warmup
+    learning_rate: 0.00005
+    warmup_ratio: 0
+    weight_decay: 0
+    save_strategy: "no"
+
+table-extraction-scanned:
+  name: Table extraction
+  hyperparams:
+    dataset_name_or_path: ib_extraction
+    dataset_config_name: ib_table_extraction
+    train_file:
+      - /home/ib/shared/datasets/benchmarks/scanned-tables
+    extraction_class_name: table-doc
+    metric_for_best_model: null
+    load_best_model_at_end: false
+    per_device_train_batch_size: 2
+    per_device_train_eval_size: 4
+    validation_set_size: 0
+    lr_scheduler_type: constant_with_warmup
+    learning_rate: 0.00005
+    warmup_ratio: 0
+    weight_decay: 0
+    save_strategy: "no"
+
 funsd:
   name: FUNSD
   hyperparams:

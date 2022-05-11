@@ -82,9 +82,11 @@ class BackboneBase(nn.Module):
 class Backbone(BackboneBase):
     """ResNet backbone with frozen BatchNorm."""
 
-    def __init__(self, name: str, train_backbone: bool, return_interm_layers: bool, dilation: bool):
+    def __init__(self, name: str, train_backbone: bool, return_interm_layers: bool,
+                 dilation: bool, pretrained_backbone: bool):
         backbone = getattr(torchvision.models, name)(
-            replace_stride_with_dilation=[False, False, dilation], pretrained=True, norm_layer=FrozenBatchNorm2d
+            replace_stride_with_dilation=[False, False, dilation],
+            pretrained=pretrained_backbone, norm_layer=FrozenBatchNorm2d
         )
         num_channels = 512 if name in ("resnet18", "resnet34") else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
@@ -110,7 +112,7 @@ def build_backbone(args):
     position_embedding = build_position_encoding(args)
     train_backbone = True  # TODO (BT): maybe this can be disabled, as the backbone is pre-trained on tables
     return_interm_layers = args.masks
-    backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation)
+    backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation, args.pretrained_backbone)
     model = Joiner(backbone, position_embedding)
     model.num_channels = backbone.num_channels
     return model

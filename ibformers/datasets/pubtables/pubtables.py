@@ -1,18 +1,15 @@
 import hashlib
 import json
 import logging
-import multiprocessing
 from collections import Counter
-from enum import Enum
 from pathlib import Path
-from typing import List, Dict, Any, Iterable, Sequence, Tuple, Optional
+from typing import List, Dict, Any, Iterable, Sequence, Optional
 
 import datasets
 import numpy as np
 from datasets import BuilderConfig, DatasetInfo, DownloadManager
 
-from ibformers.data.utils import ImageProcessor
-from ibformers.datasets.ib_common.ib_common import validate_and_fix_bboxes
+from ibformers.datasets.ib_common.ib_common import validate_and_fix_bboxes, ImageProcessingModes, get_image_processor
 from ibformers.datasets.table_utils import (
     CellAnnotation,
     TableAnnotation,
@@ -107,21 +104,18 @@ def read_and_process_pdf_words(pdf_words_path: Path):
     return features_dict
 
 
-class PubTablesProcessingModes(Enum):
-    LAYOUTLM = "LAYOUTLM"
-    DETR = "DETR"
-
-
 class PubTablesConfig(BuilderConfig):
     def __init__(
         self,
         use_image: bool = False,
-        processing_mode: PubTablesProcessingModes = PubTablesProcessingModes.LAYOUTLM,
+        processing_mode: ImageProcessingModes = ImageProcessingModes.LAYOUTLM,
+        image_size: int = 224,
         num_processes: int = 12,
         limit_files: int = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.image_size = image_size
         self.use_image = use_image
         self.processing_mode = processing_mode
         self.num_processes = num_processes
@@ -138,20 +132,23 @@ class PubTables(datasets.GeneratorBasedBuilder):
             name="pubtables",
             version=datasets.Version("1.0.0"),
             description="PubTables dataset",
+            image_size=224,
         ),
         PubTablesConfig(
             name="pubtables_detr",
             version=datasets.Version("1.0.0"),
             description="PubTables dataset",
             use_image=True,
-            processing_mode=PubTablesProcessingModes.DETR,
+            processing_mode=ImageProcessingModes.DETR,
+            image_size=1000,
         ),
         PubTablesConfig(
             name="pubtables_detr_1k",
             version=datasets.Version("1.0.0"),
             description="PubTables dataset",
             use_image=True,
-            processing_mode=PubTablesProcessingModes.DETR,
+            processing_mode=ImageProcessingModes.DETR,
+            image_size=1000,
             limit_files=1000,
         ),
         PubTablesConfig(
@@ -159,17 +156,24 @@ class PubTables(datasets.GeneratorBasedBuilder):
             version=datasets.Version("1.0.0"),
             description="PubTables dataset",
             use_image=True,
-            processing_mode=PubTablesProcessingModes.DETR,
+            processing_mode=ImageProcessingModes.DETR,
+            image_size=1000,
             limit_files=150,
+        ),
+        PubTablesConfig(
+            name="pubtables_detr_15",
+            version=datasets.Version("1.0.0"),
+            description="PubTables dataset",
+            use_image=True,
+            processing_mode=ImageProcessingModes.DETR,
+            image_size=1000,
+            limit_files=15,
         ),
     ]
 
     ANNOTATION_SUBDIR = "PubTables1M-PDF-Annotations-JSON"
     PAGE_WORDS_SUBDIR = "PubTables1M-Page-Words-JSON"
     IMAGE_SUBDIR = "PubTables1M-Detection-PASCAL-VOC/images"
-
-    LAYOUTLM_IMAGE_SIZE = 224
-    DETR_IMAGE_SIZE = 1000
 
     DEFAULT_WRITER_BATCH_SIZE = 8
 
@@ -183,17 +187,7 @@ class PubTables(datasets.GeneratorBasedBuilder):
     def _prepare_image_processor(self):
         if not self.config.use_image:
             return None
-        if self.processing_mode == PubTablesProcessingModes.LAYOUTLM:
-            return ImageProcessor(do_resize=True, size=self.LAYOUTLM_IMAGE_SIZE)
-        if self.processing_mode == PubTablesProcessingModes.DETR:
-            return ImageProcessor(
-                do_resize=True,
-                do_convert_to_detectron=False,
-                size=self.DETR_IMAGE_SIZE,
-                keep_aspect_ratio=True,
-                rescale=True,
-            )
-        # TODO: move to dataset load kwargs
+        return get_image_processor(self.config)
 
     def _info(self) -> DatasetInfo:
         ds_features = {
@@ -248,12 +242,8 @@ class PubTables(datasets.GeneratorBasedBuilder):
         }
         if self.config.use_image:
             # first dimension is defined as a number of pages in the document
-            img_size = (
-                self.LAYOUTLM_IMAGE_SIZE
-                if self.config.processing_mode == PubTablesProcessingModes.LAYOUTLM
-                else self.DETR_IMAGE_SIZE
-            )
-            dtype = "uint8" if self.config.processing_mode == PubTablesProcessingModes.LAYOUTLM else "float32"
+            img_size = 224 if self.config.processing_mode == ImageProcessingModes.LAYOUTLM else 1000
+            dtype = "uint8" if self.config.processing_mode == ImageProcessingModes.LAYOUTLM else "float32"
             ds_features["images"] = datasets.Array4D(shape=(None, 3, img_size, img_size), dtype=dtype)
             ds_features["images_page_nums"] = datasets.Sequence(datasets.Value("int32"))
 
@@ -372,9 +362,9 @@ class PubTables(datasets.GeneratorBasedBuilder):
         return feature_dicts
 
     def _mode_specific_postprocess(self, feature: Dict[str, Any], image_path: Optional[Path]):
-        if self.processing_mode == PubTablesProcessingModes.LAYOUTLM:
+        if self.processing_mode == ImageProcessingModes.LAYOUTLM:
             return self._prepare_feature_for_layoutlm(feature, image_path)
-        if self.processing_mode == PubTablesProcessingModes.DETR:
+        if self.processing_mode == ImageProcessingModes.DETR:
             return self._prepare_feature_for_detr(feature, image_path)
 
     def _prepare_feature_for_detr(self, feature: Dict[str, Any], image_path: Optional[Path]):

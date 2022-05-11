@@ -38,6 +38,7 @@ from ibformers.data.transform.table import (
     calculate_margins,
     normalize_object_bboxes,
     convert_bboxes_to_center_based,
+    prepare_empty_table_data,
 )
 from ibformers.models.automodel_utils import AutoModelForSplitClassification
 from ibformers.models.bbox_masking_models import LayoutLMForMaskedLMAndLayout, LayoutLMForMaskedLMAndLayoutRegression
@@ -93,9 +94,9 @@ def map_column_names(dataset, column_mapping):
     return ds
 
 
-def prepare_dataset(dataset, pipeline, **kwargs):
+def prepare_dataset(dataset, pipeline, use_predict_specific_pipeline=False, **kwargs):
     # preprocess
-    map_fn_lst = pipeline["preprocess"]
+    map_fn_lst = pipeline["preprocess"] if not use_predict_specific_pipeline else pipeline["predict_preprocess"]
     preprocess_kwargs = pipeline.get("preprocess_kwargs", {})
     # add pipeline specific arguments. Keys passed in kwargs will overwrite pipeline specific kwargs
     for k, v in preprocess_kwargs.items():
@@ -207,6 +208,31 @@ table_transformer = {
     "preprocess": [
         calculate_margins,
         prepare_image_and_table_data,
+        normalize_object_bboxes,
+        convert_bboxes_to_center_based,
+    ],
+    "augmenters_kwargs": {"augmenters_list": []},
+    "custom_collate": TableDetrCollator,
+    "column_mapping": [],
+    "model_class": CombinedTableDetrModel,
+    "needs_tokenizer": False,
+    "compute_metrics": get_predictions_for_table_detr,
+    "trainer_class": TableIbTrainer,
+}
+
+
+# image table extraction
+table_transformer_finetune = {
+    "dataset_load_kwargs": {"use_image": True},
+    "preprocess": [
+        calculate_margins,
+        prepare_image_and_table_data,
+        normalize_object_bboxes,
+        convert_bboxes_to_center_based,
+    ],
+    "predict_preprocess": [
+        calculate_margins,
+        prepare_empty_table_data,
         normalize_object_bboxes,
         convert_bboxes_to_center_based,
     ],
@@ -397,4 +423,5 @@ PIPELINES = {
     "plain_text_cls": plain_text_cls,
     "layoutlm_cls": layoutlm_cls,
     "table_transformer": table_transformer,
+    "table_transformer_finetune": table_transformer_finetune,
 }

@@ -3,6 +3,7 @@ import time
 import traceback
 import urllib
 from abc import abstractmethod, ABCMeta
+from enum import Enum
 from io import BytesIO
 from pathlib import Path
 from typing import Tuple, List, Callable, Optional, Union, Any, Dict, Iterable, Type
@@ -107,6 +108,24 @@ class ExtractionMode:
     TABLE = "table"
 
 
+class ImageProcessingModes(Enum):
+    LAYOUTLM = "LAYOUTLM"
+    DETR = "DETR"
+
+
+def get_image_processor(config):
+    if config.processing_mode == ImageProcessingModes.LAYOUTLM:
+        return ImageProcessor(do_resize=True, size=config.image_size)
+    if config.processing_mode == ImageProcessingModes.DETR:
+        return ImageProcessor(
+            do_resize=True,
+            do_convert_to_detectron=False,
+            size=config.image_size,
+            keep_aspect_ratio=True,
+            rescale=True,
+        )
+
+
 class IBDSConfig(IBDSBuilderConfig):
     """
     Config for Instabase Datasets which contain additional attributes related to Doc Pro dataset
@@ -126,10 +145,13 @@ class IBDSConfig(IBDSBuilderConfig):
         extraction_class_name=None,
         norm_bboxes_to_max: bool = False,
         bbox_scale_factor: int = 1000,
-        extraction_mode: str = ExtractionMode.TEXT,
+        extraction_mode: ExtractionMode = ExtractionMode.TEXT,
+        processing_mode: ImageProcessingModes = ImageProcessingModes.LAYOUTLM,
+        image_size: int = 224,
         **kwargs,
     ):
         super(IBDSConfig, self).__init__(**kwargs)
+        self.image_size = image_size
         self.use_image = use_image
         self.ibsdk = ibsdk
         self.id2label = id2label
@@ -138,6 +160,7 @@ class IBDSConfig(IBDSBuilderConfig):
         self.norm_bboxes_to_max = norm_bboxes_to_max
         self.bbox_scale_factor = bbox_scale_factor
         self.extraction_mode = extraction_mode
+        self.processing_mode: ImageProcessingModes = processing_mode
 
     @property
     def label2id(self) -> Optional[Dict[int, str]]:
@@ -203,7 +226,7 @@ class IbDs(datasets.GeneratorBasedBuilder, metaclass=ABCMeta):
 
     @classmethod
     def create_image_processor(cls, config: IBDSConfig) -> Optional[ImageProcessor]:
-        return ImageProcessor(do_resize=True, size=224) if config.use_image else None
+        return ImageProcessor(do_resize=True, size=config.image_size) if config.use_image else None
 
     def _split_generators(self, dl_manager):
         """We handle string, list and dicts in datafiles"""
@@ -266,13 +289,14 @@ def local_read_fn(file: Union[str, Path]) -> bytes:
 
 
 def get_open_fn(ibsdk) -> Callable[[Union[str, Path]], bytes]:
-    return local_read_fn if ibsdk is None else ibsdk.read_file
+    return local_read_fn if ibsdk is None or ibsdk.file_client is None else ibsdk.read_file
 
 
-def get_common_feature_schema(use_image):
+def get_common_feature_schema(config):
     """
     Get common schema for ocr features for Ib datasets
-    :param use_image: whether to add features related to image
+    :param config: config of dataset
+    :param img_size: size of the image
     :return: Dict with schema
     """
     ds_features = {
@@ -289,11 +313,13 @@ def get_common_feature_schema(use_image):
         "word_line_idx": datasets.Sequence(datasets.Value("int32")),
         "word_in_line_idx": datasets.Sequence(datasets.Value("int32")),
         "page_bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
+        "page_original_bboxes": datasets.Array2D(shape=(None, 4), dtype="int32"),
         "page_spans": datasets.Sequence(datasets.Sequence(datasets.Value("int32"), length=2)),
     }
-    if use_image:
+    if config.use_image:
         # first dimension is defined as a number of pages in the document
-        ds_features["images"] = datasets.Array4D(shape=(None, 3, 224, 224), dtype="uint8")
+        dtype = "uint8" if config.processing_mode == ImageProcessingModes.LAYOUTLM else "float32"
+        ds_features["images"] = datasets.Array4D(shape=(None, 3, config.image_size, config.image_size), dtype=dtype)
         ds_features["images_page_nums"] = datasets.Sequence(datasets.Value("int32"))
 
     return ds_features
@@ -307,6 +333,7 @@ def load_datasets(dataset_paths: List[str], ibsdk: Any) -> List["DatasetSDK"]:
     :return: List of DatasetSDK
     """
     # use lazy imports as in model service sdk is not available
+    logging.info(f"start loading dataset: {dataset_paths}")
     try:
         from instabase.dataset_utils.sdk import RemoteDatasetSDK, LocalDatasetSDK
     except ImportError as err:
@@ -352,6 +379,8 @@ def get_image_features(
     page_nums = np.unique(ocr_features["word_page_nums"])
     page_nums.sort()
 
+    logging.info(f"get image features for ocr path: {ocr_path} pages: {page_nums}")
+
     img_lst = []
 
     for page in page_nums:
@@ -389,9 +418,10 @@ def try_get_image_with_paths(img_paths: List[str], open_fn: Any, image_processor
     """
     for img_path in img_paths:
         try:
+            logging.info(f"getting image path: {str(img_path)}")
             img_bytes = open_fn(str(img_path))
             img_file = BytesIO(img_bytes)
-            img_arr = image_processor(img_file).astype(np.uint8)
+            img_arr = image_processor(img_file)
             return img_arr
         except OSError as e:
             continue
@@ -411,7 +441,8 @@ def get_image(img_paths: List[str], open_fn: Any, image_processor: ImageProcesso
     # TODO: remove it once we integrate model-service with datastore - this is temporary workaround
     time_waited = 0
     img_arr = None
-    for i in range(16):
+    # TODO: this is temportary change to check if that is not a reson for timeout
+    for i in range(1):
         try:
             img_arr = try_get_image_with_paths(img_paths, open_fn, image_processor)
             break
@@ -420,6 +451,7 @@ def get_image(img_paths: List[str], open_fn: Any, image_processor: ImageProcesso
             time_waited += 2
 
     if time_waited > 0 and img_arr is not None:
+        raise ValueError(f"no image found at {img_paths}")
         logging.warning(f"Script waited for {time_waited} sec for image {img_paths[0]} to be saved")
 
     return img_arr
@@ -509,6 +541,7 @@ def get_ocr_features(
         "word_line_idx": word_line_idx_arr,
         "word_in_line_idx": word_in_line_idx_arr,
         "page_bboxes": norm_page_bboxes,
+        "page_original_bboxes": page_bboxes,
         "page_spans": page_spans,
     }
 

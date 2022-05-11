@@ -47,10 +47,12 @@ class Instabase:
         )
 
         package_type = package.split("_")[1]
+        if package_type == 'all':
+            package_type = 'extraction'
 
         hyperparams["training_scripts"] = {package_type: {"path": training_script_path}}
 
-        self.logger.debug(f"Starting model training job: {arguments}")
+        self.logger.info(f"Starting model training job: {arguments}")
         async with aiohttp.ClientSession() as session:
             async with session.put(
                 url,

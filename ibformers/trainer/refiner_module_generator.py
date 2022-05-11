@@ -3,7 +3,6 @@ from google.protobuf.json_format import MessageToJson
 from typing import List
 from instabase.protos.ibprog import ibrefiner_prog_pb2
 
-from instabase.training_utils.model_artifact import ModelArtifactContext
 
 _MIN_CONFIDENCE_FIELD_NAME = "__MIN_CONFIDENCE_VALIDATION"
 _MIN_CONFIDENCE_DEFAULT_VALUE = "0.90"
@@ -26,6 +25,7 @@ def _make_refiner_field(label: str, function: str, output_type: str = "") -> ibr
 def _make_run_model_script_contents() -> str:
     return f"""
 import json
+import base64
 from typing import Any, Dict, Union, List, cast
 from ib.market.ib_intelligence.functions import IntelligencePlatform, kwargs_to_ms_params, resolve_input, log
 from instabase.ocr.client.libs.ibocr import ParsedIBOCRBuilder
@@ -37,23 +37,33 @@ ModelResultType = Value[Dict[str, Value[List[FieldType]]]]
 ModelResultNoProvType = Dict[str, List[List[Union[str, float]]]]
 
 def table_result_to_values(result: Any, INPUT_COL: Value[str]) -> ModelResultType:
-    raw_data: bytes = result.get('raw_data', {{}}).get('data', [])
-    json_result = json.loads(raw_data.decode("utf-8"))
+    r_data = result.get('raw_data', {{}}).get('data', b'')
+    json_result = json.loads(base64.b64decode(r_data).decode("utf-8"))
     fields = json_result['fields']
-    results: Dict[str, Any] = {{}}
+    results: Dict[str, Any] = {{'result_type': 'Table', 'avg_confidence': {{}}}}
 
     for field in fields:
+        field_name = field['field_name'] or 'other_tables'
+        results['avg_confidence'][field_name] = []
+        results[field_name] = []
         table_annotations = field['table_annotations']
-        results[field['field_name']] = []
         for table_annotation in table_annotations:
+            results['avg_confidence'][field_name].append(table_annotation.get('avg_confidence', 0))
             row_len, col_len = len(table_annotation['rows']), len(table_annotation['cols'])
             cells = [['' for _ in range(col_len)] for i in range(row_len)]
             for cell in table_annotation['cells']:
                 # TODO(qxie3): handle merge cell
                 # we currently assume start_index == end_index before supporting merge cell
-                cells[cell['row_start_index']][cell['col_start_index']] = INPUT_COL[cell['start_index']:cell['end_index']]
-            results[field['field_name']].append(Value(cells))
-        results[field['field_name']] = Value(results[field['field_name']])
+                # concat list of words
+                index_spans: List[Tuple[int, int]] = cell.get('index_spans') or []
+                cell_words = []
+                for start_index, end_index in index_spans:
+                  cell_words.append(INPUT_COL[start_index:end_index])
+                cells[cell['row_start_index']][cell['col_start_index']] = Value.join(' ', cell_words)
+            results[field_name].append(Value(cells))
+        if not results[field_name]:
+          results[field_name] = [[]] # valid 2D array for refiner table display
+        results[field_name] = Value(results[field_name])
 
     return Value(results)
 
@@ -109,7 +119,7 @@ def get_field(MODEL_RESULT_COL: ModelResultType, field_name: Value[str], **kwarg
   \"\"\"
   if 'result_type' in MODEL_RESULT_COL.value() and MODEL_RESULT_COL.value().get('result_type') == 'Table':
     field_values =  MODEL_RESULT_COL.value().get(field_name.value(), Value([])) 
-    return Value(field_values.value()[0])
+    return Value(field_values.value()[0]) if field_values else Value([])
   else:
     field_values =  MODEL_RESULT_COL.value().get(field_name.value(), Value([]))
     vals = [x.value()[0] for x in field_values.value()]  
@@ -141,12 +151,14 @@ def get_confidence_no_provenance(MODEL_RESULT_COL: ModelResultNoProvType, field_
     Returns the confidence score, between 0 and 1.
 
   \"\"\"
-  field_values = MODEL_RESULT_COL.get(field_name, [])
-  confidences = [ cast(float, conf) for val, conf in field_values ]
-  if len(confidences) == 0:
-    return 'Error: no confidences obtained'
-
-  return average(confidences)
+  if 'result_type' in MODEL_RESULT_COL and MODEL_RESULT_COL.get('result_type') == 'Table':
+    return MODEL_RESULT_COL.get('avg_confidence', {{}}).get(field_name, [])
+  else:
+    field_values = MODEL_RESULT_COL.get(field_name, [])
+    confidences = [ cast(float, conf) for val, conf in field_values ]
+    if len(confidences) == 0:
+      return 'Error: no confidences obtained'
+    return average(confidences)
 
 def get_field_no_provenance(MODEL_RESULT_COL: ModelResultNoProvType, field_name: str, **kwargs) -> str:
   \"\"\"Returns space-joined values of an extracted field
@@ -229,7 +241,7 @@ def register(name_to_fn):
 
 
 def write_refiner_program(
-    context: ModelArtifactContext,
+    context: "ModelArtifactContext",
     ib_model_path: str,
     labels: List[str],
     model_name: str,
@@ -289,6 +301,8 @@ def write_refiner_program(
             "__model_result", f"run_model(INPUT_COL, {_PUBLISHED_MODEL_NAME}, {_PUBLISHED_MODEL_COL_NAME})"
         )
     )
+    if is_table:
+        labels.append("other_tables")
 
     # create fields for each of extracted_fields
     for label in labels:

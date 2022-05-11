@@ -4,6 +4,7 @@ import os
 
 import torch
 from torch import nn, Tensor
+import torch.nn.functional as F
 from typing import Union, Dict, Any, Optional, Callable, List, Tuple, NamedTuple
 
 from torchvision.ops import roi_pool
@@ -27,6 +28,8 @@ class DetrConfig:
 
     def __init__(self, **kwargs):
         self.backbone = kwargs.get("backbone", "resnet18")
+        # do not use pretrained backbone as weights will be replaced by from_pretrained
+        self.pretrained_backbone = kwargs.get("pretrained_backbone", False)
         self.num_classes = kwargs.get("num_classes", 2)
         self.dilation = kwargs.get("dilation", False)
         self.position_embedding = kwargs.get("position_embedding", "sine")
@@ -53,6 +56,8 @@ class DetrConfig:
         self.table_detection_threshold = kwargs.get(
             "table_detection_threshold", DETR_DETECTION_CLASS_THRESHOLDS[DetrDetectionClassNames.TABLE]
         )
+        self.extra_head_num_classes = kwargs.get("extra_head_num_classes", 0)
+        self.extra_loss_coef = kwargs.get("extra_loss_coef", 1)
 
 
 class CombinedTableDetrConfig(PretrainedConfig):
@@ -60,6 +65,8 @@ class CombinedTableDetrConfig(PretrainedConfig):
         # hacky - super's init not called, we only want the serialization methods
         self.detection_config_data = DetrConfig(**detection_config_data).__dict__
         self.structure_config_data = DetrConfig(**structure_config_data).__dict__
+        self.table_label2id = kwargs.get("table_label2id")
+        self.table_id2label = kwargs.get("table_id2label")
 
     @property
     def detection_config(self):
@@ -86,22 +93,36 @@ class CombinedTableDetrModel(PreTrainedLikeMixin):
     config_class = CombinedTableDetrConfig
 
     def __init__(self, config: CombinedTableDetrConfig, **kwargs):
-        super().__init__()
-        self.config = config
+        super().__init__(config)
+
         self.detection_config = self.config.detection_config
         self.structure_config = self.config.structure_config
+
+        if hasattr(config, "table_id2label"):
+            self.detection_config.extra_head_num_classes = len(config.table_label2id)
+        # TODO: add a config option to add additional classifier which will be applied on the transformer outputs
         self.detection_model, self.detection_criterion, self.detection_postprocessors = build_model(
-            config.detection_config
+            self.detection_config
         )
         self.structure_model, self.structure_criterion, self.structure_postprocessors = build_model(
-            config.structure_config
+            self.structure_config
         )
+
+        self.num_table_labels = len(config.table_label2id)
+        self.table_classfier = nn.Linear(config.detection_config.hidden_dim, self.num_table_labels)
 
         self.normalize = R.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         self.inference_mode = False
 
     def inference(self, mode: bool):
         self.inference_mode = mode
+
+    def _init_weights(self, module):
+        std = 0.02
+        if isinstance(module, (nn.Linear, nn.Conv2d, nn.BatchNorm2d)):
+            module.weight.data.normal_(mean=0.0, std=std)
+            if module.bias is not None:
+                module.bias.data.zero_()
 
     def forward(
         self,
@@ -112,33 +133,33 @@ class CombinedTableDetrModel(PreTrainedLikeMixin):
         page_margins=None,
         detection_boxes=None,
         detection_labels=None,
+        table_label_ids=None,
         structure_boxes=None,
         structure_labels=None,
         images=None,
-        table_page_no=None,
+        record_table_page_no=None,
         structure_image_bbox=None,
+        bbox_shift_vector=None,
         **kwargs
     ):
 
+        detection_losses, detection_results = self.forward_detection(
+            page_images, table_page_bbox, detection_boxes, detection_labels, table_label_ids
+        )
+
         # pure prediction case
         if self.inference_mode:
-            detection_losses, detection_results = self.forward_detection(
-                page_images, table_page_bbox, detection_boxes, detection_labels
-            )
             structure_losses, structure_results = self.forward_structure_manual(
                 page_images, detection_results, page_margins
             )
-
         # training/evaluation
         else:
-            detection_losses, detection_results = self.forward_detection(
-                page_images, table_page_bbox, detection_boxes, detection_labels
-            )
             structure_losses, structure_results = self.forward_structure_input(
                 structure_images=structure_images,
                 structure_image_size=structure_image_size,
                 structure_boxes=structure_boxes,
                 structure_labels=structure_labels,
+                bbox_shift_vector=bbox_shift_vector,
             )
 
         total_detection_loss = sum(
@@ -155,21 +176,37 @@ class CombinedTableDetrModel(PreTrainedLikeMixin):
         results = [(d_result, s_result) for d_result, s_result in zip(detection_results, structure_results)]
         return loss, results
 
+    def get_results_from_extra_head(self, out_logits):
+        prob = F.softmax(out_logits, -1)
+        scores, labels = prob.max(-1)
+
+        return (scores, labels)
+
     def forward_detection(
-        self, page_images: NestedTensor, table_page_bbox, detection_boxes=None, detection_labels=None, **kwargs
+        self, page_images: NestedTensor, table_page_bbox, detection_boxes=None, detection_labels=None,
+            table_label_ids=None, **kwargs
     ) -> DetectionModelOutput:
         image_sizes = table_page_bbox[:, [3, 2]]
         mask = torch.ones_like(page_images.mask, dtype=page_images.mask.dtype)
         for i, data in enumerate(image_sizes):
             mask[i, : data[0], : data[1]] = False
-        normalized_images, _ = self.normalize(page_images.tensors)
+        normalized_images, _ = self.normalize(page_images.tensors.to(get_parameter_dtype(self.detection_model)))
         images = NestedTensor(normalized_images * ~mask.unsqueeze(1), mask)
         outputs = self.detection_model(images)
         results = self.detection_postprocessors["bbox"](outputs, image_sizes)
         results = [(r["scores"], r["boxes"], r["labels"]) for r in results]
+
+        # add extra label
+        if self.detection_config.extra_head_num_classes:
+            extra_results = self.get_results_from_extra_head(outputs['pred_extra'])
+            # results += extra_results
+
+            results = [r + (score,) + (label,) for r, score, label in zip(results, extra_results[0], extra_results[1])]
+
         if detection_boxes is not None:
             targets = [
-                {"labels": labels, "boxes": boxes.float()} for labels, boxes in zip(detection_labels, detection_boxes)
+                {"labels": labels, "boxes": boxes.float(), "extra_labels": extra_labels}
+                for labels, boxes, extra_labels in zip(detection_labels, detection_boxes, table_label_ids)
             ]
             loss = self.detection_criterion(outputs, targets)
             return loss, results
@@ -181,17 +218,20 @@ class CombinedTableDetrModel(PreTrainedLikeMixin):
         with torch.no_grad():
             for image, mask, single_output, page_margin in zip(tensors, masks, detection_output, page_margins):
                 image_results: List[DetrPrediction] = []
-                detected_table_bboxes = single_output[1][
-                    (single_output[0] > self.detection_config.table_detection_threshold) & (single_output[2] == 0)
-                ]
-                for bbox in detected_table_bboxes:
+                valid_table_indexes = (single_output[0] > self.detection_config.table_detection_threshold) & (
+                    single_output[2] == 0
+                )
+                detected_table_bboxes = single_output[1][valid_table_indexes]
+                detected_labels = single_output[4][valid_table_indexes]
+
+                for bbox, tab_lab in zip(detected_table_bboxes, detected_labels):
                     input_image, image_size, shift_back_tensor = self.prepare_structure_input(
                         image, mask, bbox, page_margin
                     )
                     structure_output = self.structure_model(input_image)
-                    results = self.structure_postprocessors["bbox"](structure_output, image_size)[0]
+                    results = self.structure_postprocessors["bbox"](structure_output, image_size.to(bbox.device))[0]
                     results["boxes"] += shift_back_tensor
-                    results_list = (results["scores"], results["boxes"], results["labels"])
+                    results_list = (results["scores"], results["boxes"], results["labels"], tab_lab)
                     image_results.append(results_list)
                 batch_results.append(image_results)
         return {}, batch_results
@@ -216,17 +256,13 @@ class CombinedTableDetrModel(PreTrainedLikeMixin):
         return new_image, image_size.unsqueeze(0), shift_back_tensor
 
     def forward_structure_input(
-        self,
-        structure_images,
-        structure_image_size,
-        structure_boxes,
-        structure_labels,
+        self, structure_images, structure_image_size, structure_boxes, structure_labels, bbox_shift_vector
     ) -> StructureModelOutput:
         normalized_images, _ = self.normalize(structure_images.tensors)
         images = NestedTensor(normalized_images, structure_images.mask)
         outputs = self.structure_model(images)
         results = self.structure_postprocessors["bbox"](outputs, structure_image_size[:, :2])
-        results = [[(r["scores"], r["boxes"], r["labels"])] for r in results]
+        results = [[(r["scores"], r["boxes"] - bbox_shift_vector[i], r["labels"])] for i, r in enumerate(results)]
         if structure_boxes is not None:
             targets = [
                 {"labels": labels, "boxes": boxes.float()} for labels, boxes in zip(structure_labels, structure_boxes)

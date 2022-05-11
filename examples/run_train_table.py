@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Optional, Dict, Any
-from ibformers.trainer.docpro_utils import run_train_doc_pro
+from ibformers.trainer.docpro_utils import run_train_table_extraction
 import fire
 import zipfile
 import os
@@ -51,30 +51,30 @@ class InstabaseSDKDummy:
 def run(ds_path, out_path):
     hyperparams = {
         "adam_epsilon": 1e-8,
-        "batch_size": 8.0,
-        "max_length": 512,
+        "batch_size": 2.0,
         "num_train_epochs": 10.0,
-        "learning_rate": 5e-05,
-        "gradient_accumulation_steps": 2,
+        "learning_rate": 1e-04,
+        "gradient_accumulation_steps": 1,
         "max_grad_norm": 1.0,
         "lr_scheduler_type": "constant_with_warmup",
         "use_gpu": True,
         "use_mixed_precision": False,
         "warmup_ratio": 0.0,
         "weight_decay": 0,
-        "model_name": "microsoft/layoutlm-large-uncased",
-        "bbox_augmenter_max_scale": 0.10,
-        "num_train_samples": 5,
+        "model_name": "instabase/table-model-draft-v2",
+        "pipeline_name": "table_transformer_finetune",
+        "label_names": ["detection_boxes", "detection_labels", "table_label_ids", "structure_boxes", "structure_labels"]
     }
+
 
     # ds_path = '/Users/rafalpowalski/python/annotation/UberEatsDataset'
     # out_path = '/Users/rafalpowalski/python/models/test_model'
     sdk = InstabaseSDKDummy(None, "user")
-    run_train_doc_pro(
+    run_train_table_extraction(
         hyperparams=hyperparams,
         dataset_paths=[ds_path],
         save_path=out_path,
-        extraction_class_name="UberEats",
+        extraction_class_name='tables',
         file_client=sdk,
         username="user",
         job_metadata_client=DummyJobStatus(),

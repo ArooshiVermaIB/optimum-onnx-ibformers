@@ -49,8 +49,8 @@ async def run_training_test(
 
     success = False
     hyperparams = test_config["config"]
-    if package == "ibformers_extraction":
-        hyperparams["log_metrics_to_metadata"] = True
+    # workaround to get metrics saved to metadata - we need those to check if these are higher than thresholds
+    hyperparams["log_metrics_to_metadata"] = True
 
     success, job_id = await sdk.start_model_training_task(
         training_script_path=os.path.join(root_path, REMOTE_CODE_PREFIX, remote_code_location),
@@ -523,7 +523,7 @@ async def run_tests(train: bool, inference: bool, test_name: Optional[str], test
                     wait_for=sync_tasks[f"{test_environment}_{package}"],
                     test_name=test_name,
                     root_path=env_config["path"],
-                    remote_code_location=remote_code_location[package],
+                    remote_code_location=remote_code_location[PackageType.EXTRACTION.value],
                     test_config=test_config,
                     package=package,
                 )

@@ -33,7 +33,7 @@ class ImageCollator(BaseCollator):
 
 @dataclass
 class DetrSubImageImageExtractor(CollatorABC):
-    _supported_fields: ClassVar[List[str]] = ["table_page_no", "structure_image_bbox", "images"]
+    _supported_fields: ClassVar[List[str]] = ["record_table_page_no", "structure_image_bbox", "images"]
 
     @property
     def supported_fields(self) -> List[str]:
@@ -48,7 +48,7 @@ class DetrSubImageImageExtractor(CollatorABC):
         table_images = []
         for feature in features:
             subimage_bbox = feature["structure_image_bbox"]
-            page_image = feature["images"][feature["table_page_no"]]
+            page_image = feature["images"][feature["record_table_page_no"]]
             table_image = page_image[:, subimage_bbox[1] : subimage_bbox[3], subimage_bbox[0] : subimage_bbox[2]]
             page_images.append(page_image)
             table_images.append(table_image)

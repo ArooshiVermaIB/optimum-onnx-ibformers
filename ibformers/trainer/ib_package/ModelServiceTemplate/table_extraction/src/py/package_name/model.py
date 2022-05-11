@@ -1,10 +1,15 @@
 import copy
 import json
 import os
-
+import torch
+from ibformers.data.predict_table_ibutils import convert_tables_to_pred_field
 from ibformers.data.collators.collmenter import CollatorWithAugmentation
 from ibformers.data.utils import convert_to_dict_of_lists
 from ibformers.datasets.ib_common import IB_DATASETS
+from instabase.dataset_utils.shared_types import (
+    PredictionFieldDict,
+    IndexedWordDict,
+)
 
 os.environ["HF_DATASETS_OFFLINE"] = "1"
 import sys
@@ -20,9 +25,9 @@ if pth not in sys.path:
 
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Tuple
 
-import torch
+
 from datasets import Dataset
 from instabase.model_service.input_utils import resolve_parsed_ibocr_from_request
 from instabase.model_service.model_cache import Model
@@ -45,6 +50,7 @@ class IbModel(Model):
             self.model_data_path = MODEL_PATH
         else:
             self.model_data_path = model_data_path
+        self.eibsdk = ibsdk
         self.tokenizer: Optional[PreTrainedTokenizerFast] = None
         self.model: Optional[PreTrainedModel] = None
         self.device: Optional[str] = None
@@ -54,7 +60,7 @@ class IbModel(Model):
         self.file_client = get_file_client()
 
     def get_ibsdk(self, username):
-        return InstabaseSDK(file_client=self.file_client, username=username)
+        return InstabaseSDK(file_client=self.file_client, username=username) if self.eibsdk is None else self.eibsdk
 
     @staticmethod
     def load_pipeline_config(path):
@@ -114,7 +120,7 @@ class IbModel(Model):
         word_polys: List["WordPolyDict"] = [i for j in record_joined.get_lines() for i in j]
         return mapper, word_polys, record
 
-    def run(self, request: model_service_pb2.RunModelRequest) -> model_service_pb2.ModelResult:
+    def run(self, request: model_service_pb2.RunModelRequest, ocr_debug_path=None) -> model_service_pb2.ModelResult:
         assert (
             self.tokenizer is not None and self.model is not None
         ), "Trying to run a model that has not yet been loaded"
@@ -129,12 +135,18 @@ class IbModel(Model):
 
         ibsdk = self.get_ibsdk(request.context.username)
         load_kwargs["ibsdk"] = ibsdk
-        if hasattr(self.model.config, "ib_id2label"):
-            id2label = dict((int(key), value) for key, value in self.model.config.ib_id2label.items())
-            load_kwargs["id2label"] = id2label
+        if hasattr(self.model.config, "table_id2label"):
+            id2label = dict((int(key), value) for key, value in self.model.config.table_id2label.items())
+            load_kwargs["table_id2label"] = id2label
 
         # generate prediction item: (full_path, record_index, record, anno)
-        doc_path = request.input_path if request.input_path != "" else record.get_document_path()
+        if ocr_debug_path is not None:
+            doc_path = ocr_debug_path
+        elif request.input_path != "":
+            doc_path = request.input_path
+        else:
+            doc_path = record.get_document_path()
+
         prediction_item = (doc_path, record.get_ibdoc_record_id(), record, None)
 
         # get proper dataset class and config
@@ -153,8 +165,10 @@ class IbModel(Model):
         examples = dataset_class.get_examples_from_model_service([prediction_item], config, image_processor)
 
         if len(examples) == 0:
-          # See assert_valid_record for what makes a record valid.
-          raise ValueError("Found no records to process for inference. Check if input documents have records with valid OCR output.")
+            # See assert_valid_record for what makes a record valid.
+            raise ValueError(
+                "Found no records to process for inference. Check if input documents have records with valid OCR output."
+            )
 
         prediction_schema = dataset_class.get_inference_dataset_features(config)
         data = convert_to_dict_of_lists(examples, examples[0].keys())
@@ -176,29 +190,46 @@ class IbModel(Model):
         assert len(predictions) == 1, "Should output predictions only for one document"
         doc_pred = list(predictions.values())[0]
 
-        entities = []
-        for field, field_pred in doc_pred["entities"].items():
-            for word in field_pred["words"]:
-                token_idx = word["idx"]
-                original_word_poly = word_polys[token_idx]
-                start = mapper.get_index(original_word_poly)
-                if start is None:
-                    raise ValueError(f"start index not found. Word polly: {original_word_poly}")
-                if (
-                    word["raw_word"] != original_word_poly["raw_word"]
-                    and word["raw_word"] != original_word_poly["word"]
-                ):
-                    raise ValueError(
-                        f'Word obtained from the cache ({word["raw_word"]}) '
-                        f'and original word polly ({original_word_poly["raw_word"]}) does not match'
-                    )
+        line_indexes = processed_dataset["word_line_idx"][0]
+        word_in_line_indexes = processed_dataset["word_in_line_idx"][0]
+        indexed_word_mapping = {
+            tuple(ind_wrd): glob_idx for glob_idx, ind_wrd in enumerate(zip(line_indexes, word_in_line_indexes))
+        }
 
-                ner_result = model_service_pb2.NERTokenResult(
-                    content=original_word_poly["word"],
-                    label=field,
-                    score=word["conf"],
-                    start_index=start,
-                    end_index=start + len(original_word_poly["word"]),
-                )
-                entities.append(ner_result)
-        return model_service_pb2.ModelResult(ner_result=model_service_pb2.NERResult(entities=entities))
+        fields = []
+        record_entities = doc_pred["entities"]
+        for field_name, tables in record_entities.items():
+            field = convert_tables_to_pred_field(field_name, tables)
+            add_index_to_field_inplace(field, indexed_word_mapping, word_polys, mapper)
+            fields.append(field)
+        # index_spans=get_index_spans(r, indexed_word_mapping, word_polys, mapper),
+        pred_json = json.dumps({"fields": fields})
+        raw_data = model_service_pb2.RawData(type="Table", data=pred_json.encode("utf-8"))
+        output = model_service_pb2.ModelResult(raw_data=raw_data)
+
+        return output
+
+
+def add_index_to_field_inplace(
+    field: PredictionFieldDict, indexed_word_mapping: Dict, word_polys: Any, mapper: Any
+) -> PredictionFieldDict:
+    for tab in field["table_annotations"]:
+        for cell in tab["cells"]:
+            ind_spans = get_index_spans(cell["words"], indexed_word_mapping, word_polys, mapper)
+            cell["index_spans"] = ind_spans
+
+
+def get_index_spans(
+    ind_words: List[IndexedWordDict], indexed_word_mapping: Dict, word_polys: Any, mapper: Any
+) -> List[Tuple[int, int]]:
+    index_spans = []
+    wrds = []
+    for ind_word in ind_words:
+        global_w_index = indexed_word_mapping[(ind_word["line_index"], ind_word["word_index"])]
+        original_word_poly = word_polys[global_w_index]
+        start_index = mapper.get_index(original_word_poly)
+        end_index = start_index + len(original_word_poly["word"])
+        index_spans.append((start_index, end_index))
+        wrds.append(original_word_poly["word"])
+
+    return index_spans

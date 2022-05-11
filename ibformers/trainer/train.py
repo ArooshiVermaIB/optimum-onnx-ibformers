@@ -179,6 +179,7 @@ def run_train(
     compute_metrics = pipeline["compute_metrics"]
     load_kwargs = pipeline["dataset_load_kwargs"]
     model_class = pipeline["model_class"]
+    predict_specific_pipeline_present = "predict_preprocess" in pipeline
     if extra_load_kwargs is not None:
         load_kwargs.update(extra_load_kwargs)
 
@@ -273,10 +274,17 @@ def run_train(
         else:
             joint_test_predict = test_dataset
 
-        joint_test_predict = prepare_dataset(joint_test_predict, pipeline, **map_kwargs)
+        if not predict_specific_pipeline_present:
+            joint_test_predict = prepare_dataset(joint_test_predict, pipeline, **map_kwargs)
 
-        test_dataset = joint_test_predict.filter(lambda x: x["id"] in test_ids)
-        predict_dataset = joint_test_predict
+            test_dataset = joint_test_predict.filter(lambda x: x["id"] in test_ids)
+            predict_dataset = joint_test_predict
+
+        else:
+            test_dataset = prepare_dataset(test_dataset, pipeline, **map_kwargs)
+            predict_dataset = prepare_dataset(
+                joint_test_predict, pipeline, use_predict_specific_pipeline=True, **map_kwargs
+            )
 
     config_kwargs = prepare_config_kwargs(train_dataset if training_args.do_train else eval_dataset, training_args)
 

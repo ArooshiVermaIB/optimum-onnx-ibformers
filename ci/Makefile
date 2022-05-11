@@ -7,5 +7,5 @@ run-docker-test:
 
 run-docker-publish:
 	# example: IB_TEST_ENV=doc-insights-sandbox make run-docker-publish
-	docker run --rm -t ibformers-ci:latest ci.publish --environment $(IB_TEST_ENV) --package ibformers_extraction
+	docker run --rm -t ibformers-ci:latest ci.publish --environment $(IB_TEST_ENV) --package ibformers_all_tasks
 	docker run --rm -t ibformers-ci:latest ci.publish --environment $(IB_TEST_ENV) --package ibformers_classification
