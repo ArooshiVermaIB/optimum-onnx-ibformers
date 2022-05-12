@@ -71,6 +71,7 @@ def process_document_page(
     page_table_annos: List[TableAnnotation] = []
     page_metrics = []
     for i, (example, prediction, label) in enumerate(zip(valid_examples, valid_predictions, valid_labels)):
+        record_page_no = example["record_table_page_no"]
         detect_predictions, structure_predictions = prediction
         for structure_prediction in structure_predictions:
             pred_boxes = structure_prediction[1]
@@ -122,7 +123,7 @@ def process_document_page(
                 expanded_cells,
                 scaled_table_bbox,
                 example,
-                page_no,
+                record_page_no,
                 i,
                 pred_label_id,
                 label_list,
@@ -135,18 +136,6 @@ def process_document_page(
 
 
 def get_scaled_table_contents(pred_table_structures, pred_cells, table_bbox, example, page_no):
-    img = np.copy(example["images"][0][0])
-
-    for col in pred_table_structures["columns"]:
-        bb = [int(c) for c in col["bbox"]]
-        img[bb[1] : bb[3], bb[0] : bb[0] + 2] = 0
-        img[bb[1] : bb[3], bb[2] : bb[2] + 2] = 0
-
-    for row in pred_table_structures["rows"]:
-        bb = [int(c) for c in row["bbox"]]
-        img[bb[1] : bb[1] + 2, bb[0] : bb[2]] = 0
-        img[bb[3] : bb[3] + 2, bb[0] : bb[2]] = 0
-
     scale_factor = example["page_original_bboxes"][page_no][-1] / example["table_page_bbox"][-1]
     scaled_table_structures = {}
     for structure_name, structures in pred_table_structures.items():
@@ -298,5 +287,3 @@ def make_cell_predicitons(cells, page_no):
 
 def make_indexed_words(cell):
     return [(cell_span["line_num"], cell_span["word_in_line"]) for cell_span in cell["spans"]]
-
-

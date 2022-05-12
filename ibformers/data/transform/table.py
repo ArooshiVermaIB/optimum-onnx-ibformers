@@ -37,17 +37,22 @@ def prepare_image_and_table_data(example: Dict, **kwargs):
 
     for page_no in example["images_page_nums"]:
         record_table_page_no = example["images_page_nums"].index(page_no)
-        tables_within_page = [table for table in list_of_tables if is_table_in_page(table, page_no)]
+        # table annotations have shifted page numbers, so we use record page number
+        tables_within_page = [table for table in list_of_tables if is_table_in_page(table, record_table_page_no)]
 
         # getting some negative examples. Not sure if necessary though
         if len(tables_within_page) == 0:
             yield get_empty_table_anno(example, page_no)
             continue
 
-        all_page_table_objects = [extract_page_table_objects(table, page_no) for table in tables_within_page]
+        # table annotations have shifted page numbers, so we use record page number
+        all_page_table_objects = [
+            extract_page_table_objects(table, record_table_page_no) for table in tables_within_page
+        ]
         detection_labels = prepare_detection_labels(all_page_table_objects)
 
         for page_table_objects in all_page_table_objects:
+            # images use original page numbers, so we use raw page number
             table_subimage_bbox, bbox_shift_vector, margin = prepare_table_subimage(
                 example, page_table_objects, page_no
             )
@@ -92,9 +97,11 @@ def get_empty_table_anno(example, page_no):
 
 
 def extract_page_table_objects(table: Dict[str, Any], page_no: int) -> Dict[str, Any]:
-    page_compare_fn = lambda x: x["page_idx"] == page_no
+    all_table_pages = list(range(table["start_page_index"], table["end_page_index"] + 1))
+    page_no_within_table = all_table_pages.index(page_no)
+    page_compare_fn = lambda x: x["page_idx"] == page_no_within_table
     return {
-        "table_bbox": table["table_bboxes"][page_no],
+        "table_bbox": table["table_bboxes"][page_no_within_table],
         "rows": _filter_dict_items(table["rows"], page_compare_fn),
         "columns": _filter_dict_items(table["columns"], page_compare_fn),
         "cells": _filter_dict_items(table["cells"], page_compare_fn),
@@ -114,7 +121,7 @@ def prepare_detection_labels(all_page_table_objects: List[Dict[str, Any]]) -> Di
     return {
         "raw_detection_boxes": np.array(table_bboxes),
         "detection_labels": [DETR_DETECTION_CLASS_MAP[DetrDetectionClassNames.TABLE]] * len(table_bboxes),
-        "table_label_ids": table_label_ids
+        "table_label_ids": table_label_ids,
     }
 
 
