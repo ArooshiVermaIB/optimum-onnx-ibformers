@@ -15,9 +15,15 @@
       "ibformers"
     ],
     "task_endpoints": {
-      "extraction": {"function": "ibformers.trainer.docpro_utils.run_train_doc_pro"},
-      "classification": {"function": "ibformers.trainer.docpro_utils.run_train_both_classification"},
-      "table": {"function": "ibformers.trainer.docpro_utils.run_train_table_extraction"}
+      "extraction": {
+        "function": "ibformers.trainer.docpro_utils.run_train_doc_pro"
+      },
+      "classification": {
+        "function": "ibformers.trainer.docpro_utils.run_train_both_classification"
+      },
+      "table": {
+        "function": "ibformers.trainer.docpro_utils.run_train_table_extraction"
+      }
     },
     "function": "ibformers.trainer.docpro_utils.run_train_doc_pro_depracated",
     "function_annotator": "",
@@ -162,7 +168,7 @@
           "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "max_no_annotation_examples_share": 0.5,
-          "model_name":"bert-base-uncased",
+          "model_name": "bert-base-uncased",
           "pipeline_name": "single_qa",
           "early_stopping_patience": 0,
           "validation_set_size": 0.0,
@@ -234,6 +240,8 @@
           "use_mixed_precision": true,
           "warmup_ratio": 0.0,
           "weight_decay": 0,
+          "npages_to_filter": 20,
+          "class_weights_ins_power": 0.2,
           "task_type": "classification",
           "model_name": "bert-base-uncased",
           "pipeline_name": "plain_text_cls"
@@ -253,6 +261,8 @@
           "use_mixed_precision": true,
           "warmup_ratio": 0.0,
           "weight_decay": 0,
+          "npages_to_filter": 20,
+          "class_weights_ins_power": 0.2,
           "task_type": "classification",
           "model_name": "microsoft/layoutlm-base-uncased",
           "pipeline_name": "layoutlm_cls"
@@ -272,6 +282,7 @@
           "use_mixed_precision": true,
           "warmup_ratio": 0.0,
           "weight_decay": 0,
+          "class_weights_ins_power": 0.2,
           "model_name": "microsoft/layoutlm-base-uncased",
           "task_type": "split_classification",
           "pipeline_name": "layoutlm_sc"
@@ -292,10 +303,10 @@
           "model_name": "instabase/table-model-draft-v2",
           "pipeline_name": "table_transformer_finetune",
           "label_names": [
-              "detection_boxes",
-              "detection_labels",
-              "structure_boxes",
-              "structure_labels"
+            "detection_boxes",
+            "detection_labels",
+            "structure_boxes",
+            "structure_labels"
           ]
         }
       }
@@ -435,7 +446,7 @@
           "warmup_ratio": 0.3,
           "weight_decay": 0.001,
           "max_no_annotation_examples_share": 0.5,
-          "model_name":"bert-base-uncased",
+          "model_name": "bert-base-uncased",
           "pipeline_name": "single_qa",
           "early_stopping_patience": 0,
           "validation_set_size": 0.0,

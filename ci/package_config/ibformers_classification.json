@@ -30,6 +30,8 @@
           "use_mixed_precision": true,
           "warmup_ratio": 0.0,
           "weight_decay": 0,
+          "npages_to_filter": 20,
+          "class_weights_ins_power": 0.2,
           "task_type": "classification",
           "model_name": "bert-base-uncased",
           "pipeline_name": "plain_text_cls"
@@ -48,6 +50,8 @@
           "use_mixed_precision": true,
           "warmup_ratio": 0.0,
           "weight_decay": 0,
+          "npages_to_filter": 20,
+          "class_weights_ins_power": 0.2,
           "task_type": "classification",
           "model_name": "microsoft/layoutlm-base-uncased",
           "pipeline_name": "layoutlm_cls"
@@ -66,6 +70,7 @@
           "use_mixed_precision": true,
           "warmup_ratio": 0.0,
           "weight_decay": 0,
+          "class_weights_ins_power": 0.2,
           "model_name": "microsoft/layoutlm-base-uncased",
           "task_type": "split_classification",
           "pipeline_name": "layoutlm_sc"
