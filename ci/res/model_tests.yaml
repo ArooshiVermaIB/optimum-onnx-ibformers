@@ -63,7 +63,7 @@ NYDriversLicensesHPSearch:
     - dogfood
   model_project_path: ml_studio_models/driver_licenses
   dataset_project_path: ml_studio_datasets/driver_licenses
-  time_limit: 1200
+  time_limit: 1800
   config:
     <<: *defaults
     num_train_epochs: 2
@@ -75,11 +75,6 @@ NYDriversLicensesHPSearch:
         choices:
           - 1
           - 2
-      - name: warmup_ratio
-        type: categorical
-        choices:
-          - 0.0
-          - 0.1
   metrics:
     precision:
       DL Number: 0.0
@@ -99,7 +94,7 @@ NYDriversLicensesHPSearchProd:
     - prod
   model_project_path: ml_studio_models_prod/driver_licenses
   dataset_project_path: ml_studio_datasets_prod/driver_licenses
-  time_limit: 1200
+  time_limit: 1800
   config:
     <<: *defaults
     num_train_epochs: 2
@@ -111,11 +106,6 @@ NYDriversLicensesHPSearchProd:
         choices:
           - 1
           - 2
-      - name: warmup_ratio
-        type: categorical
-        choices:
-          - 0.0
-          - 0.1
   metrics:
     precision:
       DL Number: 0.0
@@ -137,7 +127,7 @@ NYDriversLicensesV2:
     - uat
   model_project_path: ml_studio_models/driver_licenses
   dataset_project_path: ml_studio_datasets/driver_licenses
-  time_limit: 1800 # 20 minutes
+  time_limit: 1800 # 30 minutes
   config:
     <<: *defaults
     num_train_epochs: 10
