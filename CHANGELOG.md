@@ -2,11 +2,15 @@
 
 All notable changes to this repository will be documented in this file.
 
-## Unreleased
+## 1.1.0 - 2022-05-12
 
-## Added
+### Added
+- Added a model/pipeline for table extraction - DETR-based table tranformer
 - Added ce_ins loss type to classifier and split classififer
 - Added logic to filter first n pages for classification
+
+### Fixed
+- Fix the bug related to order of records which do not correspond to page order
 
 ## [1.0.6] - 2022-04-19
 ### Fixed
