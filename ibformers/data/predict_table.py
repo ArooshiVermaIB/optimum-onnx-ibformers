@@ -57,7 +57,11 @@ def get_predictions_for_table_detr(predictions: Tuple, dataset: Dataset):
         )
         ents = [p.to_json() for p in page_annotations]
         ents_per_label = {lab: [e for e in ents if e["table_label_name"] == lab] for lab in label_list}
-        predictions[doc_id] = {"is_test_file": are_test_files[idx], "entities": ents_per_label}
+        if doc_id not in predictions:
+            predictions[doc_id] = {"is_test_file": are_test_files[idx], "entities": ents_per_label}
+        else:
+            for label, entities in ents_per_label.items():
+                predictions[doc_id]["entities"][label].extend(entities)
         metrics.extend(page_metrics)
     metrics = convert_to_dict_of_lists(metrics, metrics[0].keys()) if len(metrics) > 0 else {}
     metrics = {k: np.mean(np.nan_to_num(v)) for k, v in metrics.items()}
@@ -216,6 +220,8 @@ def get_page_tokens(example, page_no):
     word_page_nums = np.array(example["word_page_nums"])
     valid_boxes = boxes[word_page_nums == page_no]
     valid_words = words[word_page_nums == page_no]
+    valid_word_line_idxs = word_line_idxs[word_page_nums == page_no]
+    valid_word_in_line_idxs = word_in_line_idxs[word_page_nums == page_no]
     return [
         {
             "bbox": bbox.tolist(),
@@ -227,7 +233,7 @@ def get_page_tokens(example, page_no):
             "word_in_line": word_in_line,
         }
         for i, (bbox, text, word_line, word_in_line) in enumerate(
-            zip(valid_boxes, valid_words, word_line_idxs, word_in_line_idxs)
+            zip(valid_boxes, valid_words, valid_word_line_idxs, valid_word_in_line_idxs)
         )
     ]
 

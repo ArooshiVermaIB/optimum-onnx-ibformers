@@ -99,7 +99,7 @@ def get_empty_table_anno(example, page_no):
 def extract_page_table_objects(table: Dict[str, Any], page_no: int) -> Dict[str, Any]:
     all_table_pages = list(range(table["start_page_index"], table["end_page_index"] + 1))
     page_no_within_table = all_table_pages.index(page_no)
-    page_compare_fn = lambda x: x["page_idx"] == page_no_within_table
+    page_compare_fn = lambda x: x["page_idx"] == page_no
     return {
         "table_bbox": table["table_bboxes"][page_no_within_table],
         "rows": _filter_dict_items(table["rows"], page_compare_fn),

@@ -172,7 +172,7 @@ table-extraction-multi-page:
     dataset_name_or_path: ib_extraction
     dataset_config_name: ib_table_extraction
     train_file:
-      - /home/ib/shared/datasets/benchmarks/multi-page-tabless
+      - /home/ib/shared/datasets/benchmarks/multi-page-tables
     extraction_class_name: table
     metric_for_best_model: null
     load_best_model_at_end: false

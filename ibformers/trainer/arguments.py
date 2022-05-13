@@ -234,7 +234,7 @@ class DataArguments:
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     preprocessing_batch_size: Optional[int] = field(
-        default=None,
+        default=4,
         metadata={"help": "Batch size (number of examples) to use for the preprocessing."},
     )
     max_train_samples: Optional[int] = field(
@@ -293,7 +293,6 @@ class DataArguments:
             "selected."
         },
     )
-
 
     def __post_init__(self):
         if (
