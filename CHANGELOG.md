@@ -2,6 +2,10 @@
 
 All notable changes to this repository will be documented in this file.
 
+# 1.1.1 - 2022-05-12
+### Fixed
+- Set default writer_batch_size to 4 to avoid OOMs
+
 ## 1.1.0 - 2022-05-12
 
 ### Added
