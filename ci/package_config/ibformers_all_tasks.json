@@ -30,6 +30,31 @@
     "all_tasks_base_models": [
       {
         "task": "extraction",
+        "name": "instalm_base",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "gradient_accumulation_steps": 2,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 15,
+          "learning_rate": 5e-05,
+          "lr_scheduler_type": "constant_with_warmup",
+          "use_mixed_precision": true,
+          "warmup_ratio": 0.3,
+          "weight_decay": 0.001,
+          "loss_type": "ce_ins",
+          "class_weights_ins_power": 0.3,
+          "max_no_annotation_examples_share": 0.7,
+          "pipeline_name": "layoutlm_sl",
+          "model_name": "instabase/instalm-base-draft",
+          "early_stopping_patience": 0,
+          "validation_set_size": 0.0,
+          "do_hyperparam_optimization": false,
+          "hp_search_num_trials": 20
+        }
+      },
+      {
+        "task": "extraction",
         "name": "layout_base",
         "default_hyperparameters": {
           "batch_size": 2,
@@ -130,31 +155,6 @@
       },
       {
         "task": "extraction",
-        "name": "instalm_base",
-        "default_hyperparameters": {
-          "batch_size": 2,
-          "gradient_accumulation_steps": 2,
-          "max_length": 512,
-          "chunk_overlap": 64,
-          "num_train_epochs": 15,
-          "learning_rate": 5e-05,
-          "lr_scheduler_type": "constant_with_warmup",
-          "use_mixed_precision": true,
-          "warmup_ratio": 0.3,
-          "weight_decay": 0.001,
-          "loss_type": "ce_ins",
-          "class_weights_ins_power": 0.3,
-          "max_no_annotation_examples_share": 0.7,
-          "pipeline_name": "layoutlm_sl",
-          "model_name": "instabase/instalm-base-draft",
-          "early_stopping_patience": 0,
-          "validation_set_size": 0.0,
-          "do_hyperparam_optimization": false,
-          "hp_search_num_trials": 20
-        }
-      },
-      {
-        "task": "extraction",
         "name": "SingleQA_base",
         "default_hyperparameters": {
           "batch_size": 2,
@@ -228,27 +228,6 @@
       },
       {
         "task": "classification",
-        "name": "bert_base",
-        "default_hyperparameters": {
-          "batch_size": 2,
-          "gradient_accumulation_steps": 2,
-          "max_length": 512,
-          "chunk_overlap": 64,
-          "num_train_epochs": 10,
-          "learning_rate": 5e-05,
-          "lr_scheduler_type": "constant_with_warmup",
-          "use_mixed_precision": true,
-          "warmup_ratio": 0.0,
-          "weight_decay": 0,
-          "npages_to_filter": 20,
-          "class_weights_ins_power": 0.2,
-          "task_type": "classification",
-          "model_name": "bert-base-uncased",
-          "pipeline_name": "plain_text_cls"
-        }
-      },
-      {
-        "task": "classification",
         "name": "layout_base",
         "default_hyperparameters": {
           "batch_size": 2,
@@ -286,6 +265,27 @@
           "model_name": "microsoft/layoutlm-base-uncased",
           "task_type": "split_classification",
           "pipeline_name": "layoutlm_sc"
+        }
+      },
+      {
+        "task": "classification",
+        "name": "bert_base",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "gradient_accumulation_steps": 2,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 10,
+          "learning_rate": 5e-05,
+          "lr_scheduler_type": "constant_with_warmup",
+          "use_mixed_precision": true,
+          "warmup_ratio": 0.0,
+          "weight_decay": 0,
+          "npages_to_filter": 20,
+          "class_weights_ins_power": 0.2,
+          "task_type": "classification",
+          "model_name": "bert-base-uncased",
+          "pipeline_name": "plain_text_cls"
         }
       },
       {
