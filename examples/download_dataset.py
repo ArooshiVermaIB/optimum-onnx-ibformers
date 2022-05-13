@@ -69,7 +69,12 @@ async def download_and_save_file(sdk: Instabase, file_path: Path, root_path: Pat
         content = await sdk.read_binary(file_path)
     else:
         content = await sdk.read_file(file_path)
-    output_file_path = output_path / Path(file_path).relative_to(root_path)
+    if 'out_annotations' in Path(file_path).parts:
+        idx = Path(file_path).parts.index("out_annotations")
+        relative_path = Path(*Path(file_path).parts[idx:])
+    else:
+        relative_path = Path(file_path).relative_to(root_path)
+    output_file_path = output_path / relative_path
     output_file_path.parent.mkdir(exist_ok=True, parents=True)
     if binary:
         output_file_path.write_bytes(content)
