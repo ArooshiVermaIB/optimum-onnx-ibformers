@@ -416,6 +416,7 @@ def try_get_image_with_paths(img_paths: List[str], open_fn: Any, image_processor
     :param image_processor: ImageProcessor used to process the image to array
     :return: image array if image was found else raise OSError
     """
+    errors = []
     for img_path in img_paths:
         try:
             logging.info(f"getting image path: {str(img_path)}")
@@ -424,9 +425,10 @@ def try_get_image_with_paths(img_paths: List[str], open_fn: Any, image_processor
             img_arr = image_processor(img_file)
             return img_arr
         except OSError as e:
+            errors.append(str(e))
             continue
 
-    raise e
+    raise OSError("\n".join(errors))
 
 
 def get_image(img_paths: List[str], open_fn: Any, image_processor: ImageProcessor) -> np.ndarray:
@@ -442,17 +444,19 @@ def get_image(img_paths: List[str], open_fn: Any, image_processor: ImageProcesso
     time_waited = 0
     img_arr = None
     # TODO: this is temportary change to check if that is not a reson for timeout
-    for i in range(1):
+    image_try_error = ""
+    for i in range(16):
         try:
             img_arr = try_get_image_with_paths(img_paths, open_fn, image_processor)
             break
-        except OSError:
+        except OSError as e:
+            image_try_error = str(e)
             time.sleep(2)
             time_waited += 2
 
     if time_waited > 0 and img_arr is not None:
-        raise ValueError(f"no image found at {img_paths}")
         logging.warning(f"Script waited for {time_waited} sec for image {img_paths[0]} to be saved")
+        raise ValueError(f"no image found at {img_paths}. Image try error messages: \n\t {image_try_error}")
 
     return img_arr
 
