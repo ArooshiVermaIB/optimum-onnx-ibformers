@@ -49,6 +49,8 @@ from ibformers.models.layv1mqa import LayMQAForTokenClassification
 from ibformers.models.layv1splinter import LayoutSplinterModel
 from ibformers.models.table_detr import CombinedTableDetrModel
 from ibformers.trainer.table_trainer import TableIbTrainer
+from ibformers.third_party.layoutlmv3.data import DataCollatorForKeyValueExtraction
+from ibformers.third_party.layoutlmv3 import LayoutLMv3ForTokenClassification
 
 
 def chain(example_batch, fn_lst, **kwargs):
@@ -139,6 +141,17 @@ layoutlmv2_sl = {
     "preprocess_kwargs": {"chunking_strategy": "SINGLE_PAGES"},
     "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox"), ("images", "image")],
     "augmenters_kwargs": {"augmenters_list": ["bbox"]},
+    "model_class": AutoModelForTokenClassification,
+    "compute_metrics": compute_legacy_metrics_for_sl,
+}
+
+layoutlmv3_sl = {
+    "dataset_load_kwargs": {"use_image": True},
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, produce_chunks],
+    "custom_collate": DataCollatorForKeyValueExtraction,
+    "preprocess_kwargs": {"chunking_strategy": "SINGLE_PAGES"},
+    "column_mapping": [("token_label_ids", "labels"), ("bboxes", "bbox")],
+    "augmenters_kwargs": {"augmenters_list": []},
     "model_class": AutoModelForTokenClassification,
     "compute_metrics": compute_legacy_metrics_for_sl,
 }
@@ -403,6 +416,7 @@ layoutlm_cls = {
 PIPELINES = {
     "layoutlm_sl": layoutlm_sl,
     "layoutlmv2_sl": layoutlmv2_sl,
+    "layoutlmv3_sl": layoutlmv3_sl,
     "layoutxlm_sl": layoutxlm_sl,
     "laymqav1": laymqav1,
     "from_docvqa_to_mqa": from_docvqa_to_mqa,

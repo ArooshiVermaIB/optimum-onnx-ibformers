@@ -73,6 +73,11 @@ def tokenize(example_batch: Dict, tokenizer: PreTrainedTokenizer, **kwargs):
             example_batch["token_label_ids"], encodings["word_map"], encodings["word_starts"]
         )
 
+    if "bio_token_label_ids" in example_batch:
+        encodings["bio_token_label_ids"] = spread_with_first_token(
+            example_batch["bio_token_label_ids"], encodings["word_map"], encodings["word_starts"]
+        )
+
     if "answer_token_label_ids" in example_batch:
         encodings["answer_token_label_ids"] = spread_with_first_token(
             example_batch["answer_token_label_ids"], encodings["word_map"], encodings["word_starts"]

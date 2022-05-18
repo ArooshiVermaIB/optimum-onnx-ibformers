@@ -56,8 +56,22 @@ class FundEntityRecord(TypedDict):
     words: List[FundWordRecord]
 
 
+def get_line_bbox(bboxs):
+    x = [bboxs[i][j] for i in range(len(bboxs)) for j in range(0, len(bboxs[i]), 2)]
+    y = [bboxs[i][j] for i in range(len(bboxs)) for j in range(1, len(bboxs[i]), 2)]
+
+    x0, y0, x1, y1 = min(x), min(y), max(x), max(y)
+
+    assert x1 >= x0 and y1 >= y0
+    bbox = [[x0, y0, x1, y1] for _ in range(len(bboxs))]
+    return bbox
+
+
 def create_features_from_fund_file_content(
-    file_contents: List[FundEntityRecord], image_size: Tuple[int, int], label2id: Dict[str, int]
+    file_contents: List[FundEntityRecord],
+    image_size: Tuple[int, int],
+    label2id: Dict[str, int],
+    consider_line_segments: bool = False,
 ) -> Dict[str, Any]:
     """
     Extract features from FUNSD/XFUND documents data.
@@ -66,7 +80,9 @@ def create_features_from_fund_file_content(
         file_contents: List of dictionaries with document data.
         image_size: Tuple of page dimensions, used for bbox normalization
         label2id: mapping of label names to label ids
-
+        consider_line_segments: whether to consider the bbox to be line segment level
+        instead of indiviual word level. This has shown to improve the f1 score, and is used in layoutlmv3 like here:
+        https://github.com/microsoft/unilm/blob/925de7a9ea500e992ec5de02ea193a5eb9d5aa26/layoutlmv3/layoutlmft/data/funsd.py#L129
     Returns:
         Processed features.
     """
@@ -89,6 +105,7 @@ def create_features_from_fund_file_content(
 
     word_id_counter = 0
     for item in file_contents:
+        cur_line_bboxes = []
         words_example, label = item["words"], item["label"]
         label = label.upper()
         words_example = [w for w in words_example if w["text"].strip() != ""]
@@ -99,7 +116,7 @@ def create_features_from_fund_file_content(
                 features["words"].append(w["text"])
                 features["token_label_ids"].append("O")
                 features["bio_token_label_ids"].append("O")
-                features["bboxes"].append(normalize_bbox(w["box"], image_size))
+                cur_line_bboxes.append(normalize_bbox(w["box"], image_size))
                 features["word_original_bboxes"].append(w["box"])
                 features["word_page_nums"].append(0)
                 word_id_counter += 1
@@ -110,7 +127,7 @@ def create_features_from_fund_file_content(
             features["words"].append(words_example[0]["text"])
             features["token_label_ids"].append(label)
             features["bio_token_label_ids"].append("B-" + label)
-            features["bboxes"].append(normalize_bbox(words_example[0]["box"], image_size))
+            cur_line_bboxes.append(normalize_bbox(words_example[0]["box"], image_size))
             features["word_original_bboxes"].append(words_example[0]["box"])
             features["word_page_nums"].append(0)
             word_id_counter += 1
@@ -118,12 +135,15 @@ def create_features_from_fund_file_content(
                 features["words"].append(w["text"])
                 features["token_label_ids"].append(label)
                 features["bio_token_label_ids"].append("I-" + label)
-                features["bboxes"].append(normalize_bbox(w["box"], image_size))
+                cur_line_bboxes.append(normalize_bbox(w["box"], image_size))
                 features["word_original_bboxes"].append(w["box"])
                 features["word_page_nums"].append(0)
                 word_id_counter += 1
             entity_dict["token_spans"].append([start_word_id, word_id_counter])
             entity_dict["text"] += f" {entity_text}"
+        if consider_line_segments:
+            cur_line_bboxes = get_line_bbox(cur_line_bboxes)
+        features["bboxes"].extend(cur_line_bboxes)
     features["entities"] = list(entity_dicts.values())
 
     features["bboxes"] = np.array(features["bboxes"])

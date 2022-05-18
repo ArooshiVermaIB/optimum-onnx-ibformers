@@ -10,6 +10,7 @@ KEYS_TO_CHUNK = [
     "input_ids",
     "bboxes",
     "token_label_ids",
+    "bio_token_label_ids",
     "offset_mapping",
     "word_starts",
     "word_map",
@@ -222,6 +223,10 @@ def get_chunks(example, tokenizer, chunk_ranges, save_memory=True) -> Sequence[M
         if "token_label_ids" in chunk:
             chunk_processed["token_label_ids"] = fill_special_tokens(
                 chunk["token_label_ids"], content_tokens_mask, -100
+            )
+        if "bio_token_label_ids" in chunk:
+            chunk_processed["bio_token_label_ids"] = fill_special_tokens(
+                chunk["bio_token_label_ids"], content_tokens_mask, -100
             )
         if "answer_token_label_ids" in chunk:
             chunk_processed["answer_token_label_ids"] = fill_special_tokens(

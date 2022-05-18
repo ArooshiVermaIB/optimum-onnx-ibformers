@@ -12,6 +12,7 @@ All notable changes to this repository will be documented in this file.
 - Added a model/pipeline for table extraction - DETR-based table tranformer
 - Added ce_ins loss type to classifier and split classififer
 - Added logic to filter first n pages for classification
+- Added layoutlm v3 pipeline for extraction
 
 ### Fixed
 - Fix the bug related to order of records which do not correspond to page order

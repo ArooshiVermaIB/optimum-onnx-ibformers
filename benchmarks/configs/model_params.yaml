@@ -86,3 +86,13 @@ microsoft/layoutlmv2-large-uncased:
     per_device_train_eval_size: 2
     gradient_accumulation_steps: 4
     pipeline_name: layoutlmv2_sl
+
+microsoft/layoutlmv3-base:
+  name: layoutv3_base
+  hyperparams:
+    <<: *defaults
+    per_device_train_batch_size: 2
+    per_device_train_eval_size: 2
+    gradient_accumulation_steps: 4
+    fp16: false
+    pipeline_name: layoutlmv3_sl
