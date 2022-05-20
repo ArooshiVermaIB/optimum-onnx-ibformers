@@ -5,8 +5,9 @@ All notable changes to this repository will be documented in this file.
 # Unreleased 
 
 ### Fixed
-- Fixed memory issue caused by improper image handling in table data preprocessing
 
+- Fixed memory issue caused by improper image handling in table data preprocessing
+- Fixed incorrect calculation of exact match metric for document without annotated fields
 
 # 1.1.1 - 2022-05-12
 ### Fixed

@@ -4,12 +4,11 @@ from typing import Tuple, List, Mapping, Dict, Optional, Union, Any
 import numpy as np
 import pandas as pd
 from datasets import Dataset
-from ibformers.data.chunk import NO_SPLIT_IDX, SPLIT_IDX
+from sklearn.metrics import classification_report, accuracy_score
 
+from ibformers.data.chunk import NO_SPLIT_IDX, SPLIT_IDX
 from ibformers.data.predict import get_predictions_for_sl, get_predictions_for_cls, get_predictions_for_sc
 from ibformers.data.predict_qa import get_predictions_for_qa
-
-from sklearn.metrics import classification_report, accuracy_score
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +21,16 @@ def iou_score(
         if t == "O":
             continue
         if (t not in y_pred) and (t not in y_true):
-            result[t] = np.nan
+            result[t] = 1.0
             continue
         elif (t not in y_pred) or (t not in y_true):
             result[t] = 0.0
             continue
         a = set(y_pred[t])
         b = set(y_true[t])
-        _union = len(a.union(b))
-        _intersection = len(a.intersection(b))
-        result[t] = (_intersection / _union) if _union > 0 else np.nan
+        union = len(a.union(b))
+        intersection = len(a.intersection(b))
+        result[t] = (intersection / union) if union > 0 else 1.0
     return result
 
 
@@ -82,7 +81,7 @@ def compute_legacy_metrics(label_list: List[str], pred_dict: Dict[str, Any]) -> 
         k: {"true_positives": 0, "total_positives": 0, "total_true": 0} for k in label_list if k != "O"
     }
 
-    doc_level_results: List[Mapping[str, int]] = []
+    doc_level_iou: List[Mapping[str, float]] = []
     for y_true, y_pred in zip(ground_truths, pred_words):
         # Throw away the confidence number
         for t in label_list:
@@ -94,15 +93,13 @@ def compute_legacy_metrics(label_list: List[str], pred_dict: Dict[str, Any]) -> 
             token_level[t]["total_true"] += len(b)
             token_level[t]["true_positives"] += len(a.intersection(b))
         iou = iou_score(y_true, y_pred, label_list)
-        doc_level_results.append(iou)
+        doc_level_iou.append(iou)
 
-    df = pd.DataFrame(doc_level_results)
-
+    iou_df = pd.DataFrame(doc_level_iou)
     # TODO: Add other metrics and make customizable
     doc_level_metrics: Mapping[str, Mapping[str, float]] = {
-        "exact_match": (df == 1).mean().fillna("NAN").to_dict(),  # type: ignore
+        "exact_match": (iou_df == 1).mean().to_dict(),  # type: ignore
     }
-    overall_accuracy = (df == 1).mean().mean()  # type: ignore
 
     token_level_df = pd.DataFrame(token_level).T
     token_level_df["precision"] = token_level_df.true_positives / token_level_df.total_positives

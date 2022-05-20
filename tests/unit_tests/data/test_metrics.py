@@ -31,7 +31,33 @@ class TestMetrics(unittest.TestCase):
         iou_score = metrics.iou_score(y_true, y_pred, all_tags)
 
         # verify
-        expected = {"e1": np.nan, "e2": np.nan}
+        expected = {"e1": 1.0, "e2": 1.0}
+        self.assertDictEqual(iou_score, expected)
+
+    def test_iou_score_missing_prediction(self):
+        # given
+        y_true = {"e1": [1, 2]}
+        y_pred = {"e1": []}
+        all_tags = ["e1"]
+
+        # then
+        iou_score = metrics.iou_score(y_true, y_pred, all_tags)
+
+        # verify
+        expected = {"e1": 0.0}
+        self.assertDictEqual(iou_score, expected)
+
+    def test_iou_score_missing_label(self):
+        # given
+        y_true = {"e1": []}
+        y_pred = {"e1": [1, 2]}
+        all_tags = ["e1"]
+
+        # then
+        iou_score = metrics.iou_score(y_true, y_pred, all_tags)
+
+        # verify
+        expected = {"e1": 0.0}
         self.assertDictEqual(iou_score, expected)
 
     def test_calculate_average_metrics(self):
