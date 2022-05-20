@@ -9,7 +9,7 @@ from transformers import (
     AutoModelForSequenceClassification,
 )
 
-from ibformers.data.chunk import produce_chunks, pairer
+from ibformers.data.chunk import pairer_batches, produce_chunks, pairer
 from ibformers.data.collators.collators.composite import TableDetrCollator
 from ibformers.data.metrics import (
     compute_legacy_metrics_for_sl,
@@ -390,6 +390,16 @@ layoutlm_sc = {
     "compute_metrics": compute_metrics_for_sc,
 }
 
+layoutlm_sc_augmented = {
+    "dataset_load_kwargs": {},
+    "preprocess": [tokenize, norm_bboxes_for_layoutlm, pairer_batches],
+    "column_mapping": [],
+    "preprocess_kwargs": {"preprocessing_batch_size": 16},
+    "augmenters_kwargs": {"augmenters_list": []},
+    "model_class": AutoModelForSplitClassification,
+    "compute_metrics": compute_metrics_for_sc,
+}
+
 plain_text_cls = {
     "dataset_load_kwargs": {},
     # tokenizer is passed to pipeline externally: in train.run_train tokenizer is passed to map_kwargs,
@@ -434,6 +444,7 @@ PIPELINES = {
     "docvqa_splinter_sl": docvqa_splinter_sl,
     "layoutlm_mlm_bm_regresssion_positionless": layoutlm_mlm_bm_regresssion_positionless,
     "layoutlm_sc": layoutlm_sc,
+    "layoutlm_sc_augmented": layoutlm_sc_augmented,
     "plain_text_cls": plain_text_cls,
     "layoutlm_cls": layoutlm_cls,
     "table_transformer": table_transformer,

@@ -244,6 +244,10 @@ class DataArguments:
             "value if set."
         },
     )
+    shuffle_train: bool = field(
+        default=False,
+        metadata={"help": "Shuffle the training examples before preprocessing it"},
+    )
     max_eval_samples: Optional[int] = field(
         default=None,
         metadata={

@@ -59,6 +59,7 @@ from ibformers.trainer.hp_search.optimize import optimize_hyperparams
 
 check_min_version("4.12.3")
 from ibformers.trainer.train_utils import (
+    force_types_into_dataclasses,
     prepare_config_kwargs,
     get_default_parser,
     save_pipeline_args,
@@ -143,6 +144,17 @@ def run_train(
     extra_callbacks=None,
     extra_load_kwargs=None,
 ):
+    # Explicitly cast integer type dataclass attributes, which sometimes are loaded as float
+    force_types_into_dataclasses(
+        model_args,
+        data_args,
+        prep_args,
+        training_args,
+        ib_args,
+        augmenter_args,
+        extra_model_args,
+    )
+
     if extra_load_kwargs is None:
         extra_load_kwargs = dict()
     # Setup logging
@@ -221,7 +233,6 @@ def run_train(
         "num_proc": data_args.preprocessing_num_workers,
         "load_from_cache_file": not data_args.overwrite_cache,
         "batch_size": data_args.preprocessing_batch_size,
-        "fn_kwargs": fn_kwargs,
     }
 
     if training_args.do_train or training_args.do_hyperparam_optimization:
@@ -239,7 +250,11 @@ def run_train(
 
         if data_args.max_train_samples is not None:
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
+        if data_args.shuffle_train:
+            train_dataset = train_dataset.shuffle(training_args.seed)
         with training_args.main_process_first(desc="train dataset map pre-processing"):
+            fn_kwargs_for_split = {"split_name": "train", **fn_kwargs}
+            map_kwargs["fn_kwargs"] = fn_kwargs_for_split
             train_dataset = prepare_dataset(train_dataset, pipeline, **map_kwargs)
         if data_args.max_train_samples is not None:
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
@@ -251,6 +266,8 @@ def run_train(
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
         # with training_args.main_process_first(desc="validation dataset map pre-processing"):
+        fn_kwargs_for_split = {"split_name": "validation", **fn_kwargs}
+        map_kwargs["fn_kwargs"] = fn_kwargs_for_split
         eval_dataset = prepare_dataset(eval_dataset, pipeline, **map_kwargs)
 
     if training_args.do_predict:
@@ -275,13 +292,19 @@ def run_train(
             joint_test_predict = test_dataset
 
         if not predict_specific_pipeline_present:
+            fn_kwargs_for_split = {"split_name": "predict_test", **fn_kwargs}
+            map_kwargs["fn_kwargs"] = fn_kwargs_for_split
             joint_test_predict = prepare_dataset(joint_test_predict, pipeline, **map_kwargs)
 
             test_dataset = joint_test_predict.filter(lambda x: x["id"] in test_ids)
             predict_dataset = joint_test_predict
 
         else:
+            fn_kwargs_for_split = {"split_name": "test", **fn_kwargs}
+            map_kwargs["fn_kwargs"] = fn_kwargs_for_split
             test_dataset = prepare_dataset(test_dataset, pipeline, **map_kwargs)
+            fn_kwargs_for_split = {"split_name": "predict_test", **fn_kwargs}
+            map_kwargs["fn_kwargs"] = fn_kwargs_for_split
             predict_dataset = prepare_dataset(
                 joint_test_predict, pipeline, use_predict_specific_pipeline=True, **map_kwargs
             )

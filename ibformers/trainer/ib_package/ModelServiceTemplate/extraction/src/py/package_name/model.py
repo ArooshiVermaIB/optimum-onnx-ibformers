@@ -153,8 +153,10 @@ class IbModel(Model):
         examples = dataset_class.get_examples_from_model_service([prediction_item], config, image_processor)
 
         if len(examples) == 0:
-          # See assert_valid_record for what makes a record valid.
-          raise ValueError("Found no records to process for inference. Check if input documents have records with valid OCR output.")
+            # See assert_valid_record for what makes a record valid.
+            raise ValueError(
+                "Found no records to process for inference. Check if input documents have records with valid OCR output."
+            )
 
         prediction_schema = dataset_class.get_inference_dataset_features(config)
         data = convert_to_dict_of_lists(examples, examples[0].keys())
@@ -166,7 +168,7 @@ class IbModel(Model):
             "num_proc": 1,
             "load_from_cache_file": False,
             "keep_in_memory": True,
-            "fn_kwargs": fn_kwargs,
+            "fn_kwargs": {"split_name": "predict", **fn_kwargs},
         }
 
         processed_dataset = prepare_dataset(predict_dataset, self.pipeline, **map_kwargs)

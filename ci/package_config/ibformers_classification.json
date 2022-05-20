@@ -57,6 +57,28 @@
         }
       },
       {
+        "name": "layout_split_classifier_aug",
+        "default_hyperparameters": {
+          "batch_size": 2,
+          "gradient_accumulation_steps": 2,
+          "max_length": 512,
+          "chunk_overlap": 64,
+          "num_train_epochs": 5,
+          "learning_rate": 5e-05,
+          "lr_scheduler_type": "constant_with_warmup",
+          "use_mixed_precision": true,
+          "warmup_ratio": 0.0,
+          "weight_decay": 0,
+          "class_weights_ins_power": 0.2,
+          "model_name": "microsoft/layoutlm-base-uncased",
+          "task_type": "split_classification",
+          "pipeline_name": "layoutlm_sc_augmented",
+          "shuffle_train": true,
+          "permute_records_for_split": true,
+          "max_augmentation_factor": 50
+        }
+      },
+      {
         "name": "bert_base",
         "default_hyperparameters": {
           "batch_size": 2,

@@ -4,7 +4,7 @@ from typing import List, Sequence, Any, Mapping, Tuple, Dict
 import numpy as np
 from transformers import PreTrainedTokenizer
 
-from ibformers.data.utils import feed_single_example_and_flatten
+from ibformers.data.utils import feed_batch_yield_examples, feed_single_example_and_flatten
 
 KEYS_TO_CHUNK = [
     "input_ids",
@@ -293,30 +293,72 @@ def get_model_inp(input_ids, bboxes, tokenizer, max_length=512):
     return encodings
 
 
-@feed_single_example_and_flatten
-def pairer(example: Dict, tokenizer: PreTrainedTokenizer, max_length: int = 512, save_memory: bool = True, **kwargs):
-    """Creates a page pair feature for splitting and classification"""
-    page_spans = example["page_spans"]
-    record_page_ranges = example["record_page_ranges"]
-    class_ids = example["class_label"]
-    bboxes = example["bboxes"]
-    input_ids = example["input_ids"]
+class DocAbstractionForSplit:
+    def __init__(self, example: Dict, tokenizer, max_length):
+        self.example = example
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.max_tokens = max_length - 2
+        self.last_token_slice = slice(-self.max_tokens, None)
+        self.first_token_slice = slice(None, self.max_tokens)
 
-    max_tokens = max_length - 2
-    last_token_slice = slice(-max_tokens, None)
-    first_token_slice = slice(None, max_tokens)
+    def get_encoding_for_page(self, page_idx, left_page=True):
+        page_span = self.example["page_spans"][page_idx]
+        page_slice = slice(*page_span)
+        if left_page:
+            token_slice = self.last_token_slice
+        else:
+            token_slice = self.first_token_slice
+        input_ids = self.example["input_ids"][page_slice][token_slice]
+        bboxes = self.example["bboxes"][page_slice][token_slice]
+
+        return get_model_inp(input_ids, bboxes, self.tokenizer, self.max_length)
+
+    def class_label_at_record(self, record_idx):
+        return self.example["class_label"][record_idx]
+
+
+def _get_final_split_classifier_feature(
+    example,
+    current_encodings,
+    next_encodings,
+    page_idx,
+    split_label,
+    class_label,
+    save_memory,
+):
+    feature = {
+        "page": page_idx,
+        "input_ids": current_encodings["input_ids"],
+        "bboxes": current_encodings["bboxes"],
+        "attention_mask": current_encodings["attention_mask"],
+        "next_input_ids": next_encodings["input_ids"],
+        "next_bboxes": next_encodings["bboxes"],
+        "next_attention_mask": next_encodings["attention_mask"],
+        "sc_labels": [split_label, class_label],
+    }
+
+    if save_memory:
+        empty_global = {k: get_empty_like(v) for k, v in example.items() if k not in feature}
+        return {**empty_global, **feature}
+    else:
+        return {**example, **feature}
+
+
+def _create_split_examples(
+    example: Dict, tokenizer: PreTrainedTokenizer, max_length: int = 512, save_memory: bool = True
+):
+    """Create split and no split examples with class labels as annotated in the document"""
+    record_page_ranges = example["record_page_ranges"]
+    doc_abstraction = DocAbstractionForSplit(example, tokenizer, max_length)
 
     last_page_num = np.array(record_page_ranges).max()
 
     for idx, (start, end) in enumerate(record_page_ranges):
+        class_label = doc_abstraction.class_label_at_record(idx)
         for page_idx in range(start, end + 1):
-            page_span = page_spans[page_idx]
-            page_slice = slice(*page_span)
-            class_label = class_ids[idx]
-            current_input_ids = input_ids[page_slice][last_token_slice]
-            current_bboxes = bboxes[page_slice][last_token_slice]
 
-            current_encodings = get_model_inp(current_input_ids, current_bboxes, tokenizer, max_length)
+            current_encodings = doc_abstraction.get_encoding_for_page(page_idx)
 
             # End of record case - needs to be split
             if page_idx == end:
@@ -325,33 +367,160 @@ def pairer(example: Dict, tokenizer: PreTrainedTokenizer, max_length: int = 512,
                 if page_idx == last_page_num:
                     next_encodings = get_model_inp([], [], tokenizer, max_length)
                 else:
-                    next_page_span = page_spans[page_idx + 1]
-                    next_page_slice = slice(*next_page_span)
-                    next_input_ids = input_ids[next_page_slice][first_token_slice]
-                    next_bboxes = bboxes[next_page_slice][first_token_slice]
-                    next_encodings = get_model_inp(next_input_ids, next_bboxes, tokenizer, max_length)
+                    next_encodings = doc_abstraction.get_encoding_for_page(page_idx + 1, left_page=False)
             # Same record - no need to split
             else:
                 split_label = NO_SPLIT_IDX
-                next_page_span = page_spans[page_idx + 1]
-                next_page_slice = slice(*next_page_span)
-                next_input_ids = input_ids[next_page_slice][first_token_slice]
-                next_bboxes = bboxes[next_page_slice][first_token_slice]
-                next_encodings = get_model_inp(next_input_ids, next_bboxes, tokenizer, max_length)
+                next_encodings = doc_abstraction.get_encoding_for_page(page_idx + 1, left_page=False)
 
-            new_dict = {
-                "page": page_idx,
-                "input_ids": current_encodings["input_ids"],
-                "bboxes": current_encodings["bboxes"],
-                "attention_mask": current_encodings["attention_mask"],
-                "next_input_ids": next_encodings["input_ids"],
-                "next_bboxes": next_encodings["bboxes"],
-                "next_attention_mask": next_encodings["attention_mask"],
-                "sc_labels": [split_label, class_label],
-            }
+            yield _get_final_split_classifier_feature(
+                example, current_encodings, next_encodings, page_idx, split_label, class_label, save_memory
+            )
 
-            if save_memory:
-                empty_global = {k: get_empty_like(v) for k, v in example.items() if k not in new_dict}
-                yield {**empty_global, **new_dict}
-            else:
-                yield {**example, **new_dict}
+
+def _create_split_examples_across_two_docs(
+    example_current: Dict,
+    example_next: Dict,
+    tokenizer: PreTrainedTokenizer,
+    max_length: int = 512,
+    save_memory: bool = True,
+    max_augmentation_factor: int = 50,
+):
+    """Create split only examples across a document pair : example_current, example_next"""
+
+    record_page_ranges_current = example_current["record_page_ranges"]
+    record_page_ranges_next = example_next["record_page_ranges"]
+
+    doc_current = DocAbstractionForSplit(example_current, tokenizer, max_length)
+    doc_next = DocAbstractionForSplit(example_next, tokenizer, max_length)
+
+    split_label = SPLIT_IDX
+    num_examples_yielded = 0
+
+    for idx_cur, (start_cur, end_cur) in enumerate(record_page_ranges_current):
+        for idx_next, (start_next, end_next) in enumerate(record_page_ranges_next):
+
+            # Create split sample from last_page of record -> idx_cur in example_current
+            # and first page of record -> idx_next in example_next i.e (end_cur, start_next)
+            current_encodings = doc_current.get_encoding_for_page(end_cur)
+            next_encodings = doc_next.get_encoding_for_page(start_next, left_page=False)
+            class_label = doc_current.class_label_at_record(idx_cur)
+
+            if num_examples_yielded < max_augmentation_factor:
+                yield _get_final_split_classifier_feature(
+                    example_current, current_encodings, next_encodings, end_cur, split_label, class_label, save_memory
+                )
+                num_examples_yielded += 1
+
+            # Create split sample from last_page of record -> idx_next in example_next
+            # and first page of record -> idx_cur in example_current i.e (end_next, start_cur)
+            current_encodings = doc_next.get_encoding_for_page(end_next)
+            next_encodings = doc_current.get_encoding_for_page(start_cur, left_page=False)
+            class_label = doc_next.class_label_at_record(idx_next)
+
+            if num_examples_yielded < max_augmentation_factor:
+                yield _get_final_split_classifier_feature(
+                    example_next, current_encodings, next_encodings, end_next, split_label, class_label, save_memory
+                )
+                num_examples_yielded += 1
+
+
+def _permute_records_for_split(
+    example: Dict,
+    tokenizer: PreTrainedTokenizer,
+    max_length: int = 512,
+    save_memory: bool = True,
+    max_augmentation_factor: int = 50,
+):
+    record_page_ranges = example["record_page_ranges"]
+    doc_abstraction = DocAbstractionForSplit(example, tokenizer, max_length)
+
+    split_label = SPLIT_IDX
+    num_examples_yielded = 0
+
+    num_records = len(record_page_ranges)
+
+    for record_i in range(num_records):
+        for record_j in range(num_records):
+            start_cur, end_cur = record_page_ranges[record_i]
+            start_next, end_next = record_page_ranges[record_j]
+
+            if record_j != record_i + 1 or record_i != record_j:
+                # We dont consider the case for record_j == record_i + 1, since this sample is already
+                # added in the _create_split_examples function
+
+                # Also for record_i == record_j, we just add the split example of last page and
+                # first page once to avoid repitition
+
+                # Create split sample from last_page of record_i in example
+                # and first page of record_j in example i.e (end_cur, start_next)
+                current_encodings = doc_abstraction.get_encoding_for_page(end_cur)
+                next_encodings = doc_abstraction.get_encoding_for_page(start_next, left_page=False)
+                class_label = doc_abstraction.class_label_at_record(record_i)
+
+                if num_examples_yielded < max_augmentation_factor:
+                    yield _get_final_split_classifier_feature(
+                        example, current_encodings, next_encodings, end_cur, split_label, class_label, save_memory
+                    )
+                    num_examples_yielded += 1
+
+            # Create split sample from last_page of record_j in example
+            # and first page of record_i in example i.e (end_next, start_cur)
+            current_encodings = doc_abstraction.get_encoding_for_page(end_next)
+            next_encodings = doc_abstraction.get_encoding_for_page(start_cur, left_page=False)
+            class_label = doc_abstraction.class_label_at_record(record_j)
+
+            if num_examples_yielded < max_augmentation_factor:
+                yield _get_final_split_classifier_feature(
+                    example, current_encodings, next_encodings, end_next, split_label, class_label, save_memory
+                )
+                num_examples_yielded += 1
+
+
+@feed_single_example_and_flatten
+def pairer(
+    example: Dict,
+    tokenizer: PreTrainedTokenizer,
+    split_name: str,
+    permute_records_for_split: bool = False,
+    max_length: int = 512,
+    save_memory: bool = True,
+    max_augmentation_factor: int = 50,
+    **kwargs,
+):
+    """Creates a page pair feature for splitting and classification"""
+    yield from _create_split_examples(example, tokenizer, max_length, save_memory)
+    if permute_records_for_split and "train" in split_name:
+        yield from _permute_records_for_split(example, tokenizer, max_length, save_memory, max_augmentation_factor)
+
+
+@feed_batch_yield_examples
+def pairer_batches(
+    example: List[Dict],
+    tokenizer: PreTrainedTokenizer,
+    split_name: str,
+    permute_records_for_split: bool = False,
+    max_length: int = 512,
+    save_memory: bool = True,
+    max_augmentation_factor: int = 50,
+    **kwargs,
+):
+    """Creates a page pair feature for splitting and classification with augmentation for splitter"""
+    len_of_batch = len(example)
+
+    for idx in range(len_of_batch):
+        # Normal samples from annotation same as above fn pairer
+        yield from _create_split_examples(example[idx], tokenizer, max_length, save_memory)
+        # Permute records within a document to create more split examples
+        if permute_records_for_split and "train" in split_name:
+            yield from _permute_records_for_split(
+                example[idx], tokenizer, max_length, save_memory, max_augmentation_factor
+            )
+
+    # Augmented samples from combinations across the batch only for training split
+    if "train" in split_name:
+        for i in range(len_of_batch - 1):
+            for j in range(i + 1, len_of_batch):
+                yield from _create_split_examples_across_two_docs(
+                    example[i], example[j], tokenizer, max_length, save_memory, max_augmentation_factor
+                )

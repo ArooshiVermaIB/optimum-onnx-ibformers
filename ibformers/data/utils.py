@@ -144,6 +144,32 @@ def feed_batch(fn):
     return update_batch
 
 
+def feed_batch_yield_examples(fn: Callable[[Mapping[str, List[Any]]], Sequence[Mapping[str, List[Any]]]]):
+    """
+    Examples processed by map method of hf/datasets are processed in batches.
+    This is a helper function/decorator to use if you want to get single examples instead of
+    whole batch, applied function is fed by single example, but can return multiple examples e.g. chunking, augmentation
+    :param fn: function to decorate
+    :return: batch of examples updated with function results
+    """
+
+    @wraps(fn)
+    def split_batch(batch, **kwargs) -> Dict[str, List[Any]]:
+        list_of_dicts = convert_to_list_of_dicts(batch)
+        final_outs = []
+        outs: List[Mapping[str, Any]] = list(fn(list_of_dicts, **kwargs))
+        for out in outs:
+            if not out:
+                continue
+            final_outs.append(out)
+        out_keys = [] if len(final_outs) == 0 else list(final_outs[0].keys())
+        dict_of_lists = convert_to_dict_of_lists(final_outs, out_keys)
+        batch.update(dict_of_lists)
+        return batch
+
+    return split_batch
+
+
 def convert_to_dict_of_lists(list_of_dicts, keys):
     v = {k: [dic[k] for dic in list_of_dicts] for k in keys}
     return v

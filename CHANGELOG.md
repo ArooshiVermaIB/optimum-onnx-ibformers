@@ -4,6 +4,9 @@ All notable changes to this repository will be documented in this file.
 
 # Unreleased 
 
+### Added
+- Added data augmentation for split classifier, with a new pipeline
+
 ### Fixed
 
 - Fixed memory issue caused by improper image handling in table data preprocessing

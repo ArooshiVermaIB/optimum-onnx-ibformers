@@ -143,7 +143,7 @@ class IbModel(Model):
             "num_proc": 1,
             "load_from_cache_file": False,
             "keep_in_memory": True,
-            "fn_kwargs": fn_kwargs,
+            "fn_kwargs": {"split_name": "predict", **fn_kwargs},
         }
 
         processed_dataset = prepare_dataset(predict_dataset, self.pipeline, **map_kwargs)

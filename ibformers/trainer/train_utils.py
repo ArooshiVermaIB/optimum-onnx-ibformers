@@ -2,7 +2,7 @@ import hashlib
 import json
 import logging
 import os
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from typing import Dict, List
 
 import numpy as np
@@ -232,11 +232,11 @@ def get_class_weights_for_sc(ds: Dataset, training_args: EnhancedTrainingArgumen
         split_labels = [x[0] for x in sc_labels]
         split_weights = [1.0] * 2
         for split_idx, freq in zip(*np.unique(split_labels, return_counts=True)):
-            split_weights[split_idx] = 1 / (freq ** training_args.class_weights_ins_power)
+            split_weights[split_idx] = 1 / (freq**training_args.class_weights_ins_power)
         class_labels = [x[1] for x in sc_labels]
         class_weights = [1.0] * num_labels
         for class_idx, freq in zip(*np.unique(class_labels, return_counts=True)):
-            class_weights[class_idx] = 1 / (freq ** training_args.class_weights_ins_power)
+            class_weights[class_idx] = 1 / (freq**training_args.class_weights_ins_power)
 
     return class_weights, split_weights
 
@@ -246,7 +246,7 @@ def prepare_config_kwargs(ds: Dataset, training_args: EnhancedTrainingArguments)
     Function prepares a dictionary of parameters suited to given dataset.
     Additonal kwargs will be passed to the model config for extraction or classification task
     """
-    label_names = ["labels", "class_label", "token_label_ids", 'tables']
+    label_names = ["labels", "class_label", "token_label_ids", "tables"]
     features = ds.features
     if not any(label in features for label in label_names):
         return dict()
@@ -287,7 +287,7 @@ def prepare_config_kwargs(ds: Dataset, training_args: EnhancedTrainingArguments)
             split_weights=split_weights,
         )
     elif "tables" in features:
-        table_label_list = features["tables"].feature['table_label_id'].names
+        table_label_list = features["tables"].feature["table_label_id"].names
         if len(table_label_list) > 1:
             table_label2id = {l: i for i, l in enumerate(table_label_list)}
             table_id2label = {i: lab for lab, i in table_label2id.items()}
@@ -325,3 +325,12 @@ def save_pipeline_args(
 
     with open(os.path.join(save_path, filename), "w", encoding="utf-8") as writer:
         json.dump(save_dict, writer, indent=2, sort_keys=True)
+
+
+def force_types_into_dataclasses(*dataclass_objs):
+    for obj in dataclass_objs:
+        field_types = {field.name: field.type for field in fields(obj)}
+        for fname, ftype in field_types.items():
+            val = getattr(obj, fname)
+            if ftype is int and val is not None:
+                setattr(obj, fname, val)
