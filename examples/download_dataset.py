@@ -69,7 +69,7 @@ async def download_and_save_file(sdk: Instabase, file_path: Path, root_path: Pat
         content = await sdk.read_binary(file_path)
     else:
         content = await sdk.read_file(file_path)
-    if 'out_annotations' in Path(file_path).parts:
+    if "out_annotations" in Path(file_path).parts:
         idx = Path(file_path).parts.index("out_annotations")
         relative_path = Path(*Path(file_path).parts[idx:])
     else:
@@ -137,6 +137,8 @@ async def _ml_studio(sdk: Instabase, cfg: DownloaderConfig):
     dataset_content = json.loads(dataset_text)
     dataset_dir = dataset_content["docs_path"]
     annotations_dir = dataset_content["annotations_folder_path"]
+    if annotations_dir is None:
+        annotations_dir = "out_annotations/annotations"
 
     annotations_list = await sdk.list_directory(cfg.input_path / annotations_dir)
     anno_file_list = [cfg.input_path / annotations_dir / f for f in annotations_list]

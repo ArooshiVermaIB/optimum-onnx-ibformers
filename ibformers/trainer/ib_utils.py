@@ -2,28 +2,25 @@ import json
 import logging
 import math
 import os
+import shutil
 import tempfile
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Dict, Optional, Any, Iterable, Tuple, List
 
 import boto3
-import shutil
-import zipfile
-
 from transformers import TrainerCallback
 from typing_extensions import TypedDict
 
 from instabase.content.filehandle import ibfile
 from instabase.content.filehandle_lib.ibfile_lib import IBFileBase, default_max_write_size
 from instabase.storage.fileservice import FileService
-from instabase.utils.rpc.file_client import ThriftGRPCFileClient
-
 # imports for unzipping functionality
 from instabase.utils.concurrency import executors
 from instabase.utils.concurrency.types import LocalThreadConfig
 from instabase.utils.path.ibpath import join
-
+from instabase.utils.rpc.file_client import ThriftGRPCFileClient
 
 logger = logging.getLogger(__name__)
 
@@ -379,10 +376,11 @@ def _abspath(relpath: str) -> str:
     return os.path.join(dirpath, relpath)
 
 
-HYPERPARAM_TO_HF_MAP = {"batch_size": "per_device_train_batch_size",
-                            "use_mixed_precision": "fp16",
-                            "model_name": "model_name_or_path"
-                            }
+HYPERPARAM_TO_HF_MAP = {
+    "batch_size": "per_device_train_batch_size",
+    "use_mixed_precision": "fp16",
+    "model_name": "model_name_or_path",
+}
 
 
 def prepare_ib_params(
@@ -471,7 +469,7 @@ def prepare_ib_params(
             out_dict["lr_scheduler_type"] = scheduler_type
 
     if "pipeline_name" not in hyperparams:
-        logging.warning('Please explicitly add pipeline_name parameter')
+        logging.warning("Please explicitly add pipeline_name parameter")
         model_name = hyperparams["model_name"]
         if "layoutlmv2" in model_name.lower():
             pipeline_name = "layoutlmv2_sl"
@@ -480,11 +478,11 @@ def prepare_ib_params(
         elif "layoutlm" in model_name.lower():
             pipeline_name = "layoutlm_sl"
         else:
-            raise ValueError('pipeline_name cannot be inferred from the model name')
-        out_dict['pipeline_name'] = pipeline_name
+            raise ValueError("pipeline_name cannot be inferred from the model name")
+        out_dict["pipeline_name"] = pipeline_name
 
     # cast to int - front end is breaking some of hyperparameters
-    for par in ('batch_size', 'gradient_accumulation_steps', 'max_length', 'chunk_overlap'):
+    for par in ("batch_size", "gradient_accumulation_steps", "max_length", "chunk_overlap", "preprocessing_batch_size"):
         if par in hyperparams:
             hyperparams[par] = int(hyperparams[par])
 
@@ -492,7 +490,6 @@ def prepare_ib_params(
         hyperparams[new] = hyperparams.pop(old)
 
     out_dict.update(hyperparams)
-
 
     return out_dict
 

@@ -6,17 +6,16 @@ from abc import abstractmethod, ABCMeta
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import Tuple, List, Callable, Optional, Union, Any, Dict, Iterable, Type
+from typing import Tuple, List, Callable, Optional, Union, Any, Dict, Iterable
 
 import datasets
 import numpy as np
 from datasets import BuilderConfig, Features
-from datasets.fingerprint import Hasher
 from datasets.config import MAX_DATASET_CONFIG_ID_READABLE_LENGTH
+from datasets.fingerprint import Hasher
 
 from ibformers.data.utils import ImageProcessor
 from instabase.ocr.client.libs.ibocr import IBOCRRecordLayout, IBOCRRecord
-
 
 BoundingBox = Tuple[float, float, float, float]
 Span = Tuple[int, int]
@@ -122,7 +121,7 @@ def get_image_processor(config):
             do_convert_to_detectron=False,
             size=config.image_size,
             keep_aspect_ratio=True,
-            rescale=True,
+            rescale=False,
         )
 
 

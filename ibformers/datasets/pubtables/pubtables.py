@@ -243,7 +243,7 @@ class PubTables(datasets.GeneratorBasedBuilder):
         if self.config.use_image:
             # first dimension is defined as a number of pages in the document
             img_size = 224 if self.config.processing_mode == ImageProcessingModes.LAYOUTLM else 1000
-            dtype = "uint8" if self.config.processing_mode == ImageProcessingModes.LAYOUTLM else "float32"
+            dtype = "uint8"
             ds_features["images"] = datasets.Array4D(shape=(None, 3, img_size, img_size), dtype=dtype)
             ds_features["images_page_nums"] = datasets.Sequence(datasets.Value("int32"))
 
@@ -330,7 +330,9 @@ class PubTables(datasets.GeneratorBasedBuilder):
         for table in feature["tables"]:
             table["table_bboxes"] = [
                 self._scale_bbox(box, 1000 / feature["page_bboxes"][page_index][2])
-                for box, page_index in zip(table["table_bboxes"], range(table["page_span"][0], table["page_span"][1]))
+                for box, page_index in zip(
+                    table["table_bboxes"], range(table["start_page_index"], table["end_page_index"])
+                )
             ]
             for structure_name in ["cells", "rows", "columns"]:
                 for structure in table[structure_name]:

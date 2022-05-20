@@ -64,6 +64,7 @@ def prepare_image_and_table_data(example: Dict, **kwargs):
                 "table_page_no": page_no,
                 "structure_image_bbox": table_subimage_bbox,
                 "page_margins": margin,
+                "images": example["images"][record_table_page_no][None],
                 **detection_labels,
                 **structure_labels,
             }
@@ -80,6 +81,7 @@ def is_table_in_page(table, page_no):
 
 
 def get_empty_table_anno(example, page_no):
+    record_table_page_no = example["images_page_nums"].index(page_no)
     return {
         **example,
         "table_page_bbox": example["page_bboxes"][page_no],
@@ -93,6 +95,7 @@ def get_empty_table_anno(example, page_no):
         "structure_labels": np.empty((0,), dtype=np.int64),
         "bbox_shift_vector": [0, 0, 0, 0],
         "table_label_ids": np.empty((0,), dtype=np.int64),
+        "images": example["images"][record_table_page_no][None],
     }
 
 

@@ -2,6 +2,12 @@
 
 All notable changes to this repository will be documented in this file.
 
+# Unreleased 
+
+### Fixed
+- Fixed memory issue caused by improper image handling in table data preprocessing
+
+
 # 1.1.1 - 2022-05-12
 ### Fixed
 - Set default writer_batch_size to 4 to avoid OOMs
