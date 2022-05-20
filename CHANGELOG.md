@@ -2,13 +2,11 @@
 
 All notable changes to this repository will be documented in this file.
 
-# Unreleased 
-
+# 1.2.0 - 2022-05-20
 ### Added
 - Added data augmentation for split classifier, with a new pipeline
 
 ### Fixed
-
 - Fixed memory issue caused by improper image handling in table data preprocessing
 - Fixed incorrect calculation of exact match metric for document without annotated fields
 
